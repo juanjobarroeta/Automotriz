@@ -1,0 +1,172 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { apiFetch } from '../config/api'
+
+const mxn = (n) =>
+  n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
+
+const COSTO_TIPOS = ['ACONDICIONAMIENTO', 'TRASLADO', 'ACCESORIOS', 'INTERES_PISO', 'OTRO']
+
+export default function VehiculoDetalle() {
+  const { id } = useParams()
+  const [v, setV] = useState(null)
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [advertencias, setAdvertencias] = useState([])
+
+  const cargar = useCallback(async () => {
+    setError(null)
+    try {
+      setV(await apiFetch(`/api/automotriz/vehiculos/${id}`))
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [id])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const recibir = async () => {
+    setBusy(true); setError(null)
+    try { await apiFetch(`/api/automotriz/vehiculos/${id}/recibir`, { method: 'POST', body: {} }); await cargar() }
+    catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  const vender = async () => {
+    const precio = window.prompt('Precio de venta (sin IVA):', v?.precioLista ?? '')
+    if (!precio) return
+    setBusy(true); setError(null)
+    try {
+      const r = await apiFetch(`/api/automotriz/vehiculos/${id}/vender`, {
+        method: 'POST',
+        body: { precioVenta: Number(precio) },
+      })
+      setAdvertencias(r.advertencias ?? [])
+      await cargar()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  const [costoForm, setCostoForm] = useState({ tipo: 'ACONDICIONAMIENTO', concepto: '', monto: '' })
+  const agregarCosto = async (e) => {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await apiFetch(`/api/automotriz/vehiculos/${id}/costos`, {
+        method: 'POST',
+        body: {
+          tipo: costoForm.tipo,
+          concepto: costoForm.concepto || costoForm.tipo,
+          monto: Number(costoForm.monto),
+        },
+      })
+      setCostoForm({ tipo: 'ACONDICIONAMIENTO', concepto: '', monto: '' })
+      await cargar()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  if (!v) return <div>{error ? <div className="error">{error}</div> : <p className="muted">Cargando…</p>}</div>
+
+  const puedeRecibir = v.estado === 'EN_TRANSITO'
+  const puedeVender = v.estado === 'DISPONIBLE' || v.estado === 'APARTADO'
+  const puedeCostos = !['VENDIDO', 'ENTREGADO', 'CANCELADO'].includes(v.estado)
+
+  return (
+    <div>
+      <p><Link to="/">← Inventario</Link></p>
+      <header className="page-head">
+        <h1>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</h1>
+        <span className={`badge badge-${v.estado}`}>{v.estado.replaceAll('_', ' ')}</span>
+      </header>
+      <p className="muted">VIN {v.vin} · {v.tipo} {v.color ? `· ${v.color}` : ''}</p>
+
+      {error && <div className="error">{error}</div>}
+      {advertencias.map((a, i) => <div className="warn" key={i}>⚠️ {a}</div>)}
+
+      <div className="cards">
+        <section className="card">
+          <h2>Compra</h2>
+          <dl>
+            <dt>Costo (sin IVA)</dt><dd>{mxn(v.costoCompra)}</dd>
+            <dt>Fecha</dt><dd>{fecha(v.fechaCompra)}</dd>
+            <dt>Proveedor</dt><dd>{v.supplier?.razonSocial ?? '—'}</dd>
+            <dt>CFDI compra</dt><dd>{v.compraInvoice?.uuid ?? '—'}</dd>
+            <dt>Plan piso</dt>
+            <dd>{v.planPisoTasaAnual != null ? `${(v.planPisoTasaAnual * 100).toFixed(2)}% anual desde ${fecha(v.planPisoInicio)}` : '—'}</dd>
+          </dl>
+          {puedeRecibir && (
+            <button onClick={recibir} disabled={busy}>Recibir unidad (postea inventario)</button>
+          )}
+        </section>
+
+        <section className="card">
+          <h2>Venta</h2>
+          <dl>
+            <dt>Precio lista</dt><dd>{mxn(v.precioLista)}</dd>
+            <dt>Precio venta (sin IVA)</dt><dd>{mxn(v.precioVenta)}</dd>
+            <dt>ISAN</dt><dd>{mxn(v.isan)}</dd>
+            <dt>Fecha</dt><dd>{fecha(v.fechaVenta)}</dd>
+            <dt>Cliente</dt><dd>{v.cliente?.razonSocial ?? '—'}</dd>
+            <dt>Vendedor</dt><dd>{v.vendedor ? `${v.vendedor.nombre} ${v.vendedor.apellidoPaterno}` : '—'}</dd>
+            <dt>Comisión</dt><dd>{mxn(v.comisionMonto)}</dd>
+            <dt>CFDI venta</dt><dd>{v.ventaInvoice?.uuid ?? '—'}</dd>
+          </dl>
+          {puedeVender && (
+            <button onClick={vender} disabled={busy}>Vender (ISAN + IVA + pólizas)</button>
+          )}
+        </section>
+
+        <section className="card">
+          <h2>Rentabilidad por VIN</h2>
+          {v.rentabilidad ? (
+            <dl>
+              <dt>Precio venta</dt><dd>{mxn(v.rentabilidad.precioVenta)}</dd>
+              <dt>− Costo compra</dt><dd>{mxn(v.rentabilidad.costoCompra)}</dd>
+              <dt>− Costos adicionales</dt><dd>{mxn(v.rentabilidad.costosAdicionales)}</dd>
+              <dt className="muted">   (de los cuales interés piso)</dt><dd className="muted">{mxn(v.rentabilidad.interesPiso)}</dd>
+              <dt>− Comisión</dt><dd>{mxn(v.rentabilidad.comision)}</dd>
+              <dt><strong>Utilidad</strong></dt>
+              <dd><strong className={v.rentabilidad.utilidad >= 0 ? 'pos' : 'neg'}>{mxn(v.rentabilidad.utilidad)}</strong></dd>
+            </dl>
+          ) : (
+            <p className="muted">Se calcula al vender. Costos acumulados: {mxn(v.costosTotal)} (interés piso: {mxn(v.interesPiso)}).</p>
+          )}
+        </section>
+      </div>
+
+      <section className="card">
+        <h2>Costos de la unidad</h2>
+        {v.costos.length === 0 ? (
+          <p className="muted">Sin costos registrados.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th className="num">Monto</th></tr>
+            </thead>
+            <tbody>
+              {v.costos.map((c) => (
+                <tr key={c.id}>
+                  <td>{fecha(c.fecha)}</td>
+                  <td>{c.tipo.replaceAll('_', ' ')}</td>
+                  <td>{c.concepto}</td>
+                  <td className="num">{mxn(c.monto)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {puedeCostos && (
+          <form className="inline-form" onSubmit={agregarCosto}>
+            <select value={costoForm.tipo} onChange={(e) => setCostoForm((f) => ({ ...f, tipo: e.target.value }))}>
+              {COSTO_TIPOS.map((t) => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}
+            </select>
+            <input placeholder="Concepto" value={costoForm.concepto}
+              onChange={(e) => setCostoForm((f) => ({ ...f, concepto: e.target.value }))} />
+            <input type="number" step="0.01" min="0.01" placeholder="Monto sin IVA" required value={costoForm.monto}
+              onChange={(e) => setCostoForm((f) => ({ ...f, monto: e.target.value }))} />
+            <button type="submit" disabled={busy}>Agregar costo</button>
+          </form>
+        )}
+      </section>
+    </div>
+  )
+}
