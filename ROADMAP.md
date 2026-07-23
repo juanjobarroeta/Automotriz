@@ -226,8 +226,10 @@ unidad. El apartado postea anticipo de cliente (cuenta 2103, ya existe).
 
 ## 7. Decisiones abiertas
 
-- Valores ISAN por ejercicio: confirmar contra Anexo 15 RMF / DOF antes de
-  activar timbrado con ISAN (mismo mecanismo de actualización que INPC).
+- Valores ISAN 2026: ✅ cotejados contra el Anexo 15 RMF 2026 (DOF 28-dic-2025)
+  — tarifa Art. 3-I, exenciones Art. 8-II y reducción del 7% para gama alta
+  (> $1,060,189.93) capturados y `verificada: true`. Ejercicios siguientes:
+  agregar la tabla del Anexo 15 vía PR (mismo mecanismo que el INPC).
 - Refacciones: ¿costo promedio o PEPS? (SAT acepta ambos; promedio es más
   simple con entradas por CFDI).
 - Toma a cuenta de seminuevos: tratamiento de la permuta en CFDI (dos
