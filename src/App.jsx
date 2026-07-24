@@ -4,6 +4,8 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Inventario from './pages/Inventario'
+import Contactos from './pages/Contactos'
+import ContactoPerfil from './pages/ContactoPerfil'
 import VehiculoDetalle from './pages/VehiculoDetalle'
 
 function RequireAuth({ children }) {
@@ -29,6 +31,8 @@ export default function App() {
           >
             <Route path="/" element={<Inventario />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
+            <Route path="/contactos" element={<Contactos />} />
+            <Route path="/contactos/:id" element={<ContactoPerfil />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

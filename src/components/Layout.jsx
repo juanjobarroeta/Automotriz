@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 // Sólo páginas realmente construidas (patrón `ported: true` de la guía).
 const NAV = [
   { to: '/', label: 'Inventario', ported: true },
+  { to: '/contactos', label: 'Clientes y proveedores', ported: true },
   { to: '/pedidos', label: 'Pedidos', ported: false },
   { to: '/crm', label: 'CRM', ported: false },
   { to: '/refacciones', label: 'Refacciones', ported: false },

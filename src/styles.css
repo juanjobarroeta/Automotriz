@@ -116,3 +116,5 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .check input { width: auto; margin-top: 0.2rem; }
 .wizard dl { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; margin: 0; }
 .wizard dd { margin: 0; }
+
+.kpi { font-size: 1.4rem; font-weight: 700; margin: 0.25rem 0; }
