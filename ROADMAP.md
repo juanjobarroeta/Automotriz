@@ -167,6 +167,31 @@ out al hub para contabilidad profunda (pólizas, cierre, declaraciones).
 | Alertas | Pendientes | hallazgos + pendientes | Todo lo accionable en una lista (única con badge en nav) |
 | Config | Empresa/credenciales/usuarios | configuracion | + link out al hub |
 
+
+**Operación — detalle de pantallas (taller y refacciones):**
+
+- **Pedidos (unidades):** pipeline apartado → enganche/anticipo → prefactura →
+  factura → entrega; toma a cuenta de seminuevo dentro del pedido.
+- **Servicio / Taller:**
+  - *Citas y recepción* — agenda, check-in con inventario del vehículo
+    (fotos/firma), km, quejas del cliente.
+  - *Órdenes de servicio* — el corazón: tablero por estado (recibido → en
+    proceso → espera de refacciones → listo → entregado), partidas de mano de
+    obra (tabulador por operación) + refacciones (salida del kardex),
+    autorización de adicionales (portal/WhatsApp), cierre → factura.
+  - *Tablero de técnicos* — asignación y carga de trabajo.
+  - *Destajo de técnicos* — tabulador por operación, horas facturadas vs
+    pagadas, **raya semanal → nómina**. Reusar el patrón Cuadrilla/RayaSemanal
+    del módulo construcción del hub (destajo semanal probado en producción).
+  - *Garantías* — reclamos a planta (fase posterior).
+- **Refacciones:**
+  - *Inventario* — kardex por SKU (NoIdentificacion del CFDI), existencias,
+    mín/máx, valuación a costo promedio.
+  - *Entradas* — automáticas desde CFDIs de proveedor (mismo derivador que
+    unidades); *Salidas* — venta de mostrador (factura) o a orden de servicio.
+  - *QR e inventario físico* — etiquetas y conteo desde el celular.
+  - *Pedidos a proveedor* — backorders y sugerido por mín/máx.
+
 Reglas: todo número drillea a su fuente (saldo → facturas → XML); roles vía
 `allowedModules` (vendedor = Operación+Comercial); cada vista de Finanzas
 requiere su endpoint del hub bearer-aware + matcher CORS (patrón mecánico ya
