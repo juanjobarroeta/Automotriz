@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 // Navegación global del handoff «Nórdico» (README §Global Navigation).
 // ported:false = pantalla aún no construida (patrón de la guía de satélites).
 const NAV = [
-  { to: '/panel', label: 'Panel', ported: false },
+  { to: '/panel', label: 'Panel', ported: true },
   { to: '/', label: 'Inventario', ported: true },
   { to: '/ventas', label: 'Ventas y CRM', ported: false },
   { to: '/servicio', label: 'Servicio', ported: false },
