@@ -146,6 +146,32 @@ unidad. El apartado postea anticipo de cliente (cuenta 2103, ya existe).
 
 ---
 
+
+### 4.5 Arquitectura de información del satélite (cómo se surfacea la contabilidad)
+
+Principio: **agrupar por el trabajo del distribuidor, no por concepto contable.**
+Tres niveles: (1) pantallas nativas del vertical; (2) vistas financieras
+recreadas sobre APIs del hub (sólo lectura, en lenguaje de agencia); (3) link
+out al hub para contabilidad profunda (pólizas, cierre, declaraciones).
+
+| Grupo | Pantalla | Fuente (hub) | Pregunta que responde |
+|---|---|---|---|
+| Inicio | Dashboard | dashboard + rentabilidad | ¿Cómo va el mes? ventas, utilidad/unidad, aging, IVA/ISR estimado |
+| Operación | Inventario · Pedidos · Servicio · Refacciones · CRM | nativo | — |
+| Comercial | Clientes y proveedores · Portal de clientes | clientes + perfiles + portal-accounts | ¿Quién me debe / a quién le debo / quién tiene portal? |
+| Finanzas | Por cobrar / Por pagar | perfiles agregados | Saldos + REP pendientes por antigüedad |
+| Finanzas | Facturación | facturas + FacturaBorrador | Prefactura/factura de unidad; emitidas/recibidas |
+| Finanzas | Bancos | bancos | ¿Qué falta por conciliar? |
+| Finanzas | Impuestos del mes | impuestos + declaraciones + cumplimiento | Posición fiscal + vencimientos + checklist |
+| Finanzas | Nómina y comisiones | nomina | Quincena + comisiones por liquidar |
+| Alertas | Pendientes | hallazgos + pendientes | Todo lo accionable en una lista (única con badge en nav) |
+| Config | Empresa/credenciales/usuarios | configuracion | + link out al hub |
+
+Reglas: todo número drillea a su fuente (saldo → facturas → XML); roles vía
+`allowedModules` (vendedor = Operación+Comercial); cada vista de Finanzas
+requiere su endpoint del hub bearer-aware + matcher CORS (patrón mecánico ya
+repetido). Secuencia: Dashboard → Por cobrar/pagar → Impuestos → Alertas.
+
 ## 5. Fases de ejecución
 
 > Regla: cada fase entrega un flujo completo usable en producción, con script
