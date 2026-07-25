@@ -9,7 +9,7 @@ const NAV = [
   { to: '/ventas', label: 'Ventas y CRM', ported: false },
   { to: '/servicio', label: 'Servicio', ported: false },
   { to: '/refacciones', label: 'Refacciones', ported: false },
-  { to: '/contabilidad', label: 'Contabilidad', ported: false },
+  { to: '/cartera', label: 'Contabilidad', ported: true },
   { to: '/fiscal', label: 'Fiscal · SAT', ported: false },
   { to: '/contactos', label: 'Contactos', ported: true },
 ]

@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Panel from './pages/Panel'
+import Cartera from './pages/Cartera'
 import Inventario from './pages/Inventario'
 import Contactos from './pages/Contactos'
 import ContactoPerfil from './pages/ContactoPerfil'
@@ -32,6 +33,7 @@ export default function App() {
           >
             <Route path="/" element={<Inventario />} />
             <Route path="/panel" element={<Panel />} />
+            <Route path="/cartera" element={<Cartera />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
             <Route path="/contactos" element={<Contactos />} />
             <Route path="/contactos/:id" element={<ContactoPerfil />} />
