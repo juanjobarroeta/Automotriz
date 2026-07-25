@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { BrandLockup } from '../components/Layout'
 import { apiFetch } from '../config/api'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,7 +172,7 @@ export default function Onboarding() {
   return (
     <div className="login-wrap">
       <div className="wizard">
-        <h1>Automotriz</h1>
+        <BrandLockup tagline />
         <p className="muted">Alta de tu agencia — {PASOS.length} pasos</p>
         <ol className="pasos">
           {PASOS.map((p, i) => (

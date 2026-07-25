@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { BrandLockup } from '../components/Layout'
 
 export default function Login() {
   const { login } = useAuth()
@@ -32,8 +33,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
-        <h1>Automotriz</h1>
-        <p className="muted">DMS sobre ContabilidadOS</p>
+        <BrandLockup tagline />
         <label>
           Correo
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
