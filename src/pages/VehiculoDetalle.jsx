@@ -67,6 +67,18 @@ export default function VehiculoDetalle() {
   if (!v) return <div>{error ? <div className="error">{error}</div> : <p className="muted">Cargando…</p>}</div>
 
   const puedeRecibir = v.estado === 'EN_TRANSITO'
+  const puedeApartar = v.estado === 'DISPONIBLE'
+  const puedeDesapartar = v.estado === 'APARTADO'
+  const marcarUso = async (uso) => {
+    setBusy(true); setError(null)
+    try { await apiFetch(`/api/automotriz/vehiculos/${id}`, { method: 'PATCH', body: { uso } }); await cargar() }
+    catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+  const transicion = async (accion) => {
+    setBusy(true); setError(null)
+    try { await apiFetch(`/api/automotriz/vehiculos/${id}/${accion}`, { method: 'POST', body: {} }); await cargar() }
+    catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
   const puedeVender = v.estado === 'DISPONIBLE' || v.estado === 'APARTADO'
   const puedeCostos = !['VENDIDO', 'ENTREGADO', 'CANCELADO'].includes(v.estado)
 
@@ -110,9 +122,18 @@ export default function VehiculoDetalle() {
             <dt>Comisión</dt><dd>{mxn(v.comisionMonto)}</dd>
             <dt>CFDI venta</dt><dd>{v.ventaInvoice?.uuid ?? '—'}</dd>
           </dl>
-          {puedeVender && (
-            <button onClick={vender} disabled={busy}>Vender (ISAN + IVA + pólizas)</button>
-          )}
+          <div className="acciones" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+            {puedeApartar && <button className="ghost" onClick={() => transicion('apartar')} disabled={busy}>Apartar</button>}
+            {puedeDesapartar && <button className="ghost" onClick={() => transicion('desapartar')} disabled={busy}>Des-apartar</button>}
+            {puedeVender && <button className="success" onClick={vender} disabled={busy}>Vender (ISAN + IVA + pólizas)</button>}
+            {!['VENDIDO', 'ENTREGADO', 'CANCELADO'].includes(v.estado) && (
+              <select value={v.uso ?? 'VENTA'} onChange={(e) => marcarUso(e.target.value)} style={{ width: 'auto' }} disabled={busy}>
+                <option value="VENTA">Uso: venta</option>
+                <option value="DEMO">Uso: demo</option>
+                <option value="CORTESIA">Uso: cortesía</option>
+              </select>
+            )}
+          </div>
         </section>
 
         <section className="card">

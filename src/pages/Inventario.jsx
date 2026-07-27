@@ -12,6 +12,7 @@ export default function Inventario() {
   const { activeCompany } = useAuth()
   const [items, setItems] = useState([])
   const [estado, setEstado] = useState('')
+  const [soloUso, setSoloUso] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAlta, setShowAlta] = useState(false)
@@ -44,6 +45,12 @@ export default function Inventario() {
               <option key={e} value={e}>{e ? e.replaceAll('_', ' ') : 'Todos los estados'}</option>
             ))}
           </select>
+          <select value={soloUso} onChange={(e) => setSoloUso(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Todos los usos</option>
+            <option value="VENTA">Venta</option>
+            <option value="DEMO">Demo</option>
+            <option value="CORTESIA">Cortesía</option>
+          </select>
           <button onClick={() => setShowAlta(true)}>+ Alta de unidad</button>
         </div>
       </header>
@@ -63,11 +70,11 @@ export default function Inventario() {
             </tr>
           </thead>
           <tbody>
-            {items.map((v) => (
+            {items.filter((v) => !soloUso || v.uso === soloUso).map((v) => (
               <tr key={v.id}>
                 <td><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
                 <td>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</td>
-                <td>{v.tipo}</td>
+                <td>{v.tipo}{v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{v.uso}</span></> : null}</td>
                 <td><span className={`badge badge-${v.estado}`}>{v.estado.replaceAll('_', ' ')}</span></td>
                 <td className="num">{mxn(v.costoCompra)}</td>
                 <td className="num">{mxn(v.costosTotal)}</td>
