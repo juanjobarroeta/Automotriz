@@ -8,6 +8,7 @@ import Cartera from './pages/Cartera'
 import Inventario from './pages/Inventario'
 import Contactos from './pages/Contactos'
 import Fiscal from './pages/Fiscal'
+import Alertas from './pages/Alertas'
 import ContactoPerfil from './pages/ContactoPerfil'
 import VehiculoDetalle from './pages/VehiculoDetalle'
 
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/panel" element={<Panel />} />
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/fiscal" element={<Fiscal />} />
+            <Route path="/alertas" element={<Alertas />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
             <Route path="/clientes" element={<Contactos lado="CLIENTES" />} />
             <Route path="/proveedores" element={<Contactos lado="PROVEEDORES" />} />
