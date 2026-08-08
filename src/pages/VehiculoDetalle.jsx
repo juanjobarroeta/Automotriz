@@ -108,7 +108,7 @@ export default function VehiculoDetalle() {
         <h1>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</h1>
         <span className={`badge badge-${v.estado}`}>{v.estado.replaceAll('_', ' ')}</span>
       </header>
-      <p className="muted">VIN {v.vin} · {v.tipo} {v.color ? `· ${v.color}` : ''}</p>
+      <p className="muted">VIN {v.vin} {v.numeroMotor ? `· Motor ${v.numeroMotor}` : ''} · {v.tipo} {v.color ? `· ${v.color}` : ''}</p>
 
       {error && <div className="error">{error}</div>}
       {advertencias.map((a, i) => <div className="warn" key={i}>⚠️ {a}</div>)}
