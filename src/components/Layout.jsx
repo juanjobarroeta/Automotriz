@@ -10,7 +10,7 @@ const NAV = [
   { to: '/servicio', label: 'Servicio', ported: false },
   { to: '/refacciones', label: 'Refacciones', ported: false },
   { to: '/cartera', label: 'Contabilidad', ported: true },
-  { to: '/fiscal', label: 'Fiscal · SAT', ported: false },
+  { to: '/fiscal', label: 'Impuestos', ported: true },
   { to: '/contactos', label: 'Contactos', ported: true },
 ]
 
