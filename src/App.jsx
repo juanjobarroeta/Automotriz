@@ -10,6 +10,7 @@ import Contactos from './pages/Contactos'
 import Fiscal from './pages/Fiscal'
 import Alertas from './pages/Alertas'
 import Portal from './pages/Portal'
+import Rentabilidad from './pages/Rentabilidad'
 import ContactoPerfil from './pages/ContactoPerfil'
 import VehiculoDetalle from './pages/VehiculoDetalle'
 
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/fiscal" element={<Fiscal />} />
             <Route path="/alertas" element={<Alertas />} />
+            <Route path="/rentabilidad" element={<Rentabilidad />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
             <Route path="/clientes" element={<Contactos lado="CLIENTES" />} />
             <Route path="/proveedores" element={<Contactos lado="PROVEEDORES" />} />
