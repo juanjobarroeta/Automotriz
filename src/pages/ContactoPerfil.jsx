@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../config/api'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
@@ -10,7 +10,8 @@ const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 // facturó, pagos y REPs que ÉL nos debe — riesgo de deducción).
 export default function ContactoPerfil() {
   const { id } = useParams()
-  const [lado, setLado] = useState('CLIENTE')
+  const [sp] = useSearchParams()
+  const [lado, setLado] = useState(sp.get('lado') === 'PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE')
   const [perfil, setPerfil] = useState(null)
   const [error, setError] = useState(null)
 
