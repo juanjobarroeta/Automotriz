@@ -117,7 +117,7 @@ export default function VehiculoDetalle() {
             <dt>Precio venta (sin IVA)</dt><dd>{mxn(v.precioVenta)}</dd>
             <dt>ISAN</dt><dd>{mxn(v.isan)}</dd>
             <dt>Fecha</dt><dd>{fecha(v.fechaVenta)}</dd>
-            <dt>Cliente</dt><dd>{v.cliente?.razonSocial ?? '—'}</dd>
+            <dt>Cliente</dt><dd>{v.cliente?.razonSocial ?? (v.ventaInvoiceId ? 'Público en general' : '—')}</dd>
             <dt>Vendedor</dt><dd>{v.vendedor ? `${v.vendedor.nombre} ${v.vendedor.apellidoPaterno}` : '—'}</dd>
             <dt>Comisión</dt><dd>{mxn(v.comisionMonto)}</dd>
             <dt>CFDI venta</dt><dd>{v.ventaInvoice?.uuid ?? '—'}</dd>

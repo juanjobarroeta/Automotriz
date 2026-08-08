@@ -79,7 +79,7 @@ export default function Inventario() {
                 <td className="num">{mxn(v.costoCompra)}</td>
                 <td className="num">{mxn(v.costosTotal)}</td>
                 <td className="num">{mxn(v.precioVenta)}</td>
-                <td>{v.cliente?.razonSocial ?? '—'}</td>
+                <td>{v.cliente?.razonSocial ?? (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
               </tr>
             ))}
           </tbody>
