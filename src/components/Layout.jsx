@@ -15,6 +15,7 @@ const NAV = [
   { to: '/alertas', label: 'Alertas', ported: true },
   { to: '/clientes', label: 'Clientes', ported: true },
   { to: '/proveedores', label: 'Proveedores', ported: true },
+  { to: '/configuracion', label: 'Configuración', ported: true },
 ]
 
 export function BrandLockup({ tagline = false }) {
