@@ -15,6 +15,29 @@ export const api = (endpoint) => {
   return `${API_URL}${clean}`
 }
 
+// Descarga autenticada (el endpoint exige bearer, así que no sirve un <a href>):
+// baja el archivo como blob y dispara el guardado con el nombre dado.
+export async function apiDownload(path, filename) {
+  const headers = {}
+  const token = tokenStorage.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(api(path), { headers })
+  if (!res.ok) {
+    let msg = `Descarga falló: ${res.status}`
+    try { msg = (await res.json()).error ?? msg } catch { /* cuerpo no-JSON */ }
+    throw new Error(msg)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export async function apiFetch(path, opts = {}) {
   const { method = 'GET', body, headers = {}, skipAuth = false } = opts
   const finalHeaders = { Accept: 'application/json', ...headers }

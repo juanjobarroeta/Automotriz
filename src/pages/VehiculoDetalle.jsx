@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { apiFetch } from '../config/api'
+import { apiDownload, apiFetch } from '../config/api'
 
 const mxn = (n) =>
   n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
@@ -82,6 +82,25 @@ export default function VehiculoDetalle() {
   const puedeVender = v.estado === 'DISPONIBLE' || v.estado === 'APARTADO'
   const puedeCostos = !['VENDIDO', 'ENTREGADO', 'CANCELADO'].includes(v.estado)
 
+  // Descarga del CFDI ligado: XML siempre que el sync lo guardó; PDF sólo si la
+  // factura se emitió en la app (los CFDIs del SAT no traen representación impresa).
+  const descargarCfdi = async (inv, format) => {
+    if (!inv) return
+    setError(null)
+    const nombre = `${[inv.serie, inv.folio].filter(Boolean).join('-') || inv.uuid || inv.id}.${format}`
+    try { await apiDownload(`/api/facturas/${inv.id}/download?format=${format}`, nombre) }
+    catch (err) { setError(err.message) }
+  }
+  const CfdiLinks = ({ inv }) => inv ? (
+    <>
+      <span className="mono" style={{ fontSize: 11 }}>{inv.uuid ? `${inv.uuid.slice(0, 8)}…` : inv.id}</span>{' '}
+      <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(inv, 'xml')}>XML</button>
+      {inv.facturapiId && (
+        <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(inv, 'pdf')}>PDF</button>
+      )}
+    </>
+  ) : '—'
+
   return (
     <div>
       <p><Link to="/">← Inventario</Link></p>
@@ -101,7 +120,7 @@ export default function VehiculoDetalle() {
             <dt>Costo (sin IVA)</dt><dd>{mxn(v.costoCompra)}</dd>
             <dt>Fecha</dt><dd>{fecha(v.fechaCompra)}</dd>
             <dt>Proveedor</dt><dd>{v.supplier?.razonSocial ?? '—'}</dd>
-            <dt>CFDI compra</dt><dd>{v.compraInvoice?.uuid ?? '—'}</dd>
+            <dt>CFDI compra</dt><dd><CfdiLinks inv={v.compraInvoice} /></dd>
             <dt>Plan piso</dt>
             <dd>{v.planPisoTasaAnual != null ? `${(v.planPisoTasaAnual * 100).toFixed(2)}% anual desde ${fecha(v.planPisoInicio)}` : '—'}</dd>
           </dl>
@@ -120,7 +139,7 @@ export default function VehiculoDetalle() {
             <dt>Cliente</dt><dd>{v.cliente?.razonSocial ?? (v.ventaInvoiceId ? 'Público en general' : '—')}</dd>
             <dt>Vendedor</dt><dd>{v.vendedor ? `${v.vendedor.nombre} ${v.vendedor.apellidoPaterno}` : '—'}</dd>
             <dt>Comisión</dt><dd>{mxn(v.comisionMonto)}</dd>
-            <dt>CFDI venta</dt><dd>{v.ventaInvoice?.uuid ?? '—'}</dd>
+            <dt>CFDI venta</dt><dd><CfdiLinks inv={v.ventaInvoice} /></dd>
           </dl>
           <div className="acciones" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
             {puedeApartar && <button className="ghost" onClick={() => transicion('apartar')} disabled={busy}>Apartar</button>}
