@@ -15,6 +15,54 @@ export const api = (endpoint) => {
   return `${API_URL}${clean}`
 }
 
+// ── Portal de clientes ───────────────────────────────────────────────────────
+// Sesión SEPARADA de la de la agencia: otro token (audiencia automotriz:portal)
+// y sin el redirect a /login del apiFetch de la app.
+const PORTAL_TOKEN_KEY = 'automotriz.portal.token'
+export const portalTokenStorage = {
+  get:   () => { try { return localStorage.getItem(PORTAL_TOKEN_KEY) } catch { return null } },
+  set:   (t) => { try { localStorage.setItem(PORTAL_TOKEN_KEY, t) } catch {} },
+  clear: ()  => { try { localStorage.removeItem(PORTAL_TOKEN_KEY) } catch {} },
+}
+
+export async function portalFetch(path, opts = {}) {
+  const { method = 'GET', body } = opts
+  const headers = { Accept: 'application/json' }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const token = portalTokenStorage.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(api(path), {
+    method, headers, body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  let data = null
+  const text = await res.text()
+  if (text) { try { data = JSON.parse(text) } catch { data = text } }
+  if (!res.ok) {
+    if (res.status === 401) portalTokenStorage.clear()
+    const err = new Error((data && data.error && (typeof data.error === 'string' ? data.error : JSON.stringify(data.error))) || `Request failed: ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return data
+}
+
+export async function portalDownload(path, filename) {
+  const headers = {}
+  const token = portalTokenStorage.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(api(path), { headers })
+  if (!res.ok) throw new Error(`Descarga falló: ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // Descarga autenticada (el endpoint exige bearer, así que no sirve un <a href>):
 // baja el archivo como blob y dispara el guardado con el nombre dado.
 export async function apiDownload(path, filename) {

@@ -15,6 +15,22 @@ export default function ContactoPerfil() {
   const [perfil, setPerfil] = useState(null)
   const [error, setError] = useState(null)
 
+  const [portalMsg, setPortalMsg] = useState(null)
+  const crearPortal = async () => {
+    const email = window.prompt('Correo del cliente para su portal:', perfil?.contacto?.email ?? '')
+    if (!email) return
+    const password = window.prompt('Contraseña inicial (mínimo 8 caracteres):')
+    if (!password) return
+    setPortalMsg(null); setError(null)
+    try {
+      const r = await apiFetch('/api/automotriz/portal-accounts', {
+        method: 'POST',
+        body: { customerId: id, email, password },
+      })
+      setPortalMsg(`Acceso al portal listo para ${r.email} — compárteles la liga ${window.location.origin}/portal`)
+    } catch (err) { setError(err.message) }
+  }
+
   const cargar = useCallback(async () => {
     setError(null); setPerfil(null)
     const ruta = lado === 'CLIENTE' ? 'clientes' : 'proveedores'
@@ -36,8 +52,10 @@ export default function ContactoPerfil() {
             <div className="head-actions">
               <button className={lado === 'CLIENTE' ? '' : 'ghost'} onClick={() => setLado('CLIENTE')}>Como cliente</button>
               <button className={lado === 'PROVEEDOR' ? '' : 'ghost'} onClick={() => setLado('PROVEEDOR')}>Como proveedor</button>
+              {lado === 'CLIENTE' && <button className="ghost" onClick={crearPortal}>Crear acceso al portal</button>}
             </div>
           </header>
+          {portalMsg && <div className="warn">✓ {portalMsg}</div>}
           <p className="muted">RFC {perfil.contacto.rfc}{perfil.contacto.email ? ` · ${perfil.contacto.email}` : ''}</p>
 
           <div className="cards">

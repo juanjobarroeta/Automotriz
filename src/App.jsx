@@ -9,6 +9,7 @@ import Inventario from './pages/Inventario'
 import Contactos from './pages/Contactos'
 import Fiscal from './pages/Fiscal'
 import Alertas from './pages/Alertas'
+import Portal from './pages/Portal'
 import ContactoPerfil from './pages/ContactoPerfil'
 import VehiculoDetalle from './pages/VehiculoDetalle'
 
@@ -26,6 +27,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/portal" element={<Portal />} />
           <Route
             element={
               <RequireAuth>
