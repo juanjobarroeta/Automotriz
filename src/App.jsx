@@ -37,7 +37,9 @@ export default function App() {
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/fiscal" element={<Fiscal />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
-            <Route path="/contactos" element={<Contactos />} />
+            <Route path="/clientes" element={<Contactos lado="CLIENTES" />} />
+            <Route path="/proveedores" element={<Contactos lado="PROVEEDORES" />} />
+            <Route path="/contactos" element={<Navigate to="/clientes" replace />} />
             <Route path="/contactos/:id" element={<ContactoPerfil />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

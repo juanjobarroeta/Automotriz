@@ -11,7 +11,8 @@ const NAV = [
   { to: '/refacciones', label: 'Refacciones', ported: false },
   { to: '/cartera', label: 'Contabilidad', ported: true },
   { to: '/fiscal', label: 'Impuestos', ported: true },
-  { to: '/contactos', label: 'Contactos', ported: true },
+  { to: '/clientes', label: 'Clientes', ported: true },
+  { to: '/proveedores', label: 'Proveedores', ported: true },
 ]
 
 export function BrandLockup({ tagline = false }) {

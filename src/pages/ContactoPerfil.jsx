@@ -27,7 +27,7 @@ export default function ContactoPerfil() {
 
   return (
     <div>
-      <p><Link to="/contactos">← Directorio</Link></p>
+      <p><Link to={lado === 'PROVEEDOR' ? '/proveedores' : '/clientes'}>← {lado === 'PROVEEDOR' ? 'Proveedores' : 'Clientes'}</Link></p>
       {error && <div className="error">{error}</div>}
       {perfil && (
         <>

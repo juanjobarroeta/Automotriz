@@ -5,16 +5,18 @@ import { apiFetch } from '../config/api'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 
-// Directorio de contactos (handoff 3e): chips Todos / Clientes / Proveedores.
-// La dirección se deriva de los CFDIs (INGRESO=cliente, EGRESO=proveedor —
-// un contacto puede ser ambos); ordenado por monto total de la relación.
-export default function Contactos() {
+// Directorio (handoff 3e) servido en dos páginas: Clientes y Proveedores.
+// La dirección se deriva de los CFDIs (INGRESO=cliente, EGRESO=proveedor); un
+// contacto puede ser ambos y aparece en las dos, con su columna del otro lado
+// como contexto. Ordenado por monto de la relación.
+export default function Contactos({ lado = 'CLIENTES' }) {
   const { activeCompany } = useAuth()
   const [items, setItems] = useState([])
   const [q, setQ] = useState('')
-  const [filtro, setFiltro] = useState('TODOS')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  const esClientes = lado === 'CLIENTES'
 
   const cargar = useCallback(async () => {
     if (!activeCompany?.id) return
@@ -28,43 +30,50 @@ export default function Contactos() {
   useEffect(() => { cargar() }, [cargar])
 
   const filtrados = items
-    .filter((c) => filtro === 'TODOS' || (filtro === 'CLIENTES' ? c.esCliente : c.esProveedor))
+    .filter((c) => (esClientes ? c.esCliente : c.esProveedor))
     .filter((c) => `${c.razonSocial} ${c.rfc}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (esClientes ? b.montoCliente - a.montoCliente : b.montoProveedor - a.montoProveedor))
 
-  const nCli = items.filter((c) => c.esCliente).length
-  const nProv = items.filter((c) => c.esProveedor).length
+  const perfilUrl = (c) => `/contactos/${c.id}${esClientes ? '' : '?lado=PROVEEDOR'}`
 
   return (
     <div>
       <header className="page-head">
-        <h1>Contactos</h1>
+        <h1>{esClientes ? 'Clientes' : 'Proveedores'}</h1>
         <input placeholder="Buscar por nombre o RFC…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 280 }} />
       </header>
-      <div className="head-actions" style={{ marginBottom: 14 }}>
-        <button className={filtro === 'TODOS' ? '' : 'ghost'} onClick={() => setFiltro('TODOS')}>Todos · {items.length}</button>
-        <button className={filtro === 'CLIENTES' ? '' : 'ghost'} onClick={() => setFiltro('CLIENTES')}>Clientes · {nCli}</button>
-        <button className={filtro === 'PROVEEDORES' ? '' : 'ghost'} onClick={() => setFiltro('PROVEEDORES')}>Proveedores · {nProv}</button>
-      </div>
       {error && <div className="error">{error}</div>}
       {loading ? <p className="muted">Cargando…</p> : (
         <table>
-          <thead><tr><th>Razón social</th><th>RFC</th><th>Relación</th><th className="num">Facturas</th><th className="num">Como cliente</th><th className="num">Como proveedor</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Razón social</th><th>RFC</th>
+              <th className="num">Facturas</th>
+              <th className="num">{esClientes ? 'Facturado' : 'Nos ha facturado'}</th>
+              <th>También es</th>
+            </tr>
+          </thead>
           <tbody>
             {filtrados.map((c) => (
               <tr key={c.id}>
-                <td><Link to={`/contactos/${c.id}`}>{c.razonSocial}</Link></td>
+                <td><Link to={perfilUrl(c)}>{c.razonSocial}</Link></td>
                 <td className="mono" style={{ fontSize: 11 }}>{c.rfc}</td>
+                <td className="num">{esClientes ? c.facturasCliente : c.facturasProveedor}</td>
+                <td className="num">{mxn(esClientes ? c.montoCliente : c.montoProveedor)}</td>
                 <td>
-                  {c.esCliente && <span className="badge badge-DISPONIBLE">Cliente</span>}{' '}
-                  {c.esProveedor && <span className="badge badge-APARTADO">Proveedor</span>}
-                  {!c.esCliente && !c.esProveedor && <span className="muted">—</span>}
+                  {esClientes && c.esProveedor && <Link to={`/contactos/${c.id}?lado=PROVEEDOR`}><span className="badge badge-APARTADO">Proveedor · {mxn(c.montoProveedor)}</span></Link>}
+                  {!esClientes && c.esCliente && <Link to={`/contactos/${c.id}`}><span className="badge badge-DISPONIBLE">Cliente · {mxn(c.montoCliente)}</span></Link>}
+                  {(esClientes ? !c.esProveedor : !c.esCliente) && <span className="muted">—</span>}
                 </td>
-                <td className="num">{c.facturasCliente + c.facturasProveedor}</td>
-                <td className="num">{c.esCliente ? mxn(c.montoCliente) : '—'}</td>
-                <td className="num">{c.esProveedor ? mxn(c.montoProveedor) : '—'}</td>
               </tr>
             ))}
-            {filtrados.length === 0 && <tr><td colSpan={6} className="muted">Sin contactos con este filtro.</td></tr>}
+            {filtrados.length === 0 && (
+              <tr><td colSpan={5} className="muted">
+                {q ? 'Sin resultados para la búsqueda.' : esClientes
+                  ? 'Aún no hay clientes derivados de los CFDIs.'
+                  : 'Aún no hay proveedores derivados de los CFDIs.'}
+              </td></tr>
+            )}
           </tbody>
         </table>
       )}
