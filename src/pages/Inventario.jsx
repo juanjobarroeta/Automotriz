@@ -14,6 +14,8 @@ export default function Inventario() {
   const [estado, setEstado] = useState('')
   const [soloUso, setSoloUso] = useState('')
   const [q, setQ] = useState('')
+  const [marca, setMarca] = useState('')
+  const [anio, setAnio] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAlta, setShowAlta] = useState(false)
@@ -58,10 +60,35 @@ export default function Inventario() {
             <option value="DEMO">Demo</option>
             <option value="CORTESIA">Cortesía</option>
           </select>
+          <select value={marca} onChange={(e) => setMarca(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Todas las marcas</option>
+            {[...new Set(items.map((v) => v.marca))].sort().map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={anio} onChange={(e) => setAnio(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Año</option>
+            {[...new Set(items.map((v) => v.anio))].sort((a, b) => b - a).map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
           <button onClick={() => setShowAlta(true)}>+ Alta de unidad</button>
         </div>
       </header>
 
+      {!loading && items.length > 0 && (() => {
+        const enPiso = items.filter((v) => (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO') && (v.uso ?? 'VENTA') === 'VENTA')
+        const vendidas = items.filter((v) => v.estado === 'VENDIDO' || v.estado === 'ENTREGADO')
+        const sinCosto = vendidas.filter((v) => !v.costoCompra)
+        const demos = items.filter((v) => v.uso && v.uso !== 'VENTA' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO')
+        return (
+          <div className="kpi-strip" style={{ marginBottom: 14 }}>
+            <div className="kpi-item"><span className="kpi-label">En piso</span><span className="kpi">{enPiso.length}</span><span className="muted">{mxn(enPiso.reduce((s, v) => s + v.costoCompra, 0))} en inventario</span></div>
+            <div className="kpi-item"><span className="kpi-label">Apartadas</span><span className="kpi">{items.filter((v) => v.estado === 'APARTADO').length}</span></div>
+            <div className="kpi-item"><span className="kpi-label">Vendidas</span><span className="kpi">{vendidas.length}</span></div>
+            <div className="kpi-item"><span className="kpi-label">Demos / cortesía</span><span className="kpi">{demos.length}</span></div>
+            {sinCosto.length > 0 && (
+              <div className="kpi-item"><span className="kpi-label">Sin costo (pre-2021)</span><span className="kpi neg">{sinCosto.length}</span><span className="muted">captúralos en el detalle</span></div>
+            )}
+          </div>
+        )
+      })()}
       {error && <div className="error">{error}</div>}
       {loading ? (
         <p className="muted">Cargando…</p>
@@ -79,6 +106,8 @@ export default function Inventario() {
           <tbody>
             {items
               .filter((v) => !soloUso || v.uso === soloUso)
+              .filter((v) => !marca || v.marca === marca)
+              .filter((v) => !anio || String(v.anio) === String(anio))
               .filter((v) => {
                 if (!q.trim()) return true
                 const texto = `${v.vin} ${v.marca} ${v.modelo} ${v.version ?? ''} ${v.anio} ${v.color ?? ''} ${v.numeroMotor ?? ''} ${v.numeroEconomico ?? ''} ${v.cliente?.razonSocial ?? ''} ${v.supplier?.razonSocial ?? ''}`.toLowerCase()
@@ -94,7 +123,7 @@ export default function Inventario() {
                 <td className="num">{mxn(v.costoCompra)}</td>
                 <td className="num">{mxn(v.costosTotal)}</td>
                 <td className="num">{mxn(v.precioVenta)}</td>
-                <td>{v.cliente?.razonSocial ?? (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
+                <td>{v.cliente ? <Link to={`/contactos/${v.cliente.id}`}>{v.cliente.razonSocial}</Link> : (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
               </tr>
               ))}
           </tbody>
