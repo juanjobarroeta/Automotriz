@@ -1,0 +1,115 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+import { apiFetch } from '../config/api'
+import CfdiVista from '../components/CfdiVista'
+
+const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
+const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+// Servicio/Taller (fase 5, lado lectura): la operación del taller reconstruida
+// desde CFDIs — venta por mes (mano de obra vs refacciones), ticket promedio,
+// top clientes y los que dejaron de venir. El workflow de órdenes (recepción →
+// técnico → factura) viene después; los datos ya trabajan desde hoy.
+export default function Servicio() {
+  const { activeCompany } = useAuth()
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [cfdiVista, setCfdiVista] = useState(null)
+
+  const cargar = useCallback(async () => {
+    if (!activeCompany?.id) return
+    setLoading(true); setError(null)
+    try { setData(await apiFetch(`/api/automotriz/servicio?companyId=${activeCompany.id}&year=${year}`)) }
+    catch (err) { setError(err.message) } finally { setLoading(false) }
+  }, [activeCompany?.id, year])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const anios = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i)
+
+  return (
+    <div>
+      {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
+      <header className="page-head">
+        <h1>Servicio</h1>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }}>
+          {anios.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </header>
+      {error && <div className="error">{error}</div>}
+      {loading ? <p className="muted">Reconstruyendo el taller desde los CFDIs…</p> : data && (
+        <>
+          <div className="cards">
+            <section className="card"><h2>Órdenes facturadas</h2><p className="kpi">{data.resumen.facturas.toLocaleString('es-MX')}</p><p className="muted">en {data.year}</p></section>
+            <section className="card"><h2>Venta de taller</h2><p className="kpi">{mxn(data.resumen.total)}</p><p className="muted">M.O. {mxn(data.resumen.manoObra)} · Refacciones {mxn(data.resumen.refacciones)}</p></section>
+            <section className="card"><h2>Ticket promedio</h2><p className="kpi">{mxn(data.resumen.ticketPromedio)}</p></section>
+          </div>
+
+          <div className="cards">
+            <section className="card">
+              <h2>Por mes</h2>
+              <table>
+                <thead><tr><th>Mes</th><th className="num">Órdenes</th><th className="num">Venta</th><th className="num">M.O.</th><th className="num">Refacc.</th></tr></thead>
+                <tbody>
+                  {data.porMes.map((m) => (
+                    <tr key={m.mes}><td>{MESES[m.mes - 1]}</td><td className="num">{m.facturas}</td><td className="num">{mxn(m.total)}</td><td className="num">{mxn(m.manoObra)}</td><td className="num">{mxn(m.refacciones)}</td></tr>
+                  ))}
+                  {data.porMes.length === 0 && <tr><td colSpan={5} className="muted">Sin servicio en {data.year} — corre el backfill de servicio.</td></tr>}
+                </tbody>
+              </table>
+            </section>
+            <section className="card">
+              <h2>Top clientes de taller ({data.year})</h2>
+              <table>
+                <thead><tr><th>Cliente</th><th className="num">Servicios</th><th className="num">Total</th></tr></thead>
+                <tbody>
+                  {data.topClientes.map((c) => (
+                    <tr key={c.clienteId}><td><Link to={`/contactos/${c.clienteId}`}>{c.razonSocial}</Link></td><td className="num">{c.servicios}</td><td className="num">{mxn(c.total)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+            <section className="card">
+              <h2>Dejaron de venir</h2>
+              {data.noRegresan.length === 0 ? <p className="muted">Nadie con ≥2 servicios lleva más de 6 meses sin venir.</p> : (
+                <table>
+                  <thead><tr><th>Cliente</th><th className="num">Servicios</th><th>Última visita</th></tr></thead>
+                  <tbody>
+                    {data.noRegresan.map((c) => (
+                      <tr key={c.clienteId}><td><Link to={`/contactos/${c.clienteId}`}>{c.razonSocial}</Link></td><td className="num">{c.servicios}</td><td className="neg">{fecha(c.ultimaVisita)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="muted" style={{ fontSize: 12 }}>≥2 servicios históricos y +6 meses sin regresar — la lista de llamadas del asesor (y del bot de WhatsApp en fase 2).</p>
+            </section>
+          </div>
+
+          <section className="card">
+            <h2>Últimas órdenes facturadas</h2>
+            <table>
+              <thead><tr><th>Fecha</th><th>Concepto</th><th>Cliente</th><th>Unidad</th><th className="num">Total</th><th>CFDI</th></tr></thead>
+              <tbody>
+                {data.ultimas.map((s) => (
+                  <tr key={s.id}>
+                    <td>{fecha(s.fecha)}</td>
+                    <td>{s.concepto ?? '—'}</td>
+                    <td>{s.cliente ? <Link to={`/contactos/${s.cliente.id}`}>{s.cliente.razonSocial}</Link> : <span className="muted">Público en general</span>}</td>
+                    <td>{s.vehiculo ? <Link to={`/vehiculos/${s.vehiculo.id}`}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link> : '—'}</td>
+                    <td className="num">{mxn(s.total)}</td>
+                    <td><button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(s.invoice.id)}>Ver</button></td>
+                  </tr>
+                ))}
+                {data.ultimas.length === 0 && <tr><td colSpan={6} className="muted">Sin órdenes derivadas aún.</td></tr>}
+              </tbody>
+            </table>
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
