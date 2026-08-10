@@ -177,6 +177,39 @@ export default function VehiculoDetalle() {
         </section>
       </div>
 
+      {(v.expediente?.length ?? 0) > 0 && (
+        <section className="card">
+          <h2>Expediente CFDI del VIN</h2>
+          <table>
+            <thead><tr><th>Fecha</th><th>Folio</th><th>Papel</th><th className="num">Total</th><th>CFDI</th></tr></thead>
+            <tbody>
+              {[...v.expediente].sort((a, b) => new Date(a.invoice.fecha) - new Date(b.invoice.fecha)).map((e) => (
+                <tr key={e.id}>
+                  <td>{fecha(e.invoice.fecha)}</td>
+                  <td>{[e.invoice.serie, e.invoice.folio].filter(Boolean).join('-') || e.invoice.uuid?.slice(0, 8)}</td>
+                  <td>
+                    <span className={`badge ${
+                      e.rol === 'COMPRA' || e.rol === 'VENTA' ? 'badge-DISPONIBLE'
+                      : e.rol === 'NOTA_CREDITO' || e.rol === 'COSTO' ? 'badge-APARTADO'
+                      : e.rol === 'SERVICIO' ? 'badge-ENTREGADO'
+                      : 'badge-CANCELADO'}`}>
+                      {e.rol.replaceAll('_', ' ')}
+                    </span>
+                    {e.invoice.status === 'CANCELLED' && <span className="badge badge-CANCELADO" style={{ marginLeft: 4 }}>CANCELADA</span>}
+                  </td>
+                  <td className="num">{mxn(e.invoice.total)}</td>
+                  <td>
+                    <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(e.invoice.id)}>Ver</button>{' '}
+                    <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(e.invoice, 'xml')}>XML</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="muted" style={{ fontSize: 12 }}>Toda factura que menciona este VIN, ligue o no: sustituidas y duplicadas quedan visibles para auditoría.</p>
+        </section>
+      )}
+
       <section className="card">
         <h2>Costos de la unidad</h2>
         {v.costos.length === 0 ? (
