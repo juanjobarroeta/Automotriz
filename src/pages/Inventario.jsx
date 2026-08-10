@@ -13,6 +13,7 @@ export default function Inventario() {
   const [items, setItems] = useState([])
   const [estado, setEstado] = useState('')
   const [soloUso, setSoloUso] = useState('')
+  const [q, setQ] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAlta, setShowAlta] = useState(false)
@@ -40,6 +41,12 @@ export default function Inventario() {
       <header className="page-head">
         <h1>Inventario de unidades</h1>
         <div className="head-actions">
+          <input
+            placeholder="Buscar VIN, marca, modelo, motor, cliente…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ minWidth: 260 }}
+          />
           <select value={estado} onChange={(e) => setEstado(e.target.value)}>
             {ESTADOS.map((e) => (
               <option key={e} value={e}>{e ? e.replaceAll('_', ' ') : 'Todos los estados'}</option>
@@ -70,7 +77,15 @@ export default function Inventario() {
             </tr>
           </thead>
           <tbody>
-            {items.filter((v) => !soloUso || v.uso === soloUso).map((v) => (
+            {items
+              .filter((v) => !soloUso || v.uso === soloUso)
+              .filter((v) => {
+                if (!q.trim()) return true
+                const texto = `${v.vin} ${v.marca} ${v.modelo} ${v.version ?? ''} ${v.anio} ${v.color ?? ''} ${v.numeroMotor ?? ''} ${v.numeroEconomico ?? ''} ${v.cliente?.razonSocial ?? ''} ${v.supplier?.razonSocial ?? ''}`.toLowerCase()
+                // Cada palabra de la búsqueda debe aparecer (VIN parcial cuenta).
+                return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => texto.includes(t))
+              })
+              .map((v) => (
               <tr key={v.id}>
                 <td><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
                 <td>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</td>
@@ -81,7 +96,7 @@ export default function Inventario() {
                 <td className="num">{mxn(v.precioVenta)}</td>
                 <td>{v.cliente?.razonSocial ?? (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
               </tr>
-            ))}
+              ))}
           </tbody>
         </table>
       )}
