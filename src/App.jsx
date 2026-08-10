@@ -13,6 +13,7 @@ import Portal from './pages/Portal'
 import Rentabilidad from './pages/Rentabilidad'
 import Configuracion from './pages/Configuracion'
 import Pedidos from './pages/Pedidos'
+import Refacciones from './pages/Refacciones'
 import ContactoPerfil from './pages/ContactoPerfil'
 import VehiculoDetalle from './pages/VehiculoDetalle'
 
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/rentabilidad" element={<Rentabilidad />} />
             <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/pedidos" element={<Pedidos />} />
+            <Route path="/refacciones" element={<Refacciones />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
             <Route path="/clientes" element={<Contactos lado="CLIENTES" />} />
             <Route path="/proveedores" element={<Contactos lado="PROVEEDORES" />} />
