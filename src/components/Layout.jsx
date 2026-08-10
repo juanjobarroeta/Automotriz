@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 const NAV = [
   { to: '/panel', label: 'Panel', ported: true },
   { to: '/', label: 'Inventario', ported: true },
+  { to: '/pedidos', label: 'Pedidos', ported: true },
   { to: '/rentabilidad', label: 'Rentabilidad', ported: true },
   { to: '/ventas', label: 'Ventas y CRM', ported: false },
   { to: '/servicio', label: 'Servicio', ported: false },
