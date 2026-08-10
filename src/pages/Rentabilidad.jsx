@@ -45,7 +45,12 @@ export default function Rentabilidad() {
             <section className="card">
               <h2>Utilidad</h2>
               <p className={`kpi ${data.resumen.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(data.resumen.utilidad)}</p>
-              <p className="muted">margen {pct(data.resumen.margen)}{data.resumen.notasCredito > 0 ? ` · incluye ${mxn(data.resumen.notasCredito)} de notas de crédito` : ''}</p>
+              <p className="muted">
+                margen {pct(data.resumen.margen)}{data.resumen.notasCredito > 0 ? ` · incluye ${mxn(data.resumen.notasCredito)} de notas de crédito` : ''}
+                {data.resumen.incompletas?.unidades > 0 && (
+                  <> · <span className="neg">{data.resumen.incompletas.unidades} unidad(es) con costo incompleto ({mxn(data.resumen.incompletas.venta)} de venta) excluidas</span></>
+                )}
+              </p>
             </section>
           </div>
 
@@ -105,7 +110,7 @@ export default function Rentabilidad() {
                     <td>{u.unidad}</td>
                     <td>{u.cliente ?? '—'}</td>
                     <td className="num">{mxn(u.precioVenta)}</td>
-                    <td className="num">{mxn(u.costoCompra)}</td>
+                    <td className="num">{u.costoIncompleto ? <span className="badge badge-CANCELADO">sin costo</span> : mxn(u.costoCompra)}</td>
                     <td className="num">{u.costosAdicionales + u.interesPiso > 0 ? mxn(u.costosAdicionales + u.interesPiso) : '—'}</td>
                     <td className="num">{u.notasCredito > 0 ? <span className="pos">{mxn(u.notasCredito)}</span> : '—'}</td>
                     <td className={`num ${u.utilidad < 0 ? 'neg' : ''}`}><strong>{mxn(u.utilidad)}</strong></td>
@@ -115,7 +120,7 @@ export default function Rentabilidad() {
                 {data.unidades.length === 0 && <tr><td colSpan={9} className="muted">Sin ventas registradas en {data.year}.</td></tr>}
               </tbody>
             </table>
-            <p className="muted" style={{ fontSize: 12 }}>Utilidad = venta − costo de compra − fletes/costos + notas de crédito − interés piso − comisión. Las unidades con costo $0 aún esperan su CFDI de compra (fuera del rango descargado del SAT).</p>
+            <p className="muted" style={{ fontSize: 12 }}>Utilidad = venta − costo de compra − fletes/costos + notas de crédito − interés piso − comisión. Las unidades "sin costo" se compraron antes del archivo de 5 años del SAT: captura su costo real desde el detalle de la unidad para que entren a la utilidad.</p>
           </section>
         </>
       )}

@@ -121,10 +121,26 @@ export default function VehiculoDetalle() {
         <section className="card">
           <h2>Compra</h2>
           <dl>
-            <dt>Costo (sin IVA)</dt><dd>{mxn(v.costoCompra)}</dd>
+            <dt>Costo (sin IVA)</dt>
+            <dd>
+              {mxn(v.costoCompra)}
+              {v.autoCreado && !v.compraInvoiceId && (
+                <button className="ghost" style={{ padding: '2px 10px', fontSize: 12, marginLeft: 6 }}
+                  onClick={async () => {
+                    const c = window.prompt('Costo real de compra (sin IVA) — la factura quedó fuera del archivo de 5 años del SAT:', v.costoCompra || '')
+                    if (!c) return
+                    setBusy(true); setError(null)
+                    try { await apiFetch(`/api/automotriz/vehiculos/${id}`, { method: 'PATCH', body: { costoCompra: Number(c) } }); await cargar() }
+                    catch (err) { setError(err.message) } finally { setBusy(false) }
+                  }} disabled={busy}>
+                  {v.costoCompra > 0 ? 'Corregir' : 'Capturar costo'}
+                </button>
+              )}
+            </dd>
             <dt>Fecha</dt><dd>{fecha(v.fechaCompra)}</dd>
             <dt>Proveedor</dt><dd>{v.supplier?.razonSocial ?? '—'}</dd>
-            <dt>CFDI compra</dt><dd><CfdiLinks inv={v.compraInvoice} /></dd>
+            <dt>CFDI compra</dt>
+            <dd>{v.compraInvoice ? <CfdiLinks inv={v.compraInvoice} /> : (v.autoCreado ? <span className="muted" style={{ fontSize: 12 }}>fuera del archivo SAT (anterior a sep 2021)</span> : '—')}</dd>
             <dt>Plan piso</dt>
             <dd>{v.planPisoTasaAnual != null ? `${(v.planPisoTasaAnual * 100).toFixed(2)}% anual desde ${fecha(v.planPisoInicio)}` : '—'}</dd>
           </dl>
