@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { apiDownload, apiFetch } from '../config/api'
+import CfdiVista from '../components/CfdiVista'
 
 const mxn = (n) =>
   n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
@@ -14,6 +15,7 @@ export default function VehiculoDetalle() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [advertencias, setAdvertencias] = useState([])
+  const [cfdiVista, setCfdiVista] = useState(null)
 
   const cargar = useCallback(async () => {
     setError(null)
@@ -94,6 +96,7 @@ export default function VehiculoDetalle() {
   const CfdiLinks = ({ inv }) => inv ? (
     <>
       <span className="mono" style={{ fontSize: 11 }}>{inv.uuid ? `${inv.uuid.slice(0, 8)}…` : inv.id}</span>{' '}
+      <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(inv.id)}>Ver</button>
       <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(inv, 'xml')}>XML</button>
       {inv.facturapiId && (
         <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(inv, 'pdf')}>PDF</button>
@@ -103,6 +106,7 @@ export default function VehiculoDetalle() {
 
   return (
     <div>
+      {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
       <p><Link to="/">← Inventario</Link></p>
       <header className="page-head">
         <h1>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</h1>
