@@ -184,7 +184,7 @@ export default function VehiculoDetalle() {
         ) : (
           <table>
             <thead>
-              <tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th className="num">Monto</th></tr>
+              <tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th className="num">Monto</th><th>CFDI origen</th></tr>
             </thead>
             <tbody>
               {v.costos.map((c) => (
@@ -192,7 +192,15 @@ export default function VehiculoDetalle() {
                   <td>{fecha(c.fecha)}</td>
                   <td>{c.tipo.replaceAll('_', ' ')}</td>
                   <td>{c.concepto}</td>
-                  <td className="num">{mxn(c.monto)}</td>
+                  <td className={`num ${c.monto < 0 ? 'pos' : ''}`}>{mxn(c.monto)}</td>
+                  <td>
+                    {c.invoiceId ? (
+                      <>
+                        <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
+                        <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi({ id: c.invoiceId }, 'xml')}>XML</button>
+                      </>
+                    ) : <span className="muted" style={{ fontSize: 12 }}>manual</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
