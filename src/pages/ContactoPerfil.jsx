@@ -8,6 +8,78 @@ const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 // Perfil 360° del contacto: pestaña "Como cliente" (lo que le facturamos,
 // cobros y REPs que NOSOTROS debemos emitir) y "Como proveedor" (lo que nos
 // facturó, pagos y REPs que ÉL nos debe — riesgo de deducción).
+// Estado de cuenta documental del cliente: cargos (facturas), abonos (NC,
+// REPs con su FechaPago legal, PUE liquidadas en emisión, cobros conciliados)
+// y saldo corrido — imprimible para mandárselo al cliente.
+function EstadoDeCuenta({ clienteId }) {
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      setError(null)
+      try {
+        const r = await apiFetch(`/api/automotriz/clientes/${clienteId}/estado-cuenta?year=${year}`)
+        if (vivo) setData(r)
+      } catch (err) { if (vivo) setError(err.message) }
+    })()
+    return () => { vivo = false }
+  }, [clienteId, year])
+
+  const anios = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i)
+  const TIPO = {
+    FACTURA: ['Factura', 'badge-EN_TRANSITO'],
+    NOTA_CREDITO: ['Nota de crédito', 'badge-CANCELADO'],
+    PAGO_REP: ['Pago (REP)', 'badge-ENTREGADO'],
+    PAGO_PUE: ['Pago (PUE)', 'badge-ENTREGADO'],
+    COBRO_BANCO: ['Cobro (banco)', 'badge-DISPONIBLE'],
+  }
+
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="head-actions" style={{ marginBottom: 8 }}>
+        <h2 style={{ marginRight: 'auto' }}>Estado de cuenta</h2>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }} className="no-print">
+          {anios.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <button className="ghost no-print" onClick={() => window.print()}>Imprimir</button>
+      </div>
+      {error && <div className="error">{error}</div>}
+      {!data ? <p className="muted">Armando el estado de cuenta…</p> : (
+        <>
+          <table>
+            <thead><tr><th>Fecha</th><th>Movimiento</th><th>Referencia</th><th className="num">Cargo</th><th className="num">Abono</th><th className="num">Saldo</th></tr></thead>
+            <tbody>
+              <tr>
+                <td colSpan={5} className="muted">Saldo anterior al {data.year}</td>
+                <td className="num">{mxn(data.saldoAnterior)}</td>
+              </tr>
+              {data.movimientos.map((m, i) => (
+                <tr key={i}>
+                  <td>{fecha(m.fecha)}</td>
+                  <td><span className={`badge ${TIPO[m.tipo]?.[1] ?? ''}`}>{TIPO[m.tipo]?.[0] ?? m.tipo}</span></td>
+                  <td className="mono" style={{ fontSize: 11 }}>{m.referencia ?? '—'}</td>
+                  <td className="num">{m.cargo > 0 ? mxn(m.cargo) : '—'}</td>
+                  <td className="num">{m.abono > 0 ? mxn(m.abono) : '—'}</td>
+                  <td className={`num ${m.saldo > 0.01 ? '' : 'pos'}`}>{mxn(m.saldo)}</td>
+                </tr>
+              ))}
+              {data.movimientos.length === 0 && <tr><td colSpan={6} className="muted">Sin movimientos en {data.year}.</td></tr>}
+            </tbody>
+          </table>
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            {data.resumen.movimientos} movimientos · cargos {mxn(data.resumen.cargos)} · abonos {mxn(data.resumen.abonos)} ·{' '}
+            saldo final <b className={data.resumen.saldoFinal > 0.01 ? 'neg' : 'pos'}>{mxn(data.resumen.saldoFinal)}</b>.
+            Documental: facturas y NC del CFDI, pagos por REP (con su fecha legal), PUE liquidadas en su emisión y cobros conciliados en banco.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function ContactoPerfil() {
   const { id } = useParams()
   const [sp] = useSearchParams()
@@ -97,6 +169,8 @@ export default function ContactoPerfil() {
               </table>
             )}
           </section>
+
+          {lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} />}
 
           <section className="card">
             <h2>{lado === 'CLIENTE' ? 'Unidades compradas' : 'Unidades suministradas'}</h2>
