@@ -14,11 +14,130 @@ const BADGE = {
 }
 const MEDIOS = ['PISO', 'TELEFONO', 'DIGITAL', 'REFERIDO', 'OTRO']
 
-// CRM de piso (fase 2): el registro de guardia. Cada visita/llamada/lead entra
-// aquí y avanza el pipeline; la próxima acción vencida es la lista de llamadas
-// del vendedor (y la cola del bot de WhatsApp en la siguiente fase). Al ganar,
-// el prospecto liga el cliente canónico y el pedido sigue en Pedidos.
+// Ventas y CRM (fase 2): dos caras —
+//   Pipeline: el registro de guardia y el avance de prospectos.
+//   WhatsApp: la cola de mensajes del día (fase 2b) — seguimientos vencidos y
+//   clientes de taller que dejaron de venir, con el mensaje ya escrito y su
+//   link wa.me. Sin API de Meta: el asesor da clic y decide enviar.
 export default function Ventas() {
+  const [tab, setTab] = useState('PIPELINE')
+  return (
+    <div>
+      <header className="page-head">
+        <h1>Ventas y CRM</h1>
+        <div className="head-actions">
+          <button className={tab === 'PIPELINE' ? '' : 'ghost'} onClick={() => setTab('PIPELINE')}>Pipeline</button>
+          <button className={tab === 'WHATSAPP' ? '' : 'ghost'} onClick={() => setTab('WHATSAPP')}>WhatsApp</button>
+        </div>
+      </header>
+      {tab === 'PIPELINE' ? <Pipeline /> : <ColaWhatsApp />}
+    </div>
+  )
+}
+
+function ColaWhatsApp() {
+  const { activeCompany } = useAuth()
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const cargar = useCallback(async () => {
+    if (!activeCompany?.id) return
+    setError(null)
+    try { setData(await apiFetch(`/api/automotriz/whatsapp?companyId=${activeCompany.id}`)) }
+    catch (err) { setError(err.message) }
+  }, [activeCompany?.id])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const reprogramar = async (prospectoId, dias) => {
+    setBusy(true); setError(null)
+    try {
+      const f = new Date()
+      f.setDate(f.getDate() + dias)
+      await apiFetch(`/api/automotriz/prospectos/${prospectoId}`, { method: 'PATCH', body: { proximaAccion: f.toISOString() } })
+      await cargar()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  const copiar = async (mensaje) => {
+    try { await navigator.clipboard.writeText(mensaje) } catch { /* http o permisos: el link wa.me sigue funcionando */ }
+  }
+
+  const fechaCorta = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
+  const btn = { padding: '2px 10px', fontSize: 12 }
+
+  if (error) return <div className="error">{error}</div>
+  if (!data) return <p className="muted">Componiendo la cola del día…</p>
+
+  const Fila = ({ item, acciones }) => (
+    <tr>
+      <td>
+        {item.nombre}
+        <div className="mono muted" style={{ fontSize: 11 }}>{item.telefono}</div>
+      </td>
+      <td style={{ maxWidth: 420 }}>
+        <div style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{item.mensaje}</div>
+        {item.nota && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Nota: {item.nota}</div>}
+      </td>
+      <td className="neg" style={{ fontSize: 12 }}>
+        {item.tipo === 'CRM' ? `venció ${fechaCorta(item.vencidaDesde)}` : `última visita ${fechaCorta(item.ultimaVisita)}`}
+      </td>
+      <td>
+        <div className="head-actions" style={{ gap: 4 }}>
+          <a href={item.link} target="_blank" rel="noreferrer">
+            <button className="success" style={btn} onClick={() => copiar(item.mensaje)}>Abrir WhatsApp</button>
+          </a>
+          {acciones}
+        </div>
+      </td>
+    </tr>
+  )
+
+  return (
+    <div>
+      <div className="cards" style={{ marginBottom: 14 }}>
+        <section className="card"><h2>Mensajes en cola</h2><p className="kpi">{data.total}</p>
+          <p className="muted">CRM {data.crm.length} · taller {data.servicio.length}</p></section>
+        <section className="card"><h2>Sin teléfono</h2><p className="kpi">{data.sinTelefono.crm + data.sinTelefono.servicio}</p>
+          <p className="muted">candidatos que no entraron a la cola — captura el teléfono</p></section>
+      </div>
+
+      <section className="card" style={{ marginBottom: 16 }}>
+        <h2>Seguimientos vencidos (CRM)</h2>
+        <table>
+          <thead><tr><th>Prospecto</th><th>Mensaje</th><th>Vencido</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {data.crm.map((i) => (
+              <Fila key={i.prospectoId} item={i} acciones={
+                <>
+                  <button className="ghost" style={btn} disabled={busy} onClick={() => reprogramar(i.prospectoId, 3)}>+3d</button>
+                  <button className="ghost" style={btn} disabled={busy} onClick={() => reprogramar(i.prospectoId, 7)}>+7d</button>
+                </>
+              } />
+            ))}
+            {data.crm.length === 0 && <tr><td colSpan={4} className="muted">Sin seguimientos vencidos con teléfono — al día. 🎯</td></tr>}
+          </tbody>
+        </table>
+        <p className="muted" style={{ fontSize: 12 }}>«Abrir WhatsApp» copia el mensaje y abre el chat con el texto listo; al enviarlo, reprograma el seguimiento (+3d/+7d).</p>
+      </section>
+
+      <section className="card">
+        <h2>Taller — dejaron de venir</h2>
+        <table>
+          <thead><tr><th>Cliente</th><th>Mensaje</th><th>Última visita</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {data.servicio.map((i) => <Fila key={i.clienteId} item={i} acciones={null} />)}
+            {data.servicio.length === 0 && <tr><td colSpan={4} className="muted">Nadie con ≥2 servicios lleva más de 6 meses sin venir (o falta teléfono).</td></tr>}
+          </tbody>
+        </table>
+        <p className="muted" style={{ fontSize: 12 }}>Salen de esta lista solos cuando su siguiente CFDI de servicio entra por el sync.</p>
+      </section>
+    </div>
+  )
+}
+
+function Pipeline() {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
   const [filtro, setFiltro] = useState('ABIERTOS')
@@ -148,12 +267,11 @@ export default function Ventas() {
 
   return (
     <div>
-      <header className="page-head">
-        <h1>Ventas y CRM</h1>
+      <div className="head-actions" style={{ marginBottom: 14 }}>
         <button onClick={async () => { if (!creando) { setCreando(true); await cargarCatalogos() } else setCreando(false) }}>
           {creando ? 'Cerrar' : 'Registrar visita'}
         </button>
-      </header>
+      </div>
       {error && <div className="error">{error}</div>}
 
       {mes && (
