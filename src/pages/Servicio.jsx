@@ -3,16 +3,34 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
+import OrdenesTaller from '../components/OrdenesTaller'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
-// Servicio/Taller (fase 5, lado lectura): la operación del taller reconstruida
-// desde CFDIs — venta por mes (mano de obra vs refacciones), ticket promedio,
-// top clientes y los que dejaron de venir. El workflow de órdenes (recepción →
-// técnico → factura) viene después; los datos ya trabajan desde hoy.
+// Servicio/Taller: dos caras de la misma operación —
+//   Órdenes  (fase 5b): el workflow diario — recepción → técnico → entrega;
+//            la factura llega por el sync y se liga sola.
+//   Reportes (fase 5): la historia reconstruida desde CFDIs — venta por mes,
+//            ticket promedio, top clientes y los que dejaron de venir.
 export default function Servicio() {
+  const [tab, setTab] = useState('ORDENES')
+  return (
+    <div>
+      <header className="page-head">
+        <h1>Servicio</h1>
+        <div className="head-actions">
+          <button className={tab === 'ORDENES' ? '' : 'ghost'} onClick={() => setTab('ORDENES')}>Órdenes</button>
+          <button className={tab === 'REPORTES' ? '' : 'ghost'} onClick={() => setTab('REPORTES')}>Reportes</button>
+        </div>
+      </header>
+      {tab === 'ORDENES' ? <OrdenesTaller /> : <ReportesTaller />}
+    </div>
+  )
+}
+
+function ReportesTaller() {
   const { activeCompany } = useAuth()
   const [year, setYear] = useState(new Date().getFullYear())
   const [data, setData] = useState(null)
@@ -34,12 +52,11 @@ export default function Servicio() {
   return (
     <div>
       {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
-      <header className="page-head">
-        <h1>Servicio</h1>
+      <div className="head-actions" style={{ marginBottom: 14 }}>
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }}>
           {anios.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
-      </header>
+      </div>
       {error && <div className="error">{error}</div>}
       {loading ? <p className="muted">Reconstruyendo el taller desde los CFDIs…</p> : data && (
         <>
