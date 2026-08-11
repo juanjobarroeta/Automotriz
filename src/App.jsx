@@ -15,6 +15,7 @@ import Configuracion from './pages/Configuracion'
 import Pedidos from './pages/Pedidos'
 import Refacciones from './pages/Refacciones'
 import Servicio from './pages/Servicio'
+import Ventas from './pages/Ventas'
 import ContactoPerfil from './pages/ContactoPerfil'
 import VehiculoDetalle from './pages/VehiculoDetalle'
 
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/pedidos" element={<Pedidos />} />
             <Route path="/refacciones" element={<Refacciones />} />
             <Route path="/servicio" element={<Servicio />} />
+            <Route path="/ventas" element={<Ventas />} />
             <Route path="/vehiculos/:id" element={<VehiculoDetalle />} />
             <Route path="/clientes" element={<Contactos lado="CLIENTES" />} />
             <Route path="/proveedores" element={<Contactos lado="PROVEEDORES" />} />

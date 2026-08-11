@@ -8,7 +8,7 @@ const NAV = [
   { to: '/', label: 'Inventario', ported: true },
   { to: '/pedidos', label: 'Pedidos', ported: true },
   { to: '/rentabilidad', label: 'Rentabilidad', ported: true },
-  { to: '/ventas', label: 'Ventas y CRM', ported: false },
+  { to: '/ventas', label: 'Ventas y CRM', ported: true },
   { to: '/servicio', label: 'Servicio', ported: true },
   { to: '/refacciones', label: 'Refacciones', ported: true },
   { to: '/cartera', label: 'Contabilidad', ported: true },
