@@ -26,7 +26,8 @@ export default function Panel() {
   if (error) return <div className="error">{error}</div>
   if (!data) return <p className="muted">Cargando…</p>
 
-  const { piso, mes, urgentes, periodo } = data
+  const { piso, mes, urgentes, periodo, taller, crm } = data
+  const fechaCorta = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 
   return (
     <div>
@@ -57,6 +58,43 @@ export default function Panel() {
           <span className="muted">{piso.masDe90 > 0 ? 'requieren acción de precio' : 'inventario sano'}</span>
         </div>
       </div>
+
+      {(taller || crm) && (
+        <div className="cards" style={{ marginTop: 18 }}>
+          {taller && (
+            <section className="card">
+              <h2>Taller hoy</h2>
+              <p className="kpi">{taller.abiertas}</p>
+              <p className="muted">
+                órdenes abiertas · {taller.porEstado.RECIBIDA ?? 0} recibidas, {taller.porEstado.EN_PROCESO ?? 0} en
+                proceso, {taller.porEstado.LISTA ?? 0} listas — <Link to="/servicio">ver órdenes</Link>
+              </p>
+              {taller.promesasVencidas.length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  {taller.promesasVencidas.map((o) => (
+                    <div key={o.id} className="neg" style={{ fontSize: 12 }}>
+                      #{o.folio} {o.unidad ?? ''} — prometida {fechaCorta(o.prometidaAt)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+          {crm && (
+            <section className="card">
+              <h2>Piso de ventas</h2>
+              <p className="kpi">{crm.abiertos}</p>
+              <p className="muted">
+                prospectos abiertos ·{' '}
+                {crm.vencidos > 0
+                  ? <span className="neg">{crm.vencidos} seguimientos vencidos</span>
+                  : 'seguimientos al día'}{' '}
+                — <Link to="/ventas">abrir la cola de WhatsApp</Link>
+              </p>
+            </section>
+          )}
+        </div>
+      )}
 
       <section className="card" style={{ marginTop: 18 }}>
         <h2>Requiere tu atención</h2>
