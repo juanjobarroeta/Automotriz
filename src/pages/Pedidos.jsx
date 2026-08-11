@@ -22,7 +22,7 @@ export default function Pedidos() {
   const [creando, setCreando] = useState(false)
   const [unidades, setUnidades] = useState([])
   const [clientes, setClientes] = useState([])
-  const [form, setForm] = useState({ vehiculoId: '', clienteId: '', precio: '', enganche: '', notas: '' })
+  const [form, setForm] = useState({ vehiculoId: '', clienteId: '', precio: '', enganche: '', tomaDesc: '', tomaMonto: '', notas: '' })
 
   const cargar = useCallback(async () => {
     if (!activeCompany?.id) return
@@ -57,10 +57,12 @@ export default function Pedidos() {
           clienteId: form.clienteId,
           precio: Number(form.precio),
           enganche: form.enganche ? Number(form.enganche) : 0,
+          tomaACuentaDesc: form.tomaDesc.trim() || null,
+          tomaACuentaMonto: form.tomaMonto ? Number(form.tomaMonto) : null,
           notas: form.notas || null,
         },
       })
-      setForm({ vehiculoId: '', clienteId: '', precio: '', enganche: '', notas: '' })
+      setForm({ vehiculoId: '', clienteId: '', precio: '', enganche: '', tomaDesc: '', tomaMonto: '', notas: '' })
       setCreando(false)
       await cargar()
     } catch (err) { setError(err.message) } finally { setBusy(false) }
@@ -73,7 +75,39 @@ export default function Pedidos() {
       if (ant === null) return
       if (ant) extra = { anticipo: Number(ant) }
     }
-    if (accionNombre === 'facturar' && !window.confirm(`Facturar la unidad en ${mxn(pedido.precio)} + ISAN + IVA (postea pólizas)?`)) return
+    if (accionNombre === 'facturar') {
+      if (!window.confirm(`Facturar la unidad en ${mxn(pedido.precio)} + ISAN + IVA (postea pólizas)?`)) return
+      // Toma a cuenta: el usado entra a inventario como SEMINUEVO con costo =
+      // valor de toma. Sin VIN se omite y se da de alta después en Inventario.
+      if (pedido.tomaACuentaMonto > 0) {
+        const vin = window.prompt(`Toma a cuenta por ${mxn(pedido.tomaACuentaMonto)} — VIN del usado (17 caracteres; vacío = darlo de alta después):`, '')
+        if (vin === null) return
+        const vinLimpio = vin.trim().toUpperCase()
+        if (vinLimpio.length === 17) {
+          const desc = window.prompt('Marca, modelo y año del usado (ej. "NISSAN VERSA 2022"):', pedido.tomaACuentaDesc ?? '')
+          if (desc === null) return
+          const partes = desc.trim().split(/\s+/)
+          const anio = Number(partes[partes.length - 1])
+          if (partes.length >= 3 && Number.isInteger(anio) && anio > 1980) {
+            const km = window.prompt('Kilometraje (opcional):', '')
+            if (km === null) return
+            extra = {
+              toma: {
+                vin: vinLimpio,
+                marca: partes[0],
+                modelo: partes.slice(1, -1).join(' '),
+                anio,
+                kilometraje: km.trim() ? Number(km) : null,
+              },
+            }
+          } else if (vinLimpio) {
+            window.alert('No entendí "marca modelo año" — la unidad se da de alta después desde Inventario.')
+          }
+        } else if (vinLimpio) {
+          window.alert('El VIN debe tener 17 caracteres — la unidad se da de alta después desde Inventario.')
+        }
+      }
+    }
     setBusy(true); setError(null)
     try {
       await apiFetch(`/api/automotriz/pedidos/${pedido.id}/accion`, { method: 'POST', body: { accion: accionNombre, ...extra } })
@@ -119,6 +153,10 @@ export default function Pedidos() {
               onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))} style={{ width: 160 }} />
             <input type="number" step="0.01" min="0" placeholder="Enganche" value={form.enganche}
               onChange={(e) => setForm((f) => ({ ...f, enganche: e.target.value }))} style={{ width: 130 }} />
+            <input placeholder="Toma a cuenta (descripción del usado)" value={form.tomaDesc}
+              onChange={(e) => setForm((f) => ({ ...f, tomaDesc: e.target.value }))} style={{ minWidth: 220 }} />
+            <input type="number" step="0.01" min="0" placeholder="Valor de toma" value={form.tomaMonto}
+              onChange={(e) => setForm((f) => ({ ...f, tomaMonto: e.target.value }))} style={{ width: 140 }} />
             <input placeholder="Notas" value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} style={{ minWidth: 200 }} />
             <button type="submit" disabled={busy}>Crear cotización</button>
           </form>
