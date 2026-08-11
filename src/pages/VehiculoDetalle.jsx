@@ -165,6 +165,25 @@ export default function VehiculoDetalle() {
             {puedeApartar && <button className="ghost" onClick={() => transicion('apartar')} disabled={busy}>Apartar</button>}
             {puedeDesapartar && <button className="ghost" onClick={() => transicion('desapartar')} disabled={busy}>Des-apartar</button>}
             {puedeVender && <button className="success" onClick={vender} disabled={busy}>Vender (ISAN + IVA + pólizas)</button>}
+            {['DISPONIBLE', 'APARTADO'].includes(v.estado) && v.autoCreado && !v.ventaInvoiceId && (
+              <button className="ghost" disabled={busy} onClick={async () => {
+                const f = window.prompt('Marcar VENDIDA sin CFDI ligable (sólo dato, no postea).\nFecha de venta (AAAA-MM-DD, vacío = hoy):', '')
+                if (f === null) return
+                const p = window.prompt('Precio de venta sin IVA (vacío = desconocido):', '')
+                if (p === null) return
+                setBusy(true); setError(null)
+                try {
+                  await apiFetch(`/api/automotriz/vehiculos/${id}/marcar-vendida`, {
+                    method: 'POST',
+                    body: {
+                      ...(f.trim() ? { fechaVenta: new Date(`${f.trim()}T12:00:00Z`).toISOString() } : {}),
+                      precioVenta: p.trim() ? Number(p) : null,
+                    },
+                  })
+                  await cargar()
+                } catch (err) { setError(err.message) } finally { setBusy(false) }
+              }}>Marcar vendida (sin CFDI)</button>
+            )}
             {!['VENDIDO', 'ENTREGADO', 'CANCELADO'].includes(v.estado) && (
               <select value={v.uso ?? 'VENTA'} onChange={(e) => marcarUso(e.target.value)} style={{ width: 'auto' }} disabled={busy}>
                 <option value="VENTA">Uso: venta</option>

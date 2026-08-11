@@ -26,6 +26,23 @@ export default function Alertas() {
 
   useEffect(() => { cargar() }, [cargar])
 
+  const marcarVendida = async (v) => {
+    const fecha = window.prompt(`Marcar VENDIDA ${v.unidad} (${v.vin}).\nFecha de venta (AAAA-MM-DD, vacío = hoy):`, '')
+    if (fecha === null) return
+    const precio = window.prompt('Precio de venta sin IVA (vacío = desconocido — no entra a utilidad):', '')
+    if (precio === null) return
+    try {
+      await apiFetch(`/api/automotriz/vehiculos/${v.id}/marcar-vendida`, {
+        method: 'POST',
+        body: {
+          ...(fecha.trim() ? { fechaVenta: new Date(`${fecha.trim()}T12:00:00Z`).toISOString() } : {}),
+          precioVenta: precio.trim() ? Number(precio) : null,
+        },
+      })
+      await cargar()
+    } catch (err) { setError(err.message) }
+  }
+
   if (loading) return <p className="muted">Revisando hallazgos…</p>
   if (error) return <div className="error">{error}</div>
   if (!data) return null
@@ -64,6 +81,41 @@ export default function Alertas() {
           {data.inventario.porRevisar} unidad(es) auto-creadas con generales <b>POR REVISAR</b> —{' '}
           <Link to="/">confírmalas en el inventario</Link> (o corre el backfill con el catálogo de claves ingerido).
         </div>
+      )}
+
+      {data.inventario.improbables?.total > 0 && (
+        <section className="card">
+          <h2>En piso improbable — {data.inventario.improbables.total} unidad(es) · {mxn(data.inventario.improbables.costoTotal)}</h2>
+          <p className="muted" style={{ fontSize: 13 }}>
+            Unidades derivadas de CFDIs con +{data.inventario.improbables.diasUmbral} días «disponibles» y sin pedido:
+            casi seguro se vendieron sin factura ligable (público en general sin VIN). Confírmalas una por una con
+            <b> Marcar vendida</b> — es sólo dato (no postea pólizas; la factura real ya entró por el cierre). Así el
+            piso, el aging y la rentabilidad regresan a la realidad.
+          </p>
+          <table>
+            <thead><tr><th>Unidad</th><th>VIN</th><th className="num">Días</th><th className="num">Costo</th><th>Acción</th></tr></thead>
+            <tbody>
+              {data.inventario.improbables.top.map((v) => (
+                <tr key={v.id}>
+                  <td><Link to={`/vehiculos/${v.id}`}>{v.unidad}</Link></td>
+                  <td className="mono" style={{ fontSize: 11 }}>{v.vin}</td>
+                  <td className="num neg">{v.dias}</td>
+                  <td className="num">{mxn(v.costoCompra)}</td>
+                  <td>
+                    <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => marcarVendida(v)}>
+                      Marcar vendida
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.inventario.improbables.total > data.inventario.improbables.top.length && (
+            <p className="muted" style={{ fontSize: 12 }}>
+              Mostrando {data.inventario.improbables.top.length} de {data.inventario.improbables.total} — al confirmar, entran las siguientes.
+            </p>
+          )}
+        </section>
       )}
 
       {data.hallazgos.length > 0 && (
