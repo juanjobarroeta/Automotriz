@@ -5,6 +5,62 @@ import { apiFetch } from '../config/api'
 // Configuración del vertical: tasa de plan piso default (el interés se acumula
 // solo, por unidad y mes, y resta en la utilidad por VIN) y la regla de
 // comisión que se aplica al vender cuando no se captura un monto.
+// Carga inicial (onboarding): el sistema reconstruye años de operación desde
+// los CFDIs en segundo plano — esta tarjeta lo hace VISIBLE. Nada que apretar:
+// los crons drenan solos y el avance se refresca cada 30 s.
+function CargaInicial() {
+  const { activeCompany } = useAuth()
+  const [estado, setEstado] = useState(null)
+  const [error, setError] = useState(null)
+
+  const cargar = useCallback(async () => {
+    if (!activeCompany?.id) return
+    try { setEstado(await apiFetch(`/api/automotriz/onboarding-estado?companyId=${activeCompany.id}`)) }
+    catch (err) { setError(err.message) }
+  }, [activeCompany?.id])
+
+  useEffect(() => {
+    cargar()
+    const t = setInterval(cargar, 30000)
+    return () => clearInterval(t)
+  }, [cargar])
+
+  if (error) return <div className="error">{error}</div>
+  if (!estado) return null
+
+  const pendientes = estado.etapas.filter((e) => !e.completa).length
+  const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
+
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <h2>Carga inicial {pendientes === 0 ? '✓' : `— ${pendientes} etapa(s) en curso`}</h2>
+      <p className="muted" style={{ fontSize: 13 }}>
+        {estado.cobertura.cfdis.toLocaleString('es-MX')} CFDIs sincronizados desde {fecha(estado.cobertura.desde)}.
+        El sistema reconstruye inventario, refacciones y taller en segundo plano — no hay nada que capturar.
+      </p>
+      <table>
+        <thead><tr><th>Etapa</th><th>Estado</th><th>Detalle</th></tr></thead>
+        <tbody>
+          {estado.etapas.map((e) => (
+            <tr key={e.clave}>
+              <td>{e.nombre}</td>
+              <td>
+                {e.completa
+                  ? <span className="badge badge-ENTREGADO">Lista</span>
+                  : <span className="badge badge-APARTADO">{e.avance != null ? `${e.avance}%` : 'En curso'}</span>}
+              </td>
+              <td className="muted" style={{ fontSize: 12 }}>
+                {e.detalle}
+                {e.ultimoAvance && !e.completa ? ` · último avance ${new Date(e.ultimoAvance).toLocaleTimeString('es-MX')}` : ''}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 export default function Configuracion() {
   const { activeCompany } = useAuth()
   const [form, setForm] = useState({ planPisoTasaAnual: '', comisionPorcentajeUtilidad: '', comisionFija: '' })
@@ -50,6 +106,7 @@ export default function Configuracion() {
       <header className="page-head"><h1>Configuración</h1></header>
       {error && <div className="error">{error}</div>}
       {msg && <div className="warn">✓ {msg}</div>}
+      <CargaInicial />
       <div className="cards">
         <section className="card" style={{ maxWidth: 520 }}>
           <h2>Plan piso</h2>
