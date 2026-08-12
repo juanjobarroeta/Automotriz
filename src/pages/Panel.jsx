@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
+import AbsorcionGrafica from '../components/AbsorcionGrafica'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -26,8 +27,9 @@ export default function Panel() {
   if (error) return <div className="error">{error}</div>
   if (!data) return <p className="muted">Cargando…</p>
 
-  const { piso, mes, urgentes, periodo, taller, crm } = data
+  const { piso, mes, urgentes, periodo, taller, crm, servicio, refacciones, absorcion, impuestos } = data
   const fechaCorta = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
+  const absorbe = absorcion?.porcentaje != null && absorcion.porcentaje >= 100
 
   return (
     <div>
@@ -45,12 +47,20 @@ export default function Panel() {
         <div className="kpi-item">
           <span className="kpi-label">Vendidas este mes</span>
           <span className="kpi">{mes.vendidas}</span>
-          <span className="muted">Ingresos {mxn(mes.ingresos)}</span>
+          <span className="muted">
+            {mxn(mes.ingresos)}
+            {mes.nuevas ? ` · ${mes.nuevas.unidades} nuevas, ${mes.seminuevas.unidades} seminuevos` : ''}
+          </span>
         </div>
         <div className="kpi-item">
-          <span className="kpi-label">Margen del mes</span>
-          <span className={`kpi ${mes.margen >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.margen)}</span>
-          <span className="muted">ISAN causado {mxn(mes.isan)}</span>
+          <span className="kpi-label">Utilidad bruta del mes</span>
+          <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadBruta)}</span>
+          <span className="muted">todas las líneas · antes de estructura</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Utilidad neta del mes</span>
+          <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadNeta)}</span>
+          <span className="muted">después de {mxn(mes.estructura)} de estructura</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">+90 días en piso</span>
@@ -58,6 +68,87 @@ export default function Panel() {
           <span className="muted">{piso.masDe90 > 0 ? 'requieren acción de precio' : 'inventario sano'}</span>
         </div>
       </div>
+
+      <div className="cards" style={{ marginTop: 18 }}>
+        <section className="card">
+          <h2>Inventario en piso</h2>
+          <p className="kpi">{piso.unidades}</p>
+          <p className="muted">
+            {piso.nuevas ?? 0} nuevas · {piso.seminuevas ?? 0} seminuevos
+            {piso.demos > 0 ? ` · ${piso.demos} demo/cortesía` : ''} — {mxn(piso.valorPiso)} invertidos,{' '}
+            {piso.diasPromedio} días prom.
+          </p>
+        </section>
+        <section className="card">
+          <h2>Seminuevos del mes</h2>
+          <p className="kpi">{mes.seminuevas?.unidades ?? 0}</p>
+          <p className="muted">{mxn(mes.seminuevas?.monto)} facturados · nuevas: {mes.nuevas?.unidades ?? 0} por {mxn(mes.nuevas?.monto)}</p>
+        </section>
+        <section className="card">
+          <h2>Órdenes de servicio facturadas</h2>
+          <p className="kpi">{servicio?.ordenesFacturadas ?? 0}</p>
+          <p className="muted">
+            {mxn(servicio?.monto)} · mano de obra {mxn(servicio?.manoObra)} + refacciones {mxn(servicio?.refacciones)}
+          </p>
+        </section>
+        <section className="card">
+          <h2>Refacciones de mostrador</h2>
+          <p className="kpi">{refacciones?.facturas ?? 0}</p>
+          <p className="muted">
+            {mxn(refacciones?.monto)} en {(refacciones?.piezas ?? 0).toLocaleString('es-MX')} piezas · fuera de órdenes de taller
+          </p>
+        </section>
+      </div>
+
+      {absorcion && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>Absorción de servicio</h2>
+          <p className={`kpi ${absorbe ? 'pos' : 'neg'}`}>
+            {absorcion.porcentaje == null ? '—' : `${Math.round(absorcion.porcentaje)}%`}
+          </p>
+          <p className="muted">
+            {absorcion.porcentaje == null
+              ? 'sin estructura registrada en el mes'
+              : absorbe
+                ? 'El taller y refacciones pagan solos toda la estructura: cada unidad vendida es utilidad.'
+                : `El back end cubre ${Math.round(absorcion.porcentaje)}% de la estructura; el resto tiene que salir de vender unidades.`}
+          </p>
+          <AbsorcionGrafica serie={absorcion.serie} />
+          <details style={{ marginTop: 10 }}>
+            <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>Ver los números del mes a mes</summary>
+            <table style={{ marginTop: 8 }}>
+              <thead><tr><th>Mes</th><th className="num">Utilidad taller + refacciones</th><th className="num">Estructura</th><th className="num">Absorción</th></tr></thead>
+              <tbody>
+                {(absorcion.serie ?? []).map((m) => (
+                  <tr key={m.mes}>
+                    <td>{m.mes}</td>
+                    <td className="num">{mxn(m.utilidadFixedOps)}</td>
+                    <td className="num">{mxn(m.estructura)}</td>
+                    <td className={`num ${m.porcentaje >= 100 ? 'pos' : 'neg'}`}>
+                      {m.porcentaje == null ? '—' : `${Math.round(m.porcentaje)}%`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        </section>
+      )}
+
+      {impuestos && (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h2>Impuestos proyectados del mes</h2>
+          <p className="kpi">{mxn(impuestos.total)}</p>
+          <p className="muted">
+            IVA {mxn(impuestos.iva)} · ISR provisional {mxn(impuestos.isr)} · retenciones {mxn(impuestos.retenciones)}
+            {impuestos.ivaSaldoAFavor > 0 ? ` · saldo a favor de IVA ${mxn(impuestos.ivaSaldoAFavor)}` : ''}
+          </p>
+          <p className="muted" style={{ fontSize: 12 }}>
+            Proyección con lo facturado hasta hoy — el mes no ha cerrado. La declaración se arma en{' '}
+            <Link to="/fiscal">Impuestos</Link>.
+          </p>
+        </section>
+      )}
 
       {(taller || crm) && (
         <div className="cards" style={{ marginTop: 18 }}>
