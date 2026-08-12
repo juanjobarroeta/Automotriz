@@ -121,15 +121,20 @@ function PorLinea() {
             <div className="cards">
               <section className="card">
                 <h2>Nómina por línea</h2>
-                <p className="muted">{mxn(data.nomina.total)} en {data.nomina.recibos.toLocaleString('es-MX')} recibos</p>
+                <p className="muted">
+                  {mxn(data.nomina.total)} en {data.nomina.recibos.toLocaleString('es-MX')} recibos ·
+                  percepciones {mxn(data.nomina.percepciones)} + cuotas patronales estimadas{' '}
+                  {mxn(data.nomina.cuotasPatronales)}
+                </p>
                 <table>
-                  <thead><tr><th>Línea</th><th className="num">Nómina</th><th className="num">Recibos</th></tr></thead>
+                  <thead><tr><th>Línea</th><th className="num">Percepciones</th><th className="num">Cuotas patr.</th><th className="num">Costo total</th></tr></thead>
                   <tbody>
                     {data.nomina.porLinea.map((n) => (
                       <tr key={n.linea}>
                         <td>{n.linea}</td>
+                        <td className="num">{mxn(n.percepciones)}</td>
+                        <td className="num">{mxn(n.cuotasPatronales)}</td>
                         <td className="num">{mxn(n.monto)}</td>
-                        <td className="num">{n.recibos.toLocaleString('es-MX')}</td>
                       </tr>
                     ))}
                   </tbody>
