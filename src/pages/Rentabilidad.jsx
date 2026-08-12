@@ -115,7 +115,7 @@ function PorLinea() {
                           {l.ordenes != null ? `${l.ordenes} orden(es)` : ''}
                           {l.piezas != null ? `${l.piezas} piezas` : ''}
                           {l.costoEstimado ? ' · costo estimado' : ''}
-                          {l.sinCostoDirecto ? `sin costo directo · ${l.backEnd ? 'cuenta en absorción' : 'front end, fuera de absorción'}` : ''}
+                          {l.sinCostoDirecto ? 'sin costo directo · front end, fuera de absorción' : ''}
                         </td>
                       </tr>
                       {abierto === l.clave && (
