@@ -131,8 +131,28 @@ export default function ContactoPerfil() {
           <p className="muted">RFC {perfil.contacto.rfc}{perfil.contacto.email ? ` · ${perfil.contacto.email}` : ''}</p>
 
           <div className="cards">
-            <section className="card"><h2>Facturado</h2><p className="kpi">{mxn(perfil.resumen.totalFacturado)}</p><p className="muted">{perfil.resumen.numFacturas} facturas</p></section>
+            <section className="card">
+              <h2>Facturado</h2>
+              <p className="kpi">{mxn(perfil.resumen.totalFacturado)}</p>
+              <p className="muted">
+                {perfil.resumen.numFacturas} facturas
+                {perfil.resumen.totalNotasCredito > 0
+                  ? ` · ${mxn(perfil.resumen.totalNotasCredito)} en notas de crédito`
+                  : ''}
+              </p>
+            </section>
             <section className="card"><h2>{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</h2><p className="kpi">{mxn(perfil.resumen.totalPagado)}</p><p className="muted">Saldo: {mxn(perfil.resumen.saldo)}</p></section>
+            {lado === 'CLIENTE' && perfil.rentabilidad && (
+              <section className="card">
+                <h2>Utilidad generada</h2>
+                <p className={`kpi ${perfil.rentabilidad.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(perfil.rentabilidad.utilidad)}</p>
+                <p className="muted">
+                  {perfil.rentabilidad.unidades} unidad(es)
+                  {perfil.rentabilidad.margen != null ? ` · margen ${perfil.rentabilidad.margen}%` : ''}
+                  {perfil.rentabilidad.sinCosto > 0 ? ` · ${perfil.rentabilidad.sinCosto} sin costo conocido` : ''}
+                </p>
+              </section>
+            )}
             <section className="card">
               <h2>Complementos</h2>
               {perfil.resumen.repPendienteFacturas > 0 ? (
@@ -147,6 +167,37 @@ export default function ContactoPerfil() {
               ) : <p className="kpi pos">✓ al día</p>}
             </section>
           </div>
+
+          {(() => {
+            const abiertas = perfil.facturas.filter((f) => f.saldo > 1)
+            if (abiertas.length === 0) return null
+            const total = abiertas.reduce((s, f) => s + f.saldo, 0)
+            const dias = (d) => Math.floor((Date.now() - new Date(d)) / 86400000)
+            return (
+              <section className="card">
+                <h2>Por cobrar — {abiertas.length} factura(s) · {mxn(total)}</h2>
+                <table>
+                  <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">Cobrado</th><th className="num">Saldo</th><th className="num">Días</th></tr></thead>
+                  <tbody>
+                    {abiertas.map((f) => (
+                      <tr key={f.id}>
+                        <td>{[f.serie, f.folio].filter(Boolean).join('-') || f.uuid?.slice(0, 8)}</td>
+                        <td>{fecha(f.fecha)}</td>
+                        <td>{f.metodoPago}</td>
+                        <td className="num">{mxn(f.total)}</td>
+                        <td className="num">{mxn(f.pagado)}</td>
+                        <td className="num neg">{mxn(f.saldo)}</td>
+                        <td className={`num ${dias(f.fecha) > 90 ? 'neg' : ''}`}>{dias(f.fecha)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="muted" style={{ fontSize: 12 }}>
+                  PUE se considera cobrada en su emisión; PPD por la mejor evidencia (REP o conciliación bancaria).
+                </p>
+              </section>
+            )
+          })()}
 
           <section className="card">
             <h2>Facturas</h2>
@@ -170,13 +221,80 @@ export default function ContactoPerfil() {
             )}
           </section>
 
+          {perfil.notasCredito?.length > 0 && (
+            <section className="card">
+              <h2>Notas de crédito ({perfil.notasCredito.length})</h2>
+              <table>
+                <thead><tr><th>Folio</th><th>Fecha</th><th className="num">Importe</th></tr></thead>
+                <tbody>
+                  {perfil.notasCredito.map((n) => (
+                    <tr key={n.id}>
+                      <td>{[n.serie, n.folio].filter(Boolean).join('-') || '—'}</td>
+                      <td>{fecha(n.fecha)}</td>
+                      <td className="num neg">−{mxn(n.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted" style={{ fontSize: 12 }}>
+                Restan a lo facturado; las que referencian un VIN también restan a la utilidad de esa unidad.
+              </p>
+            </section>
+          )}
+
+          {lado === 'CLIENTE' && perfil.servicio?.ordenes > 0 && (
+            <section className="card">
+              <h2>Taller — {perfil.servicio.ordenes} orden(es) · {mxn(perfil.servicio.total)}</h2>
+              <p className="muted">
+                Mano de obra {mxn(perfil.servicio.manoObra)} · refacciones {mxn(perfil.servicio.refacciones)} ·
+                última visita {fecha(perfil.servicio.ultimaVisita)}
+              </p>
+              <table>
+                <thead><tr><th>Fecha</th><th>Concepto</th><th>Unidad</th><th className="num">Total</th></tr></thead>
+                <tbody>
+                  {perfil.servicio.ultimas.map((s) => (
+                    <tr key={s.id}>
+                      <td>{fecha(s.fecha)}</td>
+                      <td>{s.concepto ?? '—'}</td>
+                      <td>{s.vehiculoId ? <Link to={`/vehiculos/${s.vehiculoId}`}>ver unidad</Link> : '—'}</td>
+                      <td className="num">{mxn(s.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {perfil.refacciones?.partes > 0 && (
+            <section className="card">
+              <h2>Refacciones {lado === 'CLIENTE' ? 'compradas' : 'suministradas'}</h2>
+              <p className="muted">
+                {perfil.refacciones.partes} parte(s) distintas · {perfil.refacciones.piezas} piezas ·{' '}
+                {mxn(perfil.refacciones.importe)}
+              </p>
+              <table>
+                <thead><tr><th>No. de parte</th><th>Descripción</th><th className="num">Piezas</th><th className="num">Importe</th></tr></thead>
+                <tbody>
+                  {perfil.refacciones.top.map((p) => (
+                    <tr key={p.numeroParte}>
+                      <td className="mono" style={{ fontSize: 11 }}>{p.numeroParte}</td>
+                      <td>{p.descripcion}</td>
+                      <td className="num">{p.piezas}</td>
+                      <td className="num">{mxn(p.importe)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
           {lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} />}
 
           <section className="card">
             <h2>{lado === 'CLIENTE' ? 'Unidades compradas' : 'Unidades suministradas'}</h2>
             {perfil.unidades.length === 0 ? <p className="muted">Sin unidades.</p> : (
               <table>
-                <thead><tr><th>VIN</th><th>Unidad</th><th>Estado</th><th className="num">{lado === 'CLIENTE' ? 'Precio' : 'Costo'}</th></tr></thead>
+                <thead><tr><th>VIN</th><th>Unidad</th><th>Estado</th><th className="num">{lado === 'CLIENTE' ? 'Precio' : 'Costo'}</th>{lado === 'CLIENTE' && <th className="num">Utilidad</th>}</tr></thead>
                 <tbody>
                   {perfil.unidades.map((v) => (
                     <tr key={v.id}>
@@ -184,6 +302,11 @@ export default function ContactoPerfil() {
                       <td>{v.marca} {v.modelo} {v.anio}</td>
                       <td><span className={`badge badge-${v.estado}`}>{v.estado.replaceAll('_', ' ')}</span></td>
                       <td className="num">{mxn(lado === 'CLIENTE' ? v.precioVenta : v.costoCompra)}</td>
+                      {lado === 'CLIENTE' && (
+                        <td className={`num ${v.utilidad != null && v.utilidad < 0 ? 'neg' : ''}`}>
+                          {v.utilidad != null ? mxn(v.utilidad) : <span className="muted" style={{ fontSize: 11 }}>sin costo</span>}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
