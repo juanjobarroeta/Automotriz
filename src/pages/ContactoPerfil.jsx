@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../config/api'
+import CfdiAcciones from '../components/CfdiAcciones'
+import CfdiVista from '../components/CfdiVista'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
@@ -80,6 +82,17 @@ function EstadoDeCuenta({ clienteId }) {
   )
 }
 
+// Pestañas del expediente. `contar` alimenta el badge para saber de un vistazo
+// dónde hay algo; null = sin contador (el estado de cuenta se arma aparte).
+const SECCIONES = [
+  { clave: 'unidades', titulo: 'Unidades', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.unidades.length },
+  { clave: 'taller', titulo: 'Taller', lados: ['CLIENTE'], contar: (p) => p.servicio?.ordenes ?? 0 },
+  { clave: 'refacciones', titulo: 'Refacciones', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.refacciones?.partes ?? 0 },
+  { clave: 'cobranza', titulo: 'Por cobrar', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.facturas.filter((f) => f.saldo > 1).length },
+  { clave: 'facturas', titulo: 'Facturas', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.facturas.length },
+  { clave: 'estado', titulo: 'Estado de cuenta', lados: ['CLIENTE'], contar: () => null },
+]
+
 export default function ContactoPerfil() {
   const { id } = useParams()
   const [sp] = useSearchParams()
@@ -88,6 +101,8 @@ export default function ContactoPerfil() {
   const [error, setError] = useState(null)
 
   const [portalMsg, setPortalMsg] = useState(null)
+  const [seccion, setSeccion] = useState('unidades')
+  const [cfdiVista, setCfdiVista] = useState(null)
   const crearPortal = async () => {
     const email = window.prompt('Correo del cliente para su portal:', perfil?.contacto?.email ?? '')
     if (!email) return
@@ -115,6 +130,7 @@ export default function ContactoPerfil() {
 
   return (
     <div>
+      {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
       <p><Link to={lado === 'PROVEEDOR' ? '/proveedores' : '/clientes'}>← {lado === 'PROVEEDOR' ? 'Proveedores' : 'Clientes'}</Link></p>
       {error && <div className="error">{error}</div>}
       {perfil && (
@@ -168,9 +184,23 @@ export default function ContactoPerfil() {
             </section>
           </div>
 
-          {(() => {
+          {/* Secciones en pestañas: el expediente de un cliente con años de
+              operación no cabe en una sola vista de scroll. El contador de cada
+              pestaña dice de una si hay algo que ver. */}
+          <div className="head-actions" style={{ margin: '14px 0', flexWrap: 'wrap' }}>
+            {SECCIONES.filter((s) => s.lados.includes(lado)).map((s) => {
+              const n = s.contar(perfil)
+              return (
+                <button key={s.clave} className={seccion === s.clave ? '' : 'ghost'} onClick={() => setSeccion(s.clave)}>
+                  {s.titulo}{n != null ? ` · ${n}` : ''}
+                </button>
+              )
+            })}
+          </div>
+
+          {seccion === 'cobranza' && (() => {
             const abiertas = perfil.facturas.filter((f) => f.saldo > 1)
-            if (abiertas.length === 0) return null
+            if (abiertas.length === 0) return <p className="muted">Sin saldo abierto — todo cobrado. ✓</p>
             const total = abiertas.reduce((s, f) => s + f.saldo, 0)
             const dias = (d) => Math.floor((Date.now() - new Date(d)) / 86400000)
             return (
@@ -199,11 +229,12 @@ export default function ContactoPerfil() {
             )
           })()}
 
+          {seccion === 'facturas' && (
           <section className="card">
             <h2>Facturas</h2>
             {perfil.facturas.length === 0 ? <p className="muted">Sin facturas de este lado.</p> : (
               <table>
-                <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</th><th className="num">REP pendiente</th><th className="num">Saldo</th></tr></thead>
+                <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</th><th className="num">REP pendiente</th><th className="num">Saldo</th><th>CFDI</th></tr></thead>
                 <tbody>
                   {perfil.facturas.map((f) => (
                     <tr key={f.id}>
@@ -214,24 +245,27 @@ export default function ContactoPerfil() {
                       <td className="num">{mxn(f.pagado)}</td>
                       <td className="num">{f.repPendiente > 1 ? <span className="neg">{mxn(f.repPendiente)}</span> : '—'}</td>
                       <td className="num">{mxn(f.saldo)}</td>
+                      <td><CfdiAcciones invoice={f} onVer={setCfdiVista} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
           </section>
+          )}
 
-          {perfil.notasCredito?.length > 0 && (
+          {seccion === 'facturas' && perfil.notasCredito?.length > 0 && (
             <section className="card">
               <h2>Notas de crédito ({perfil.notasCredito.length})</h2>
               <table>
-                <thead><tr><th>Folio</th><th>Fecha</th><th className="num">Importe</th></tr></thead>
+                <thead><tr><th>Folio</th><th>Fecha</th><th className="num">Importe</th><th>CFDI</th></tr></thead>
                 <tbody>
                   {perfil.notasCredito.map((n) => (
                     <tr key={n.id}>
                       <td>{[n.serie, n.folio].filter(Boolean).join('-') || '—'}</td>
                       <td>{fecha(n.fecha)}</td>
                       <td className="num neg">−{mxn(n.total)}</td>
+                      <td><CfdiAcciones invoice={n} onVer={setCfdiVista} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -242,7 +276,12 @@ export default function ContactoPerfil() {
             </section>
           )}
 
-          {lado === 'CLIENTE' && perfil.servicio?.ordenes > 0 && (
+          {seccion === 'taller' && (perfil.servicio?.ordenes ?? 0) === 0 && (
+            <p className="muted">
+              Sin órdenes de taller derivadas para este cliente todavía.
+            </p>
+          )}
+          {seccion === 'taller' && perfil.servicio?.ordenes > 0 && (
             <section className="card">
               <h2>Taller — {perfil.servicio.ordenes} orden(es) · {mxn(perfil.servicio.total)}</h2>
               <p className="muted">
@@ -250,14 +289,21 @@ export default function ContactoPerfil() {
                 última visita {fecha(perfil.servicio.ultimaVisita)}
               </p>
               <table>
-                <thead><tr><th>Fecha</th><th>Concepto</th><th>Unidad</th><th className="num">Total</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Concepto</th><th>Unidad</th><th className="num">M. de obra</th><th className="num">Refacc.</th><th className="num">Total</th><th>CFDI</th></tr></thead>
                 <tbody>
                   {perfil.servicio.ultimas.map((s) => (
                     <tr key={s.id}>
                       <td>{fecha(s.fecha)}</td>
                       <td>{s.concepto ?? '—'}</td>
-                      <td>{s.vehiculoId ? <Link to={`/vehiculos/${s.vehiculoId}`}>ver unidad</Link> : '—'}</td>
+                      <td>
+                        {s.vehiculo
+                          ? <Link to={`/vehiculos/${s.vehiculo.id}`}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link>
+                          : <span className="muted">—</span>}
+                      </td>
+                      <td className="num">{mxn(s.manoObra)}</td>
+                      <td className="num">{mxn(s.refacciones)}</td>
                       <td className="num">{mxn(s.total)}</td>
+                      <td><CfdiAcciones invoice={s.invoice} onVer={setCfdiVista} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -265,7 +311,10 @@ export default function ContactoPerfil() {
             </section>
           )}
 
-          {perfil.refacciones?.partes > 0 && (
+          {seccion === 'refacciones' && (perfil.refacciones?.partes ?? 0) === 0 && (
+            <p className="muted">Sin refacciones ligadas a sus CFDIs.</p>
+          )}
+          {seccion === 'refacciones' && perfil.refacciones?.partes > 0 && (
             <section className="card">
               <h2>Refacciones {lado === 'CLIENTE' ? 'compradas' : 'suministradas'}</h2>
               <p className="muted">
@@ -288,8 +337,9 @@ export default function ContactoPerfil() {
             </section>
           )}
 
-          {lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} />}
+          {seccion === 'estado' && lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} />}
 
+          {seccion === 'unidades' && (
           <section className="card">
             <h2>{lado === 'CLIENTE' ? 'Unidades compradas' : 'Unidades suministradas'}</h2>
             {perfil.unidades.length === 0 ? <p className="muted">Sin unidades.</p> : (
@@ -313,6 +363,7 @@ export default function ContactoPerfil() {
               </table>
             )}
           </section>
+          )}
         </>
       )}
     </div>
