@@ -62,8 +62,11 @@ function PorLinea() {
             <section className="card"><h2>Ingreso {data.year}</h2><p className="kpi">{mxn(data.totales.ingreso)}</p>
               <p className="muted">de las líneas con costo conocido</p></section>
             <section className="card"><h2>Utilidad bruta</h2>
+              <p className={`kpi ${data.totales.utilidadBruta >= 0 ? 'pos' : 'neg'}`}>{mxn(data.totales.utilidadBruta)}</p>
+              <p className="muted">margen {pct(data.totales.margenBruto)} · antes de estructura</p></section>
+            <section className="card"><h2>Utilidad de operación</h2>
               <p className={`kpi ${data.totales.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(data.totales.utilidad)}</p>
-              <p className="muted">margen {pct(data.totales.margen)} · sin costo de mano de obra</p></section>
+              <p className="muted">después de la nómina de ventas, refacciones y administración</p></section>
             {data.totales.ingresoSinCosto > 0 && (
               <section className="card"><h2>Fuera del margen</h2>
                 <p className="kpi neg">{mxn(data.totales.ingresoSinCosto)}</p>
@@ -95,10 +98,57 @@ function PorLinea() {
                 ))}
               </tbody>
             </table>
+            {data.gastos?.some((g) => g.monto > 0) && (
+              <table style={{ marginTop: 10 }}>
+                <thead><tr><th>Estructura (bajo el margen bruto)</th><th className="num">Monto</th></tr></thead>
+                <tbody>
+                  {data.gastos.filter((g) => g.monto > 0).map((g) => (
+                    <tr key={g.clave}><td>{g.nombre}</td><td className="num neg">−{mxn(g.monto)}</td></tr>
+                  ))}
+                  <tr>
+                    <td><b>Utilidad de operación</b></td>
+                    <td className={`num ${data.totales.utilidad >= 0 ? 'pos' : 'neg'}`}><b>{mxn(data.totales.utilidad)}</b></td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
             <ul className="muted" style={{ fontSize: 12, marginTop: 10, paddingLeft: 18 }}>
               {data.notas.map((n, i) => <li key={i}>{n}</li>)}
             </ul>
           </section>
+
+          {data.nomina?.recibos > 0 && (
+            <div className="cards">
+              <section className="card">
+                <h2>Nómina por línea</h2>
+                <p className="muted">{mxn(data.nomina.total)} en {data.nomina.recibos.toLocaleString('es-MX')} recibos</p>
+                <table>
+                  <thead><tr><th>Línea</th><th className="num">Nómina</th><th className="num">Recibos</th></tr></thead>
+                  <tbody>
+                    {data.nomina.porLinea.map((n) => (
+                      <tr key={n.linea}>
+                        <td>{n.linea}</td>
+                        <td className="num">{mxn(n.monto)}</td>
+                        <td className="num">{n.recibos.toLocaleString('es-MX')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+              <section className="card">
+                <h2>Nómina por plaza</h2>
+                <p className="muted">del atributo Departamento del CFDI de nómina</p>
+                <table>
+                  <thead><tr><th>Plaza</th><th className="num">Nómina</th></tr></thead>
+                  <tbody>
+                    {data.nomina.porSucursal.map((s) => (
+                      <tr key={s.sucursal}><td>{s.sucursal}</td><td className="num">{mxn(s.monto)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            </div>
+          )}
 
           <section className="card">
             <h2>Mes a mes</h2>
