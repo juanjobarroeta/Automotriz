@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
@@ -34,6 +34,9 @@ export default function Rentabilidad() {
 function PorLinea() {
   const { activeCompany } = useAuth()
   const [year, setYear] = useState(new Date().getFullYear())
+  // periodo: 'ANIO' (ejercicio completo) | 'YTD' (al día) | '1'..'12' (un mes)
+  const [periodo, setPeriodo] = useState('ANIO')
+  const [abierto, setAbierto] = useState(null)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -41,12 +44,17 @@ function PorLinea() {
   const cargar = useCallback(async () => {
     if (!activeCompany?.id) return
     setLoading(true); setError(null)
-    try { setData(await apiFetch(`/api/automotriz/resultados?companyId=${activeCompany.id}&year=${year}`)) }
+    const extra = periodo === 'ANIO' ? '' : periodo === 'YTD' ? '&ytd=1' : `&month=${periodo}`
+    try { setData(await apiFetch(`/api/automotriz/resultados?companyId=${activeCompany.id}&year=${year}${extra}`)) }
     catch (err) { setError(err.message) } finally { setLoading(false) }
-  }, [activeCompany?.id, year])
+  }, [activeCompany?.id, year, periodo])
 
   useEffect(() => { cargar() }, [cargar])
   const anios = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i)
+  const toggle = (k) => setAbierto((a) => (a === k ? null : k))
+  // Las líneas de unidades comparten un mismo detalle: las ventas del periodo.
+  const detalleDe = (clave) =>
+    clave === 'unidades_nuevas' ? 'NUEVO' : clave === 'unidades_seminuevas' ? 'SEMINUEVO' : null
 
   return (
     <div>
@@ -54,6 +62,12 @@ function PorLinea() {
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }}>
           {anios.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
+        <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} style={{ width: 'auto' }}>
+          <option value="ANIO">Ejercicio completo</option>
+          <option value="YTD">Al día (YTD)</option>
+          {MESES.map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}
+        </select>
+        {data?.periodo && <span className="muted" style={{ alignSelf: 'center' }}>{data.periodo}</span>}
       </div>
       {error && <div className="error">{error}</div>}
       {loading ? <p className="muted">Armando el estado de resultados…</p> : data && (
@@ -79,23 +93,40 @@ function PorLinea() {
             <table>
               <thead><tr><th>Línea</th><th className="num">Ingreso</th><th className="num">Costo</th><th className="num">Utilidad</th><th className="num">Margen</th><th>Detalle</th></tr></thead>
               <tbody>
-                {data.lineas.map((l) => (
-                  <tr key={l.clave}>
-                    <td>{l.nombre}</td>
-                    <td className="num">{mxn(l.ingreso)}</td>
-                    <td className="num">{l.costo == null ? <span className="muted">n/d</span> : mxn(l.costo)}</td>
-                    <td className={`num ${l.utilidad != null && l.utilidad < 0 ? 'neg' : ''}`}>
-                      {l.utilidad == null ? <span className="muted">n/d</span> : mxn(l.utilidad)}
-                    </td>
-                    <td className="num">{pct(l.margen)}</td>
-                    <td className="muted" style={{ fontSize: 12 }}>
-                      {l.unidades != null ? `${l.unidades} unidad(es)${l.sinCosto ? ` · ${l.sinCosto} sin costo` : ''}` : ''}
-                      {l.ordenes != null ? `${l.ordenes} orden(es)` : ''}
-                      {l.piezas != null ? `${l.piezas} piezas` : ''}
-                      {l.costoEstimado ? ' · costo estimado' : ''}
-                    </td>
-                  </tr>
-                ))}
+                {data.lineas.map((l) => {
+                  const tipo = detalleDe(l.clave)
+                  const ventas = tipo ? (data.detalle?.ventas ?? []).filter((v) => v.tipo === tipo) : []
+                  const abre = tipo && ventas.length > 0
+                  return (
+                    <Fragment key={l.clave}>
+                      <tr
+                        onClick={abre ? () => toggle(l.clave) : undefined}
+                        style={abre ? { cursor: 'pointer' } : undefined}
+                      >
+                        <td>{abre ? `${abierto === l.clave ? '▾' : '▸'} ` : ''}{l.nombre}</td>
+                        <td className="num">{mxn(l.ingreso)}</td>
+                        <td className="num">{l.costo == null ? <span className="muted">n/d</span> : mxn(l.costo)}</td>
+                        <td className={`num ${l.utilidad != null && l.utilidad < 0 ? 'neg' : ''}`}>
+                          {l.utilidad == null ? <span className="muted">n/d</span> : mxn(l.utilidad)}
+                        </td>
+                        <td className="num">{pct(l.margen)}</td>
+                        <td className="muted" style={{ fontSize: 12 }}>
+                          {l.unidades != null ? `${l.unidades} unidad(es)${l.sinCosto ? ` · ${l.sinCosto} sin costo` : ''}` : ''}
+                          {l.ordenes != null ? `${l.ordenes} orden(es)` : ''}
+                          {l.piezas != null ? `${l.piezas} piezas` : ''}
+                          {l.costoEstimado ? ' · costo estimado' : ''}
+                        </td>
+                      </tr>
+                      {abierto === l.clave && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 0 }}>
+                            <VentasDetalle ventas={ventas} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
             {data.gastos?.some((g) => g.monto > 0) && (
@@ -129,14 +160,28 @@ function PorLinea() {
                 <table>
                   <thead><tr><th>Línea</th><th className="num">Percepciones</th><th className="num">Cuotas patr.</th><th className="num">Costo total</th></tr></thead>
                   <tbody>
-                    {data.nomina.porLinea.map((n) => (
-                      <tr key={n.linea}>
-                        <td>{n.linea}</td>
-                        <td className="num">{mxn(n.percepciones)}</td>
-                        <td className="num">{mxn(n.cuotasPatronales)}</td>
-                        <td className="num">{mxn(n.monto)}</td>
-                      </tr>
-                    ))}
+                    {data.nomina.porLinea.map((n) => {
+                      const gente = (data.detalle?.nomina ?? []).filter((e) => e.linea === n.linea)
+                      const clave = `nom_${n.linea}`
+                      return (
+                        <Fragment key={n.linea}>
+                          <tr
+                            onClick={gente.length ? () => toggle(clave) : undefined}
+                            style={gente.length ? { cursor: 'pointer' } : undefined}
+                          >
+                            <td>{gente.length ? `${abierto === clave ? '▾' : '▸'} ` : ''}{n.linea}
+                              {gente.length > 0 && <span className="muted" style={{ fontSize: 12 }}> · {gente.length} persona(s)</span>}
+                            </td>
+                            <td className="num">{mxn(n.percepciones)}</td>
+                            <td className="num">{mxn(n.cuotasPatronales)}</td>
+                            <td className="num">{mxn(n.monto)}</td>
+                          </tr>
+                          {abierto === clave && (
+                            <tr><td colSpan={4} style={{ padding: 0 }}><EmpleadosDetalle gente={gente} /></td></tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
                   </tbody>
                 </table>
               </section>
@@ -155,6 +200,7 @@ function PorLinea() {
             </div>
           )}
 
+          {periodo !== 'ANIO' && periodo !== 'YTD' ? null : (
           <section className="card">
             <h2>Mes a mes</h2>
             <table>
@@ -172,8 +218,64 @@ function PorLinea() {
               </tbody>
             </table>
           </section>
+          )}
         </>
       )}
+    </div>
+  )
+}
+
+// Cada venta del periodo con su utilidad — el renglón que sostiene el total de
+// la línea. Se abre desde la línea, no en otra pantalla.
+function VentasDetalle({ ventas }) {
+  return (
+    <div style={{ padding: '6px 10px', background: 'rgba(255,255,255,.03)' }}>
+      <table>
+        <thead><tr><th>Fecha</th><th>Unidad</th><th>Cliente</th><th className="num">Precio</th><th className="num">Costo</th><th className="num">Utilidad</th></tr></thead>
+        <tbody>
+          {ventas.map((v) => (
+            <tr key={v.id}>
+              <td>{v.fecha ? new Date(v.fecha).toLocaleDateString('es-MX') : '—'}</td>
+              <td>
+                <Link to={`/vehiculos/${v.id}`}>{v.unidad}</Link>
+                <div className="muted" style={{ fontSize: 11 }}>{v.vin}</div>
+              </td>
+              <td>{v.clienteId ? <Link to={`/contactos/${v.clienteId}`}>{v.cliente}</Link> : (v.cliente ?? '—')}</td>
+              <td className="num">{mxn(v.precioVenta)}</td>
+              <td className="num">{v.costo == null ? <span className="muted">sin costo</span> : mxn(v.costo)}</td>
+              <td className={`num ${v.utilidad != null && v.utilidad < 0 ? 'neg' : ''}`}>
+                {v.utilidad == null ? <span className="muted">n/d</span> : mxn(v.utilidad)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Nómina persona por persona dentro de una línea. El nombre y el puesto salen
+// del último recibo del periodo: si alguien cambió de puesto, el costo queda
+// en la línea donde trabajó cada quincena.
+function EmpleadosDetalle({ gente }) {
+  return (
+    <div style={{ padding: '6px 10px', background: 'rgba(255,255,255,.03)' }}>
+      <table>
+        <thead><tr><th>Empleado</th><th>Puesto</th><th>Plaza</th><th className="num">Recibos</th><th className="num">Percepciones</th><th className="num">Cuotas patr.</th><th className="num">Costo</th></tr></thead>
+        <tbody>
+          {gente.map((e) => (
+            <tr key={e.rfc ?? e.empleado}>
+              <td>{e.empleado}<div className="muted" style={{ fontSize: 11 }}>{e.rfc}</div></td>
+              <td>{e.puesto ?? '—'}</td>
+              <td>{e.sucursal ?? '—'}</td>
+              <td className="num">{e.recibos}</td>
+              <td className="num">{mxn(e.percepciones)}</td>
+              <td className="num">{mxn(e.cuotasPatronales)}</td>
+              <td className="num">{mxn(e.monto)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
