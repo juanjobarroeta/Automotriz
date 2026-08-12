@@ -86,6 +86,19 @@ export default function Fiscal() {
               </p>
             </section>
             <section className="card">
+              <h2>Retenciones a enterar</h2>
+              <p className="kpi">{mxn(data.retenciones?.aEnterar ?? 0)}</p>
+              <p className="muted">
+                dinero de terceros ya descontado
+                {data.retenciones?.recibosNomina > 0 ? ` · ${data.retenciones.recibosNomina.toLocaleString('es-MX')} recibos de nómina` : ''}
+              </p>
+            </section>
+            <section className="card">
+              <h2>Total al SAT</h2>
+              <p className="kpi">{mxn(data.totalSat)}</p>
+              <p className="muted">IVA + ISR provisional + retenciones</p>
+            </section>
+            <section className="card">
               <h2>Checklist para declarar</h2>
               <p className="kpi">{data.checklist.resumen.listos}/{data.checklist.resumen.listos + data.checklist.resumen.pendientes + data.checklist.resumen.atencion}</p>
               <p className="muted">puntos listos{data.checklist.resumen.atencion > 0 ? ` · ${data.checklist.resumen.atencion} requieren atención` : ''}</p>
@@ -121,6 +134,59 @@ export default function Fiscal() {
               {!data.isr.tarifaVerificada && <p className="muted">Tarifa del ejercicio aún no verificada contra el DOF.</p>}
             </section>
           </div>
+
+          {data.retenciones && (
+            <section className="card">
+              <h2>Retenciones del periodo</h2>
+              <p className="muted">
+                Lo que la empresa retuvo a terceros y sólo custodia hasta el día 17. No es impuesto propio:
+                no sale del cálculo de utilidad, sale de lo que ya se descontó.
+              </p>
+              <table>
+                <thead><tr><th>Concepto</th><th>Fundamento</th><th className="num">CFDIs</th><th className="num">Monto</th></tr></thead>
+                <tbody>
+                  {data.retenciones.conceptos.length === 0 && (
+                    <tr><td colSpan={4} className="muted">Sin retenciones en el periodo.</td></tr>
+                  )}
+                  {data.retenciones.conceptos.map((c) => (
+                    <tr key={c.clave}>
+                      <td>{c.nombre}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{c.fundamento}</td>
+                      <td className="num">{c.comprobantes.toLocaleString('es-MX')}</td>
+                      <td className="num">{mxn(c.monto)}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td colSpan={3}><strong>Total a enterar</strong></td>
+                    <td className="num"><strong>{mxn(data.retenciones.aEnterar)}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+              {(data.retenciones.aFavor.iva > 0 || data.retenciones.aFavor.isr > 0) && (
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  Aparte, los clientes le retuvieron {mxn(data.retenciones.aFavor.iva)} de IVA y{' '}
+                  {mxn(data.retenciones.aFavor.isr)} de ISR. Eso NO se entera: es un anticipo, y ya viene
+                  acreditado en el IVA y el ISR de arriba.
+                </p>
+              )}
+            </section>
+          )}
+
+          <section className="card">
+            <h2>Lo que sale del banco</h2>
+            <table>
+              <tbody>
+                <tr><td>IVA a pagar</td><td className="num">{mxn(Math.max(data.iva.pagar, 0))}</td></tr>
+                <tr><td>ISR provisional</td><td className="num">{mxn(Math.max(isrPagar ?? 0, 0))}</td></tr>
+                <tr><td>Retenciones enteradas</td><td className="num">{mxn(data.retenciones?.aEnterar ?? 0)}</td></tr>
+                <tr><td><strong>Total al SAT</strong></td><td className="num"><strong>{mxn(data.totalSat)}</strong></td></tr>
+              </tbody>
+            </table>
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Un saldo a favor de IVA no se resta aquí: se arrastra al mes siguiente, no reduce el ISR ni las
+              retenciones. IMSS, INFONAVIT e ISN se pagan por separado y no entran en esta suma.
+            </p>
+          </section>
 
           {data.efos && (
             <div className="warn">
