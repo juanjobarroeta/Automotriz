@@ -155,6 +155,9 @@ export default function ContactoPerfil() {
                 {perfil.resumen.totalNotasCredito > 0
                   ? ` · ${mxn(perfil.resumen.totalNotasCredito)} en notas de crédito`
                   : ''}
+                {perfil.resumen.totalAnticipos > 0
+                  ? ` · ${mxn(perfil.resumen.totalAnticipos)} en anticipos`
+                  : ''}
               </p>
             </section>
             <section className="card"><h2>{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</h2><p className="kpi">{mxn(perfil.resumen.totalPagado)}</p><p className="muted">Saldo: {mxn(perfil.resumen.saldo)}</p></section>
@@ -225,6 +228,13 @@ export default function ContactoPerfil() {
                 <p className="muted" style={{ fontSize: 12 }}>
                   PUE se considera cobrada en su emisión; PPD por la mejor evidencia (REP o conciliación bancaria).
                 </p>
+                {perfil.resumen.totalAnticipos > 0 && (
+                  <div className="warn" style={{ marginTop: 8 }}>
+                    Este cliente tiene {mxn(perfil.resumen.totalAnticipos)} en <b>anticipos</b> facturados aparte
+                    (clave 84111506). Si la factura final se emitió por el total sin descontarlos, parte de este saldo
+                    ya está cobrado y el ingreso está contado dos veces — revísalo con tu contador.
+                  </div>
+                )}
               </section>
             )
           })()}
@@ -238,7 +248,12 @@ export default function ContactoPerfil() {
                 <tbody>
                   {perfil.facturas.map((f) => (
                     <tr key={f.id}>
-                      <td>{[f.serie, f.folio].filter(Boolean).join('-') || f.uuid?.slice(0, 8)}</td>
+                      <td>
+                        {[f.serie, f.folio].filter(Boolean).join('-') || f.uuid?.slice(0, 8)}
+                        {perfil.anticipos?.some((a) => a.id === f.id) && (
+                          <span className="badge badge-APARTADO" style={{ marginLeft: 6, fontSize: 10 }}>anticipo</span>
+                        )}
+                      </td>
                       <td>{fecha(f.fecha)}</td>
                       <td>{f.metodoPago}</td>
                       <td className="num">{mxn(f.total)}</td>
@@ -285,8 +300,8 @@ export default function ContactoPerfil() {
             <section className="card">
               <h2>Taller — {perfil.servicio.ordenes} orden(es) · {mxn(perfil.servicio.total)}</h2>
               <p className="muted">
-                Mano de obra {mxn(perfil.servicio.manoObra)} · refacciones {mxn(perfil.servicio.refacciones)} ·
-                última visita {fecha(perfil.servicio.ultimaVisita)}
+                Mano de obra {mxn(perfil.servicio.manoObra)} · refacciones {mxn(perfil.servicio.refacciones)}{' '}
+                (incluidas en el total) · última visita {fecha(perfil.servicio.ultimaVisita)}
               </p>
               <table>
                 <thead><tr><th>Fecha</th><th>Concepto</th><th>Unidad</th><th className="num">M. de obra</th><th className="num">Refacc.</th><th className="num">Total</th><th>CFDI</th></tr></thead>
@@ -321,6 +336,11 @@ export default function ContactoPerfil() {
                 {perfil.refacciones.partes} parte(s) distintas · {perfil.refacciones.piezas} piezas ·{' '}
                 {mxn(perfil.refacciones.importe)}
               </p>
+              <div className="warn" style={{ fontSize: 12 }}>
+                Detalle, <b>no venta adicional</b>: {mxn(perfil.refacciones.enOrdenes)} ya van dentro de las órdenes de
+                taller y {mxn(perfil.refacciones.mostrador)} son venta de mostrador. Sumar esta pestaña con Taller
+                contaría dos veces las mismas piezas.
+              </div>
               <table>
                 <thead><tr><th>No. de parte</th><th>Descripción</th><th className="num">Piezas</th><th className="num">Importe</th></tr></thead>
                 <tbody>
