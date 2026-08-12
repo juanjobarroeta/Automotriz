@@ -7,10 +7,123 @@ const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'curr
 const pct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
-// Rentabilidad de las ventas: la síntesis de todo lo derivado de los CFDIs —
-// precio de venta − costo real (compra + fletes − notas de crédito) − interés
-// piso − comisión, por unidad y agregado por mes / marca / vendedor.
+// Rentabilidad: dos lecturas del mismo negocio —
+//   Por unidad     : utilidad por VIN (precio − costo real − interés − comisión).
+//   Por línea      : el estado de resultados como lo lee un distribuidor —
+//                    nuevas, seminuevos, mano de obra y refacciones (taller vs
+//                    mostrador), cada una con su margen.
 export default function Rentabilidad() {
+  const [vista, setVista] = useState('LINEAS')
+  return (
+    <div>
+      <header className="page-head">
+        <h1>Rentabilidad</h1>
+        <div className="head-actions">
+          <button className={vista === 'LINEAS' ? '' : 'ghost'} onClick={() => setVista('LINEAS')}>Por línea de negocio</button>
+          <button className={vista === 'UNIDAD' ? '' : 'ghost'} onClick={() => setVista('UNIDAD')}>Por unidad</button>
+        </div>
+      </header>
+      {vista === 'LINEAS' ? <PorLinea /> : <PorUnidad />}
+    </div>
+  )
+}
+
+// Estado de resultados por línea de negocio (vista de operación, derivada de
+// CFDIs). Las notas del endpoint se muestran tal cual: dicen qué NO tiene costo
+// asignado y qué es estimado, para que nadie lea el margen de más.
+function PorLinea() {
+  const { activeCompany } = useAuth()
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const cargar = useCallback(async () => {
+    if (!activeCompany?.id) return
+    setLoading(true); setError(null)
+    try { setData(await apiFetch(`/api/automotriz/resultados?companyId=${activeCompany.id}&year=${year}`)) }
+    catch (err) { setError(err.message) } finally { setLoading(false) }
+  }, [activeCompany?.id, year])
+
+  useEffect(() => { cargar() }, [cargar])
+  const anios = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i)
+
+  return (
+    <div>
+      <div className="head-actions" style={{ marginBottom: 14 }}>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }}>
+          {anios.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      {error && <div className="error">{error}</div>}
+      {loading ? <p className="muted">Armando el estado de resultados…</p> : data && (
+        <>
+          <div className="cards">
+            <section className="card"><h2>Ingreso {data.year}</h2><p className="kpi">{mxn(data.totales.ingreso)}</p>
+              <p className="muted">de las líneas con costo conocido</p></section>
+            <section className="card"><h2>Utilidad bruta</h2>
+              <p className={`kpi ${data.totales.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(data.totales.utilidad)}</p>
+              <p className="muted">margen {pct(data.totales.margen)} · sin costo de mano de obra</p></section>
+            {data.totales.ingresoSinCosto > 0 && (
+              <section className="card"><h2>Fuera del margen</h2>
+                <p className="kpi neg">{mxn(data.totales.ingresoSinCosto)}</p>
+                <p className="muted">unidades vendidas cuyo costo de compra no se conoce</p></section>
+            )}
+          </div>
+
+          <section className="card">
+            <h2>Por línea de negocio</h2>
+            <table>
+              <thead><tr><th>Línea</th><th className="num">Ingreso</th><th className="num">Costo</th><th className="num">Utilidad</th><th className="num">Margen</th><th>Detalle</th></tr></thead>
+              <tbody>
+                {data.lineas.map((l) => (
+                  <tr key={l.clave}>
+                    <td>{l.nombre}</td>
+                    <td className="num">{mxn(l.ingreso)}</td>
+                    <td className="num">{l.costo == null ? <span className="muted">n/d</span> : mxn(l.costo)}</td>
+                    <td className={`num ${l.utilidad != null && l.utilidad < 0 ? 'neg' : ''}`}>
+                      {l.utilidad == null ? <span className="muted">n/d</span> : mxn(l.utilidad)}
+                    </td>
+                    <td className="num">{pct(l.margen)}</td>
+                    <td className="muted" style={{ fontSize: 12 }}>
+                      {l.unidades != null ? `${l.unidades} unidad(es)${l.sinCosto ? ` · ${l.sinCosto} sin costo` : ''}` : ''}
+                      {l.ordenes != null ? `${l.ordenes} orden(es)` : ''}
+                      {l.piezas != null ? `${l.piezas} piezas` : ''}
+                      {l.costoEstimado ? ' · costo estimado' : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <ul className="muted" style={{ fontSize: 12, marginTop: 10, paddingLeft: 18 }}>
+              {data.notas.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          </section>
+
+          <section className="card">
+            <h2>Mes a mes</h2>
+            <table>
+              <thead><tr><th>Mes</th><th className="num">Nuevas</th><th className="num">Seminuevos</th><th className="num">Mano de obra</th><th className="num">Refacciones</th></tr></thead>
+              <tbody>
+                {data.porMes.map((m) => (
+                  <tr key={m.mes}>
+                    <td>{MESES[m.mes - 1]}</td>
+                    <td className="num">{mxn(m.nuevas)}</td>
+                    <td className="num">{mxn(m.seminuevas)}</td>
+                    <td className="num">{mxn(m.manoObra)}</td>
+                    <td className="num">{mxn(m.refacciones)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
+
+function PorUnidad() {
   const { activeCompany } = useAuth()
   const [year, setYear] = useState(new Date().getFullYear())
   const [data, setData] = useState(null)
@@ -30,12 +143,11 @@ export default function Rentabilidad() {
 
   return (
     <div>
-      <header className="page-head">
-        <h1>Rentabilidad</h1>
+      <div className="head-actions" style={{ marginBottom: 14 }}>
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }}>
           {anios.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
-      </header>
+      </div>
       {error && <div className="error">{error}</div>}
       {loading ? <p className="muted">Reconstruyendo la utilidad por VIN…</p> : data && (
         <>
