@@ -14,6 +14,7 @@ const NAV = [
   { to: '/cartera', label: 'Contabilidad', ported: true },
   { to: '/fiscal', label: 'Impuestos', ported: true },
   { to: '/alertas', label: 'Alertas', ported: true },
+  { to: '/cobertura', label: 'Cobertura', ported: true },
   { to: '/clientes', label: 'Clientes', ported: true },
   { to: '/proveedores', label: 'Proveedores', ported: true },
   { to: '/configuracion', label: 'Configuración', ported: true },

@@ -11,6 +11,7 @@ import Fiscal from './pages/Fiscal'
 import Alertas from './pages/Alertas'
 import Portal from './pages/Portal'
 import Rentabilidad from './pages/Rentabilidad'
+import Cobertura from './pages/Cobertura'
 import Configuracion from './pages/Configuracion'
 import Pedidos from './pages/Pedidos'
 import Refacciones from './pages/Refacciones'
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/fiscal" element={<Fiscal />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/rentabilidad" element={<Rentabilidad />} />
+            <Route path="/cobertura" element={<Cobertura />} />
             <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/pedidos" element={<Pedidos />} />
             <Route path="/refacciones" element={<Refacciones />} />
