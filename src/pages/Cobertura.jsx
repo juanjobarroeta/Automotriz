@@ -5,6 +5,8 @@ import { apiFetch } from '../config/api'
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const num = (n) => (n == null ? '—' : n.toLocaleString('es-MX'))
 const pct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
+// Columna secundaria de una tabla: el dato de apoyo va en tinta más clara.
+const sec = { color: 'var(--ink-3)' }
 
 // Cobertura del archivo: lo que el estado de resultados NO está contando.
 //
@@ -179,12 +181,12 @@ export default function Cobertura() {
                   <tbody>
                     {data.cobertura.clusters.map((c, i) => (
                       <tr key={`${c.tipo}-${c.clave}-${i}`}>
-                        <td>
+                        <td style={{ fontSize: 13 }}>
                           {c.muestra || <span className="muted">(sin descripción)</span>}
-                          <div className="muted" style={{ fontSize: '0.85em' }}>{c.tipo.toLowerCase()}</div>
+                          <div style={{ fontSize: 11.5, color: 'var(--muted-2)' }}>{c.tipo.toLowerCase()}</div>
                         </td>
-                        <td className="muted">{c.clave || '—'}</td>
-                        <td className="num">{num(c.facturas)}</td>
+                        <td className="mono">{c.clave || '—'}</td>
+                        <td className="num" style={sec}>{num(c.facturas)}</td>
                         <td className="num">{mxn(c.monto)}</td>
                         <td className="num">
                           <button className="ghost" onClick={() => setAbierto(abierto === i ? null : i)}>
@@ -207,10 +209,12 @@ export default function Cobertura() {
           </section>
 
           <section className="card">
-            <h2>Cómo se lee</h2>
-            <ul className="muted">
-              {data.notas.map((n, i) => <li key={i}>{n}</li>)}
-            </ul>
+            <div className="card-head">Cómo se lee</div>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {data.notas.map((n, i) => (
+                <div key={i} style={{ fontSize: 11.5, color: 'var(--muted-2)', lineHeight: 1.5 }}>{n}</div>
+              ))}
+            </div>
           </section>
         </>
       )}
@@ -259,9 +263,9 @@ function FormaRegla({ cluster, companyId, onListo }) {
   }
 
   return (
-    <div className="card" style={{ marginTop: 12, background: 'var(--surface-2, transparent)' }}>
-      <h3>¿Qué es «{cluster.muestra ?? cluster.patron}»?</h3>
-      <p className="muted">
+    <div className="card" style={{ marginTop: 12 }}>
+      <div className="card-head">¿Qué es «{cluster.muestra ?? cluster.patron}»?</div>
+      <p className="muted" style={{ margin: '0 0 4px' }}>
         La regla aplica a las facturas cuya clave empiece con el prefijo Y cuya descripción
         contenga el texto. Deja el prefijo vacío para no filtrar por clave.
       </p>
@@ -282,7 +286,7 @@ function FormaRegla({ cluster, companyId, onListo }) {
         </label>
       </div>
       {error && <div className="error">{error}</div>}
-      <button className="success" onClick={guardar} disabled={guardando || (!prefijo.trim() && !patron.trim())}>
+      <button onClick={guardar} disabled={guardando || (!prefijo.trim() && !patron.trim())}>
         {guardando ? 'Guardando…' : `Clasificar ${cluster.facturas} factura(s)`}
       </button>
     </div>

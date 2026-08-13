@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
@@ -50,6 +50,13 @@ export default function Refacciones() {
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   const contando = conteo != null
   const conCantidad = contando ? Object.values(conteo).filter((v) => v !== '').length : 0
+
+  // Franja de KPIs: el catálogo completo da el total; el resto se resume sobre
+  // la página cargada (el endpoint pagina, no trae agregados globales).
+  const enPagina = data?.refacciones ?? []
+  const valorPagina = enPagina.reduce((s, r) => s + (r.valorInventario || 0), 0)
+  const negativas = enPagina.filter((r) => r.existencia < 0).length
+  const movsPagina = enPagina.reduce((s, r) => s + (r.movimientos || 0), 0)
 
   const registrarConteo = async () => {
     const items = Object.entries(conteo)
