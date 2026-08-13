@@ -9,9 +9,13 @@ import { useState } from 'react'
 //
 // El signo NO lo carga el color. Va en tres canales a la vez —dirección
 // respecto de la línea, textura (rayado abajo, sólido arriba) y el número
-// escrito en cada barra— porque el par verde/rojo del sistema no separa para
-// un lector deuteranope (ΔE 5.7, debajo del piso). El color queda como refuerzo
-// redundante, no como el dato.
+// escrito en cada barra— porque un par de colores no separa para un lector
+// deuteranope. El color queda como refuerzo redundante, no como el dato.
+//
+// Paleta monocroma («Automotriz PRO», ver DESIGN.md): el mes absorbido se traza
+// en tinta —el acento del sistema es la tinta, no un verde de marca— y el riel,
+// las guías y los rótulos van en grises. El único color es el rayado del mes
+// NO absorbido, porque ahí sí hay un estado malo que nombrar.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -23,8 +27,9 @@ const PAD = { top: 18, right: 14, bottom: 34, left: 46 }
 const PLOT_W = W - PAD.left - PAD.right
 const PLOT_H = H - PAD.top - PAD.bottom
 
-/** Barra con el extremo del dato redondeado y la base pegada a la línea. */
-function barraPath(x, ancho, yBase, yDatoCrudo, r = 4) {
+/** Barra con el extremo del dato redondeado y la base pegada a la línea.
+ *  Radio 3px: el mismo de las barras del waterfall. */
+function barraPath(x, ancho, yBase, yDatoCrudo, r = 3) {
   const arriba = yDatoCrudo < yBase
   // Un mes en 99% no puede desaparecer: se le garantiza trazo visible.
   const alto = Math.max(Math.abs(yBase - yDatoCrudo), 2)
@@ -79,7 +84,7 @@ export default function AbsorcionGrafica({ serie }) {
         {guias.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="var(--border-hairline)" strokeWidth="1" />
-            <text x={PAD.left - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="var(--ink-muted)">{v}%</text>
+            <text x={PAD.left - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="var(--muted-2)">{v}%</text>
           </g>
         ))}
 
@@ -92,7 +97,7 @@ export default function AbsorcionGrafica({ serie }) {
               <rect x={PAD.left + i * paso} y={PAD.top} width={paso} height={PLOT_H} fill="transparent" />
               <path
                 d={barraPath(x, ancho, yBase, y(m.porcentaje))}
-                fill={absorbido ? 'var(--accent)' : 'url(#abs-rayado)'}
+                fill={absorbido ? 'var(--ink)' : 'url(#abs-rayado)'}
                 stroke={absorbido ? 'none' : 'var(--danger)'}
                 strokeWidth={absorbido ? 0 : 1}
                 opacity={activo == null || activo === i ? 1 : 0.45}
@@ -104,11 +109,11 @@ export default function AbsorcionGrafica({ serie }) {
                 y={absorbido
                   ? Math.min(y(m.porcentaje), yBase - 12) - 6
                   : Math.max(y(m.porcentaje), yBase + 12) + 14}
-                textAnchor="middle" fontSize="11" fill="var(--ink-secondary)"
+                textAnchor="middle" fontSize="11" fill={absorbido ? 'var(--ink-3)' : 'var(--danger)'}
               >
                 {Math.round(m.porcentaje)}%
               </text>
-              <text x={x + ancho / 2} y={H - 12} textAnchor="middle" fontSize="11" fill="var(--ink-muted)">
+              <text x={x + ancho / 2} y={H - 12} textAnchor="middle" fontSize="11" fill="var(--muted-2)">
                 {MESES[Number(m.mes.slice(5, 7)) - 1]}
               </text>
             </g>
@@ -118,25 +123,25 @@ export default function AbsorcionGrafica({ serie }) {
         {/* La línea que importa: 100% = el back end paga toda la estructura.
             Se rotula en el eje, no flotando sobre el trazo, para que ninguna
             barra alta le caiga encima. */}
-        <line x1={PAD.left} x2={W - PAD.right} y1={yBase} y2={yBase} stroke="var(--ink)" strokeWidth="2" />
+        <line x1={PAD.left} x2={W - PAD.right} y1={yBase} y2={yBase} stroke="var(--ink)" strokeWidth="1.5" />
         <text x={PAD.left - 8} y={yBase + 4} textAnchor="end" fontSize="11" fontWeight="600" fill="var(--ink)">
           100%
         </text>
       </svg>
-      <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
-        La línea es el 100%: ahí el taller y refacciones pagan solos toda la estructura. Barra sólida hacia
-        arriba = mes absorbido; barra rayada hacia abajo = lo que faltó cubrir con la venta de unidades.
-      </p>
+      <div className="card-note">
+        La línea es el 100%: ahí el taller y refacciones pagan solos toda la estructura. Barra sólida en tinta
+        hacia arriba = mes absorbido; barra rayada hacia abajo = lo que faltó cubrir con la venta de unidades.
+      </div>
 
       {sel && (
         <div
           className="card"
           style={{
-            position: 'absolute', top: 0, right: 0, padding: '8px 12px', margin: 0,
-            fontSize: 12, pointerEvents: 'none', boxShadow: 'var(--shadow-card)',
+            position: 'absolute', top: 0, right: 0, padding: '11px 13px', margin: 0,
+            fontSize: 12.5, pointerEvents: 'none', background: 'var(--surface)',
           }}
         >
-          <div><strong>{sel.mes}</strong> · absorción {Math.round(sel.porcentaje)}%</div>
+          <div style={{ fontWeight: 600 }}>{sel.mes} · absorción {Math.round(sel.porcentaje)}%</div>
           <div className="muted">Utilidad taller + refacciones: {mxn(sel.utilidadFixedOps)}</div>
           <div className="muted">Estructura: {mxn(sel.estructura)}</div>
           <div className={sel.porcentaje >= 100 ? 'pos' : 'neg'}>

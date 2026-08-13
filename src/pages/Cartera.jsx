@@ -28,38 +28,48 @@ export default function Cartera() {
     <div>
       <header className="page-head">
         <h1>Cartera</h1>
+        <span className="glosa">
+          {lado === 'COBRAR' ? 'lo que te deben, por contacto' : 'lo que le debes a tus proveedores, por contacto'}
+        </span>
         <div className="head-actions">
-          <button className={lado === 'COBRAR' ? '' : 'ghost'} onClick={() => setLado('COBRAR')}>Por cobrar</button>
-          <button className={lado === 'PAGAR' ? '' : 'ghost'} onClick={() => setLado('PAGAR')}>Por pagar</button>
+          <div className="tabs" role="tablist">
+            {[['COBRAR', 'Por cobrar'], ['PAGAR', 'Por pagar']].map(([k, etiqueta]) => (
+              <button type="button" key={k} role="tab" aria-selected={lado === k}
+                className={lado === k ? 'activo' : ''}
+                onClick={() => setLado(k)}>
+                {etiqueta}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Cargando…</p>}
       {data && (
         <>
-          <div className="kpi-strip">
+          <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
             <div className="kpi-item">
               <span className="kpi-label">{lado === 'COBRAR' ? 'Saldo por cobrar' : 'Saldo por pagar'}</span>
               <span className="kpi">{mxn(data.resumen.saldoTotal)}</span>
-              <span className="muted">{data.resumen.contactos} contactos con saldo</span>
+              <span className="kpi-sub">{data.resumen.contactos} contactos con saldo</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Complementos pendientes</span>
               <span className={`kpi ${data.resumen.repPendienteTotal > 0 ? 'neg' : 'pos'}`}>{mxn(data.resumen.repPendienteTotal)}</span>
-              <span className="muted">
+              <span className="kpi-sub">
                 {lado === 'COBRAR' ? 'cobros PPD sin REP emitido (te toca emitir)' : 'pagos PPD sin REP del proveedor (riesgo de deducción)'}
               </span>
             </div>
           </div>
-          <table style={{ marginTop: 18 }}>
+          <table>
             <thead>
               <tr><th>Contacto</th><th>RFC</th><th className="num">Facturas</th><th className="num">Facturado</th><th className="num">{lado === 'COBRAR' ? 'Cobrado' : 'Pagado'}</th><th className="num">Saldo</th><th className="num">REP pendiente</th><th className="num">Antigüedad</th></tr>
             </thead>
             <tbody>
               {data.filas.map((f) => (
                 <tr key={f.customerId}>
-                  <td><Link to={`/contactos/${f.customerId}`}>{f.razonSocial}</Link></td>
-                  <td className="mono" style={{ fontSize: 11 }}>{f.rfc}</td>
+                  <td style={{ fontSize: 13 }}><Link to={`/contactos/${f.customerId}`}>{f.razonSocial}</Link></td>
+                  <td className="mono">{f.rfc}</td>
                   <td className="num">{f.facturas}</td>
                   <td className="num">{mxn(f.facturado)}</td>
                   <td className="num">{mxn(f.pagado)}</td>

@@ -7,7 +7,7 @@ import AbsorcionGrafica from '../components/AbsorcionGrafica'
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 
-// Panel de la agencia (handoff «Nórdico»): franja de KPIs sin caja sobre
+// Panel de la agencia («Automotriz PRO»): franja de KPIs sin caja sobre
 // hairline inferior + feed de urgentes con filas accionables (liga a unidad).
 export default function Panel() {
   const { activeCompany } = useAuth()
@@ -35,19 +35,20 @@ export default function Panel() {
     <div>
       <header className="page-head">
         <h1>Panel</h1>
-        <span className="muted">{MESES[periodo.month - 1]} {periodo.year} · {activeCompany?.razonSocial}</span>
+        <span className="glosa">{MESES[periodo.month - 1]} {periodo.year} · {activeCompany?.razonSocial}</span>
       </header>
 
-      <div className="kpi-strip">
+      {/* Cinco ítems ⇒ franja densa: la cifra baja a 27px (DESIGN §6). */}
+      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         <div className="kpi-item">
           <span className="kpi-label">Valor en piso</span>
           <span className="kpi">{mxn(piso.valorPiso)}</span>
-          <span className="muted">{piso.unidades} unidades · {piso.diasPromedio} días prom.</span>
+          <span className="kpi-sub">{piso.unidades} unidades · {piso.diasPromedio} días prom.</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Vendidas este mes</span>
           <span className="kpi">{mes.vendidas}</span>
-          <span className="muted">
+          <span className="kpi-sub">
             {mxn(mes.ingresos)}
             {mes.nuevas ? ` · ${mes.nuevas.unidades} nuevas, ${mes.seminuevas.unidades} seminuevos` : ''}
           </span>
@@ -55,17 +56,17 @@ export default function Panel() {
         <div className="kpi-item">
           <span className="kpi-label">Utilidad bruta del mes</span>
           <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadBruta)}</span>
-          <span className="muted">todas las líneas · antes de estructura</span>
+          <span className="kpi-sub">todas las líneas · antes de estructura</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Utilidad neta del mes</span>
           <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadNeta)}</span>
-          <span className="muted">después de {mxn(mes.estructura)} de estructura</span>
+          <span className="kpi-sub">después de {mxn(mes.estructura)} de estructura</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">+90 días en piso</span>
           <span className={`kpi ${piso.masDe90 > 0 ? 'neg' : ''}`}>{piso.masDe90}</span>
-          <span className="muted">{piso.masDe90 > 0 ? 'requieren acción de precio' : 'inventario sano'}</span>
+          <span className="kpi-sub">{piso.masDe90 > 0 ? 'requieren acción de precio' : 'inventario sano'}</span>
         </div>
       </div>
 
@@ -143,10 +144,10 @@ export default function Panel() {
             IVA {mxn(impuestos.iva)} · ISR provisional {mxn(impuestos.isr)} · retenciones {mxn(impuestos.retenciones)}
             {impuestos.ivaSaldoAFavor > 0 ? ` · saldo a favor de IVA ${mxn(impuestos.ivaSaldoAFavor)}` : ''}
           </p>
-          <p className="muted" style={{ fontSize: 12 }}>
+          <div className="card-note">
             Proyección con lo facturado hasta hoy — el mes no ha cerrado. La declaración se arma en{' '}
             <Link to="/fiscal">Impuestos</Link>.
-          </p>
+          </div>
         </section>
       )}
 
@@ -154,17 +155,20 @@ export default function Panel() {
         <div className="cards" style={{ marginTop: 18 }}>
           {taller && (
             <section className="card">
-              <h2>Taller hoy</h2>
+              <div className="card-head">
+                <span>Taller hoy</span>
+                <Link to="/servicio">ver órdenes</Link>
+              </div>
               <p className="kpi">{taller.abiertas}</p>
               <p className="muted">
                 órdenes abiertas · {taller.porEstado.RECIBIDA ?? 0} recibidas, {taller.porEstado.EN_PROCESO ?? 0} en
-                proceso, {taller.porEstado.LISTA ?? 0} listas — <Link to="/servicio">ver órdenes</Link>
+                proceso, {taller.porEstado.LISTA ?? 0} listas
               </p>
               {taller.promesasVencidas.length > 0 && (
-                <div style={{ marginTop: 6 }}>
+                <div className="card-divider" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {taller.promesasVencidas.map((o) => (
-                    <div key={o.id} className="neg" style={{ fontSize: 12 }}>
-                      #{o.folio} {o.unidad ?? ''} — prometida {fechaCorta(o.prometidaAt)}
+                    <div key={o.id} style={{ fontSize: 12, color: 'var(--danger)' }}>
+                      #<span className="mono">{o.folio}</span> {o.unidad ?? ''} — prometida {fechaCorta(o.prometidaAt)}
                     </div>
                   ))}
                 </div>
@@ -173,39 +177,41 @@ export default function Panel() {
           )}
           {crm && (
             <section className="card">
-              <h2>Piso de ventas</h2>
+              <div className="card-head">
+                <span>Piso de ventas</span>
+                <Link to="/ventas">abrir la cola de WhatsApp</Link>
+              </div>
               <p className="kpi">{crm.abiertos}</p>
               <p className="muted">
                 prospectos abiertos ·{' '}
                 {crm.vencidos > 0
                   ? <span className="neg">{crm.vencidos} seguimientos vencidos</span>
-                  : 'seguimientos al día'}{' '}
-                — <Link to="/ventas">abrir la cola de WhatsApp</Link>
+                  : 'seguimientos al día'}
               </p>
             </section>
           )}
         </div>
       )}
 
-      <section className="card" style={{ marginTop: 18 }}>
-        <h2>Requiere tu atención</h2>
+      <div className="urgent-list" style={{ marginTop: 18 }}>
+        <div className="urgent-head">Requiere tu atención</div>
         {urgentes.length === 0 ? (
-          <p className="muted">Nada urgente por ahora. ✓</p>
-        ) : (
-          <div className="urgent-list">
-            {urgentes.map((u) => (
-              <Link key={`${u.tipo}-${u.vehiculoId}`} to={`/vehiculos/${u.vehiculoId}`} className="urgent-row">
-                <span className={`badge ${u.tipo === 'PISO_90' ? 'badge-CANCELADO' : 'badge-APARTADO'}`}>
-                  {u.tipo === 'PISO_90' ? '+90 días' : 'Apartada'}
-                </span>
-                <span className="urgent-title">{u.titulo}</span>
-                <span className="muted">{u.detalle}</span>
-                <span className="chevron">›</span>
-              </Link>
-            ))}
+          <div className="urgent-row" style={{ cursor: 'default' }}>
+            <span className="muted">Nada urgente por ahora.</span>
           </div>
+        ) : (
+          urgentes.map((u) => (
+            <Link key={`${u.tipo}-${u.vehiculoId}`} to={`/vehiculos/${u.vehiculoId}`} className="urgent-row">
+              <span className={`badge ${u.tipo === 'PISO_90' ? 'badge-danger' : 'badge-warn'}`} style={{ flexShrink: 0 }}>
+                {u.tipo === 'PISO_90' ? '+90 días' : 'Apartada'}
+              </span>
+              <span className="urgent-title">{u.titulo}</span>
+              <span className="muted">{u.detalle}</span>
+              <span className="chevron">›</span>
+            </Link>
+          ))
         )}
-      </section>
+      </div>
     </div>
   )
 }

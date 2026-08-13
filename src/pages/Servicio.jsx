@@ -14,15 +14,25 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 //            la factura llega por el sync y se liga sola.
 //   Reportes (fase 5): la historia reconstruida desde CFDIs — venta por mes,
 //            ticket promedio, top clientes y los que dejaron de venir.
+const TABS = [['ORDENES', 'Órdenes'], ['REPORTES', 'Reportes']]
+
 export default function Servicio() {
   const [tab, setTab] = useState('ORDENES')
   return (
     <div>
       <header className="page-head">
         <h1>Servicio</h1>
+        <span className="glosa">El taller del día y la historia reconstruida desde los CFDI</span>
         <div className="head-actions">
-          <button className={tab === 'ORDENES' ? '' : 'ghost'} onClick={() => setTab('ORDENES')}>Órdenes</button>
-          <button className={tab === 'REPORTES' ? '' : 'ghost'} onClick={() => setTab('REPORTES')}>Reportes</button>
+          <div className="tabs" role="tablist">
+            {TABS.map(([k, etiqueta]) => (
+              <button type="button" key={k} role="tab" aria-selected={tab === k}
+                className={tab === k ? 'activo' : ''}
+                onClick={() => setTab(k)}>
+                {etiqueta}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
       {tab === 'ORDENES' ? <OrdenesTaller /> : <ReportesTaller />}
@@ -60,10 +70,22 @@ function ReportesTaller() {
       {error && <div className="error">{error}</div>}
       {loading ? <p className="muted">Reconstruyendo el taller desde los CFDIs…</p> : data && (
         <>
-          <div className="cards">
-            <section className="card"><h2>Órdenes facturadas</h2><p className="kpi">{data.resumen.facturas.toLocaleString('es-MX')}</p><p className="muted">en {data.year}</p></section>
-            <section className="card"><h2>Venta de taller</h2><p className="kpi">{mxn(data.resumen.total)}</p><p className="muted">M.O. {mxn(data.resumen.manoObra)} · Refacciones {mxn(data.resumen.refacciones)}</p></section>
-            <section className="card"><h2>Ticket promedio</h2><p className="kpi">{mxn(data.resumen.ticketPromedio)}</p></section>
+          <div className="kpi-strip">
+            <div className="kpi-item">
+              <span className="kpi-label">Órdenes facturadas</span>
+              <span className="kpi">{data.resumen.facturas.toLocaleString('es-MX')}</span>
+              <span className="kpi-sub">en {data.year}</span>
+            </div>
+            <div className="kpi-item">
+              <span className="kpi-label">Venta de taller</span>
+              <span className="kpi">{mxn(data.resumen.total)}</span>
+              <span className="kpi-sub">M.O. {mxn(data.resumen.manoObra)} · Refacciones {mxn(data.resumen.refacciones)}</span>
+            </div>
+            <div className="kpi-item">
+              <span className="kpi-label">Ticket promedio</span>
+              <span className="kpi">{mxn(data.resumen.ticketPromedio)}</span>
+              <span className="kpi-sub">por orden facturada</span>
+            </div>
           </div>
 
           <div className="cards">
@@ -102,12 +124,12 @@ function ReportesTaller() {
                   </tbody>
                 </table>
               )}
-              <p className="muted" style={{ fontSize: 12 }}>≥2 servicios históricos y +6 meses sin regresar — la lista de llamadas del asesor (y del bot de WhatsApp en fase 2).</p>
+              <div className="card-note">≥2 servicios históricos y +6 meses sin regresar — la lista de llamadas del asesor (y del bot de WhatsApp en fase 2).</div>
             </section>
           </div>
 
           <section className="card">
-            <h2>Últimas órdenes facturadas</h2>
+            <div className="card-head"><span>Últimas órdenes facturadas</span><span className="muted" style={{ fontWeight: 400 }}>{data.year}</span></div>
             <table>
               <thead><tr><th>Fecha</th><th>Concepto</th><th>Cliente</th><th>Unidad</th><th className="num">Total</th><th>CFDI</th></tr></thead>
               <tbody>
@@ -118,7 +140,7 @@ function ReportesTaller() {
                     <td>{s.cliente ? <Link to={`/contactos/${s.cliente.id}`}>{s.cliente.razonSocial}</Link> : <span className="muted">Público en general</span>}</td>
                     <td>{s.vehiculo ? <Link to={`/vehiculos/${s.vehiculo.id}`}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link> : '—'}</td>
                     <td className="num">{mxn(s.total)}</td>
-                    <td><button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(s.invoice.id)}>Ver</button></td>
+                    <td><button className="ghost" style={{ padding: '3px 9px', fontSize: 11.5 }} onClick={() => setCfdiVista(s.invoice.id)}>Ver</button></td>
                   </tr>
                 ))}
                 {data.ultimas.length === 0 && <tr><td colSpan={6} className="muted">Sin órdenes derivadas aún.</td></tr>}

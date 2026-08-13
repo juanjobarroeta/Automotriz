@@ -5,6 +5,17 @@ import { apiFetch } from '../config/api'
 
 const ESTADOS = ['', 'EN_TRANSITO', 'DISPONIBLE', 'APARTADO', 'VENDIDO', 'ENTREGADO', 'CANCELADO']
 
+// Los chips nunca van en mayúsculas forzadas (DESIGN §6): el enum se rotula.
+const ESTADO_LABEL = {
+  EN_TRANSITO: 'En tránsito', DISPONIBLE: 'Disponible', APARTADO: 'Apartado',
+  VENDIDO: 'Vendido', ENTREGADO: 'Entregado', CANCELADO: 'Cancelado',
+}
+const USO_LABEL = { VENTA: 'Venta', DEMO: 'Demo', CORTESIA: 'Cortesía' }
+const TIPO_LABEL = { NUEVO: 'Nuevo', SEMINUEVO: 'Seminuevo' }
+
+// Columnas secundarias de la tabla: 12.5px --ink-3 (DESIGN §6 «Tabla»).
+const SEC = { color: 'var(--ink-3)' }
+
 const mxn = (n) =>
   n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
 
@@ -42,16 +53,19 @@ export default function Inventario() {
     <div>
       <header className="page-head">
         <h1>Inventario de unidades</h1>
+        {!loading && items.length > 0 && (
+          <span className="glosa">{items.length} unidades en el padrón</span>
+        )}
         <div className="head-actions">
           <input
             placeholder="Buscar VIN, marca, modelo, motor, cliente…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 260 }}
+            style={{ minWidth: 260, width: 'auto' }}
           />
-          <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+          <select value={estado} onChange={(e) => setEstado(e.target.value)} style={{ width: 'auto' }}>
             {ESTADOS.map((e) => (
-              <option key={e} value={e}>{e ? e.replaceAll('_', ' ') : 'Todos los estados'}</option>
+              <option key={e} value={e}>{e ? ESTADO_LABEL[e] : 'Todos los estados'}</option>
             ))}
           </select>
           <select value={soloUso} onChange={(e) => setSoloUso(e.target.value)} style={{ width: 'auto' }}>
@@ -77,14 +91,36 @@ export default function Inventario() {
         const vendidas = items.filter((v) => v.estado === 'VENDIDO' || v.estado === 'ENTREGADO')
         const sinCosto = vendidas.filter((v) => !v.costoCompra)
         const demos = items.filter((v) => v.uso && v.uso !== 'VENTA' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO')
+        // Inventario es pantalla de catálogo: la cifra va a 27px (DESIGN §6).
+        const cols = sinCosto.length > 0 ? 5 : 4
         return (
-          <div className="kpi-strip" style={{ marginBottom: 14 }}>
-            <div className="kpi-item"><span className="kpi-label">En piso</span><span className="kpi">{enPiso.length}</span><span className="muted">{mxn(enPiso.reduce((s, v) => s + v.costoCompra, 0))} en inventario</span></div>
-            <div className="kpi-item"><span className="kpi-label">Apartadas</span><span className="kpi">{items.filter((v) => v.estado === 'APARTADO').length}</span></div>
-            <div className="kpi-item"><span className="kpi-label">Vendidas</span><span className="kpi">{vendidas.length}</span></div>
-            <div className="kpi-item"><span className="kpi-label">Demos / cortesía</span><span className="kpi">{demos.length}</span></div>
+          <div className="kpi-strip densa" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, paddingBottom: 20, marginBottom: 20 }}>
+            <div className="kpi-item">
+              <span className="kpi-label">En piso</span>
+              <span className="kpi">{enPiso.length}</span>
+              <span className="kpi-sub">{mxn(enPiso.reduce((s, v) => s + v.costoCompra, 0))} en inventario</span>
+            </div>
+            <div className="kpi-item">
+              <span className="kpi-label">Apartadas</span>
+              <span className="kpi">{items.filter((v) => v.estado === 'APARTADO').length}</span>
+              <span className="kpi-sub">comprometidas con cliente</span>
+            </div>
+            <div className="kpi-item">
+              <span className="kpi-label">Vendidas</span>
+              <span className="kpi">{vendidas.length}</span>
+              <span className="kpi-sub">facturadas y entregadas</span>
+            </div>
+            <div className="kpi-item">
+              <span className="kpi-label">Demos / cortesía</span>
+              <span className="kpi">{demos.length}</span>
+              <span className="kpi-sub">fuera del piso de venta</span>
+            </div>
             {sinCosto.length > 0 && (
-              <div className="kpi-item"><span className="kpi-label">Sin costo (pre-2021)</span><span className="kpi neg">{sinCosto.length}</span><span className="muted">captúralos en el detalle</span></div>
+              <div className="kpi-item">
+                <span className="kpi-label">Sin costo (pre-2021)</span>
+                <span className="kpi neg">{sinCosto.length}</span>
+                <span className="kpi-sub">captúralos en el detalle</span>
+              </div>
             )}
           </div>
         )
@@ -93,7 +129,7 @@ export default function Inventario() {
       {loading ? (
         <p className="muted">Cargando…</p>
       ) : items.length === 0 ? (
-        <p className="muted">Sin unidades{estado ? ` en ${estado}` : ''}. Da de alta la primera.</p>
+        <p className="muted">Sin unidades{estado ? ` en ${ESTADO_LABEL[estado].toLowerCase()}` : ''}. Da de alta la primera.</p>
       ) : (
         <table>
           <thead>
@@ -116,14 +152,17 @@ export default function Inventario() {
               })
               .map((v) => (
               <tr key={v.id}>
-                <td><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
-                <td>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</td>
-                <td>{v.tipo}{v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{v.uso}</span></> : null}</td>
-                <td><span className={`badge badge-${v.estado}`}>{v.estado.replaceAll('_', ' ')}</span></td>
+                <td className="mono"><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
+                <td style={{ fontSize: 13 }}>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</td>
+                <td style={SEC}>
+                  {TIPO_LABEL[v.tipo] ?? v.tipo}
+                  {v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{USO_LABEL[v.uso] ?? v.uso}</span></> : null}
+                </td>
+                <td><span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span></td>
                 <td className="num">{mxn(v.costoCompra)}</td>
-                <td className="num">{mxn(v.costosTotal)}</td>
+                <td className="num" style={SEC}>{mxn(v.costosTotal)}</td>
                 <td className="num">{mxn(v.precioVenta)}</td>
-                <td>{v.cliente ? <Link to={`/contactos/${v.cliente.id}`}>{v.cliente.razonSocial}</Link> : (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
+                <td style={SEC}>{v.cliente ? <Link to={`/contactos/${v.cliente.id}`}>{v.cliente.razonSocial}</Link> : (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
               </tr>
               ))}
           </tbody>
@@ -185,7 +224,7 @@ function AltaUnidad({ companyId, onClose, onCreated }) {
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h2>Alta de unidad</h2>
         <div className="grid2">
-          <label>VIN<input value={form.vin} onChange={set('vin')} required minLength={11} maxLength={17} /></label>
+          <label>VIN<input className="mono" style={{ fontSize: 12.5 }} value={form.vin} onChange={set('vin')} required minLength={11} maxLength={17} /></label>
           <label>Tipo
             <select value={form.tipo} onChange={set('tipo')}>
               <option value="NUEVO">Nuevo</option>
@@ -201,9 +240,9 @@ function AltaUnidad({ companyId, onClose, onCreated }) {
           <label>Precio lista<input type="number" step="0.01" value={form.precioLista} onChange={set('precioLista')} /></label>
           <label>Tasa plan piso (% anual)<input type="number" step="0.01" value={form.planPisoTasaAnual} onChange={set('planPisoTasaAnual')} /></label>
         </div>
-        <p className="muted">
-          La unidad nace EN TRÁNSITO; al recibirla se postea el inventario a contabilidad.
-        </p>
+        <div className="card-note">
+          La unidad nace en tránsito; al recibirla se postea el inventario a contabilidad.
+        </div>
         {error && <div className="error">{error}</div>}
         <div className="modal-actions">
           <button type="button" className="ghost" onClick={onClose}>Cancelar</button>

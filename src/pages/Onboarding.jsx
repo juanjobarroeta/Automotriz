@@ -16,6 +16,13 @@ import { apiFetch } from '../config/api'
 
 const PASOS = ['Cuenta', 'Plan', 'CSF', 'e.firma', 'Sellos (CSD)', 'Manifiesto', 'Crear']
 
+// Lo que la descarga masiva del SAT llena sola (mockup «Alta de tu agencia»).
+const POBLADO_POR_SAT = ['Clientes', 'Proveedores', 'Nómina histórica', 'Activos fijos', 'Inventario de unidades por VIN']
+
+// La nota de seguridad del alta: se muestra en TODO paso que pida credenciales.
+const NOTA_CREDENCIALES =
+  'Los archivos .cer/.key y sus contraseñas viven sólo en esta pantalla y se mandan directo al hub — nunca se guardan en el navegador ni se registran en bitácora.'
+
 const fileToB64 = (file) =>
   new Promise((resolve, reject) => {
     const r = new FileReader()
@@ -172,8 +179,15 @@ export default function Onboarding() {
   return (
     <div className="login-wrap">
       <div className="wizard">
-        <BrandLockup tagline />
-        <p className="muted">Alta de tu agencia — {PASOS.length} pasos</p>
+        <BrandLockup />
+        <header className="page-head" style={{ marginBottom: 0, marginTop: 8 }}>
+          <h1>Alta de tu agencia</h1>
+          <span className="glosa">{PASOS.length} pasos · el satélite es la cara, ContabilidadOS hace el trabajo</span>
+        </header>
+        <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.55 }}>
+          La constancia se lee con IA en el servidor, la e.firma y los sellos se cifran, y la descarga
+          masiva del SAT arranca sola al crear la empresa.
+        </p>
         <ol className="pasos">
           {PASOS.map((p, i) => (
             <li key={p} className={i === paso ? 'activo' : i < paso ? 'hecho' : ''}>{p}</li>
@@ -201,7 +215,7 @@ export default function Onboarding() {
                 <option value="PROFESIONAL">Profesional — $1,299/mes</option>
               </select>
             </label>
-            {checkoutHecho && <p className="ok">✓ Pago confirmado</p>}
+            {checkoutHecho && <div><span className="badge badge-ok">Pago confirmado</span></div>}
             <div className="acciones">
               <button className="ghost" onClick={atras}>Atrás</button>
               {!checkoutHecho && <button onClick={irACheckout} disabled={busy}>{busy ? 'Abriendo Stripe…' : 'Pagar con Stripe'}</button>}
@@ -219,7 +233,7 @@ export default function Onboarding() {
             {csfWarnings.map((w, i) => <div className="warn" key={i}>⚠️ {w}</div>)}
             {csf && (
               <div className="grid2">
-                <label>RFC<input value={empresa.rfc} onChange={(e) => setEmpresa({ ...empresa, rfc: e.target.value.toUpperCase() })} /></label>
+                <label>RFC<input style={{ fontFamily: 'var(--font-mono)' }} value={empresa.rfc} onChange={(e) => setEmpresa({ ...empresa, rfc: e.target.value.toUpperCase() })} /></label>
                 <label>Razón social<input value={empresa.razonSocial} onChange={(e) => setEmpresa({ ...empresa, razonSocial: e.target.value })} /></label>
                 <label>Régimen fiscal<input value={empresa.regimenFiscal} onChange={(e) => setEmpresa({ ...empresa, regimenFiscal: e.target.value })} /></label>
                 <label>Código postal<input value={empresa.codigoPostal} onChange={(e) => setEmpresa({ ...empresa, codigoPostal: e.target.value })} /></label>
@@ -237,6 +251,7 @@ export default function Onboarding() {
             titulo="e.firma (FIEL)"
             descripcion="Con tu e.firma, ContabilidadOS descarga 5 años de CFDIs del SAT y llena solos tus clientes, proveedores, nómina, activos e inventario de unidades. Se guarda cifrada (AES-256); nunca sale del servidor."
             cred={fiel} setCred={setFiel}
+            puntos={POBLADO_POR_SAT}
             onAtras={atras} onSiguiente={siguiente} completa={fielCompleta} opcionalLabel="Subir después"
           />
         )}
@@ -270,15 +285,33 @@ export default function Onboarding() {
 
         {paso === 6 && (
           <div className="paso">
-            <h2>Listo para crear tu agencia</h2>
+            <div className="card-head" style={{ marginBottom: 4, gap: 12, flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'flex-start' }}>
+              <h2>Resumen del alta</h2>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>
+                último paso: crear la agencia con módulo AUTOMOTRIZ y backfill de 5 ejercicios
+              </span>
+            </div>
             <dl>
-              <dt>Empresa</dt><dd>{empresa.razonSocial} ({empresa.rfc})</dd>
-              <dt>Plan</dt><dd>{plan}{checkoutHecho ? ' · pagado' : ' · pago pendiente'}</dd>
-              <dt>e.firma</dt><dd>{fielCompleta ? '✓ lista (descarga de 5 años arranca sola)' : '— después'}</dd>
-              <dt>CSD</dt><dd>{csdCompleto ? '✓ listos (timbrado habilitado)' : '— después'}</dd>
-              <dt>Manifiesto</dt><dd>{manifiestoAck ? '✓ enterado' : '—'}</dd>
-              <dt>Módulos</dt><dd>Contabilidad + Automotriz</dd>
+              <dt>Empresa</dt>
+              <dd>{empresa.razonSocial} <span className="mono">{empresa.rfc}</span></dd>
+              <dt>Plan</dt>
+              <dd>{plan}{checkoutHecho ? ' · pagado' : ' · pago pendiente'}</dd>
+              <dt>e.firma</dt>
+              <dd>{fielCompleta
+                ? 'lista — la descarga de 5 años arranca sola'
+                : <span style={{ color: 'var(--muted-2)' }}>pendiente — se puede subir después</span>}</dd>
+              <dt>Sellos (CSD)</dt>
+              <dd>{csdCompleto
+                ? 'listos — timbrado habilitado'
+                : <span style={{ color: 'var(--muted-2)' }}>pendientes — se pueden subir después</span>}</dd>
+              <dt>Carta manifiesto</dt>
+              <dd>{manifiestoAck
+                ? 'enterado'
+                : <span style={{ color: 'var(--muted-2)' }}>pendiente de firmar en Facturapi</span>}</dd>
+              <dt>Módulos</dt>
+              <dd>Contabilidad + Automotriz</dd>
             </dl>
+            <p className="card-note" style={{ margin: 0 }}>{NOTA_CREDENCIALES}</p>
             <div className="acciones">
               <button className="ghost" onClick={atras}>Atrás</button>
               <button onClick={crearEmpresa} disabled={creando || !empresaCompleta}>
@@ -292,16 +325,49 @@ export default function Onboarding() {
   )
 }
 
-function CredencialPaso({ titulo, descripcion, cred, setCred, onAtras, onSiguiente, completa, opcionalLabel }) {
+function CredencialPaso({ titulo, descripcion, cred, setCred, onAtras, onSiguiente, completa, opcionalLabel, puntos }) {
   return (
     <div className="paso">
-      <h2>{titulo}</h2>
-      <p className="muted">{descripcion}</p>
+      <h2 style={{ fontSize: 15 }}>{titulo}</h2>
+      <p style={{ fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.55, margin: 0 }}>{descripcion}</p>
       <div className="grid2">
-        <label>Certificado (.cer)<input type="file" accept=".cer" onChange={(e) => setCred({ ...cred, cer: e.target.files?.[0] ?? null })} /></label>
-        <label>Llave privada (.key)<input type="file" accept=".key" onChange={(e) => setCred({ ...cred, key: e.target.files?.[0] ?? null })} /></label>
-        <label>Contraseña<input type="password" value={cred.password} onChange={(e) => setCred({ ...cred, password: e.target.value })} autoComplete="off" /></label>
+        <label>
+          Certificado (.cer)
+          <input type="file" accept=".cer" onChange={(e) => setCred({ ...cred, cer: e.target.files?.[0] ?? null })} />
+          <ArchivoElegido file={cred.cer} />
+        </label>
+        <label>
+          Llave privada (.key)
+          <input type="file" accept=".key" onChange={(e) => setCred({ ...cred, key: e.target.files?.[0] ?? null })} />
+          <ArchivoElegido file={cred.key} />
+        </label>
+        <label style={{ gridColumn: '1 / -1' }}>
+          Contraseña de la llave
+          <input
+            type="password" value={cred.password} autoComplete="off"
+            style={{ fontFamily: 'var(--font-mono)' }}
+            onChange={(e) => setCred({ ...cred, password: e.target.value })}
+          />
+        </label>
       </div>
+
+      {puntos && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Qué se llena solo con la descarga</div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {puntos.map((p) => (
+              <div key={p} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 'var(--rowpad) 0', borderBottom: '1px solid var(--border-hairline)' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--ink)', flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5 }}>{p}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Nota de seguridad: las credenciales no se guardan en el navegador. */}
+      <p className="card-note" style={{ margin: 0 }}>{NOTA_CREDENCIALES}</p>
+
       <div className="acciones">
         <button className="ghost" onClick={onAtras}>Atrás</button>
         <button onClick={onSiguiente} className={completa ? '' : 'ghost'}>
@@ -309,6 +375,18 @@ function CredencialPaso({ titulo, descripcion, cred, setCred, onAtras, onSiguien
         </button>
       </div>
     </div>
+  )
+}
+
+// Confirmación visual del archivo elegido (el input nativo sigue siendo el
+// único que toca el archivo; esto sólo lo nombra).
+function ArchivoElegido({ file }) {
+  if (!file) return null
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+      <span className="badge badge-ok">listo</span>
+      <span style={{ fontSize: 12.5, color: 'var(--ink)' }}>{file.name}</span>
+    </span>
   )
 }
 

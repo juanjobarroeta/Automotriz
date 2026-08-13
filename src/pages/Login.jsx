@@ -34,6 +34,7 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
         <BrandLockup tagline />
+        <p className="muted" style={{ marginTop: 4 }}>Entra con tu cuenta de la agencia.</p>
         <label>
           Correo
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />

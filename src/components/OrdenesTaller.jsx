@@ -16,6 +16,20 @@ const BADGE = {
   CANCELADA: 'badge-CANCELADO',
 }
 const nombreEmp = (e) => (e ? `${e.nombre} ${e.apellidoPaterno ?? ''}`.trim() : null)
+const titulo = (e) => e.replace('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase())
+// Botón dentro de fila de tabla — medida del mockup (3px 9px / 11.5px / radio 6px).
+const BTN_FILA = { padding: '3px 9px', fontSize: 11.5, borderRadius: 6, whiteSpace: 'nowrap' }
+
+// Píldora conmutable de la barra de filtros (§6 «Filtros conmutables»).
+function Filtro({ activo, onClick, children }) {
+  return (
+    <button type="button" aria-pressed={activo}
+      className={`filtro${activo ? ' activo' : ''}`}
+      onClick={onClick}>
+      {children}
+    </button>
+  )
+}
 
 // Órdenes de servicio (fase 5b): el workflow diario del taller — recepción →
 // técnico → lista → entregada. La factura NO se captura: el CFDI llega por el
@@ -119,14 +133,12 @@ export default function OrdenesTaller() {
   return (
     <div>
       {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
-      <div className="head-actions" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
-        <button className={filtro === 'ABIERTAS' ? '' : 'ghost'} onClick={() => setFiltro('ABIERTAS')}>Abiertas · {abiertasN}</button>
+      <div className="head-actions" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 6 }}>
+        <Filtro activo={filtro === 'ABIERTAS'} onClick={() => setFiltro('ABIERTAS')}>Abiertas · {abiertasN}</Filtro>
         {ESTADOS.map((e) => (
-          <button key={e} className={filtro === e ? '' : 'ghost'} onClick={() => setFiltro(e)}>
-            {e.replace('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase())} · {n(e)}
-          </button>
+          <Filtro key={e} activo={filtro === e} onClick={() => setFiltro(e)}>{titulo(e)} · {n(e)}</Filtro>
         ))}
-        <button className={filtro === 'TODAS' ? '' : 'ghost'} onClick={() => setFiltro('TODAS')}>Todas</button>
+        <Filtro activo={filtro === 'TODAS'} onClick={() => setFiltro('TODAS')}>Todas</Filtro>
         <input placeholder="Folio, VIN, placas, cliente…" value={q} onChange={(e) => setQ(e.target.value)} style={{ minWidth: 220, marginLeft: 'auto' }} />
         <button onClick={() => (creando ? setCreando(false) : abrirCrear())}>{creando ? 'Cerrar' : 'Nueva orden'}</button>
       </div>
@@ -153,17 +165,17 @@ export default function OrdenesTaller() {
               <option value="">Técnico…</option>
               {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
             </select>
-            <label className="muted" style={{ fontSize: 12 }}>Promesa:{' '}
+            <label>Promesa
               <input type="date" value={form.prometidaAt} onChange={(e) => setForm((f) => ({ ...f, prometidaAt: e.target.value }))} />
             </label>
             <button type="submit" disabled={busy}>Recibir unidad</button>
           </form>
-          <p className="muted" style={{ fontSize: 12 }}>La factura del cierre NO se captura: cuando el CFDI se emita, el sync la liga solo a esta orden (por VIN o cliente).</p>
+          <div className="card-note">La factura del cierre no se captura: cuando el CFDI se emita, el sync lo liga solo a esta orden por VIN o cliente. Si no empata, «Ligar CFDI» lo hace a mano.</div>
         </section>
       )}
 
       <table>
-        <thead><tr><th>#</th><th>Unidad</th><th>Cliente</th><th>Falla / trabajo</th><th>Técnico</th><th>Estado</th><th>Promesa</th><th>Factura</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>#</th><th>Unidad</th><th>Cliente</th><th>Falla / trabajo</th><th>Técnico</th><th>Estado</th><th>Promesa</th><th className="num">Factura</th><th>Acciones</th></tr></thead>
         <tbody>
           {ordenes.map((o) => (
             <OrdenRow key={o.id} o={o} busy={busy} accion={accion}
@@ -179,7 +191,6 @@ export default function OrdenesTaller() {
 
 function OrdenRow({ o, busy, accion, abierta, onToggle, onVerCfdi, onRefrescar, empleados, cargarCatalogos }) {
   const vencida = o.prometidaAt && !o.entregadaAt && new Date(o.prometidaAt) < new Date() && (o.estado === 'RECIBIDA' || o.estado === 'EN_PROCESO')
-  const btn = { padding: '2px 10px', fontSize: 12 }
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
@@ -188,29 +199,29 @@ function OrdenRow({ o, busy, accion, abierta, onToggle, onVerCfdi, onRefrescar, 
           {o.vehiculo
             ? <Link to={`/vehiculos/${o.vehiculo.id}`} onClick={(e) => e.stopPropagation()}>{o.vehiculo.marca} {o.vehiculo.modelo} {o.vehiculo.anio}</Link>
             : (o.descripcionUnidad ?? '—')}
-          {o.vin && <div className="mono muted" style={{ fontSize: 10 }}>{o.vin}{o.placas ? ` · ${o.placas}` : ''}</div>}
+          {o.vin && <div className="mono" style={{ fontSize: 10, color: 'var(--muted-2)', marginTop: 2 }}>{o.vin}{o.placas ? ` · ${o.placas}` : ''}</div>}
         </td>
-        <td>{o.cliente ? <Link to={`/contactos/${o.cliente.id}`} onClick={(e) => e.stopPropagation()}>{o.cliente.razonSocial}</Link> : <span className="muted">Mostrador</span>}</td>
+        <td style={{ color: 'var(--ink-3)' }}>{o.cliente ? <Link to={`/contactos/${o.cliente.id}`} onClick={(e) => e.stopPropagation()}>{o.cliente.razonSocial}</Link> : <span className="muted">Mostrador</span>}</td>
         <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.fallaReportada}>{o.fallaReportada}</td>
-        <td>{nombreEmp(o.tecnico) ?? <span className="muted">—</span>}</td>
-        <td><span className={`badge ${BADGE[o.estado]}`}>{o.estado.replace('_', ' ')}</span></td>
-        <td className={vencida ? 'neg' : ''}>{fecha(o.prometidaAt)}</td>
-        <td>
+        <td style={{ color: 'var(--ink-3)' }}>{nombreEmp(o.tecnico) ?? <span className="muted">—</span>}</td>
+        <td><span className={`badge ${BADGE[o.estado]}`} style={{ whiteSpace: 'nowrap' }}>{o.estado.replace('_', ' ')}</span></td>
+        <td className={vencida ? 'neg' : ''} style={{ whiteSpace: 'nowrap' }}>{fecha(o.prometidaAt)}</td>
+        <td className="num">
           {o.servicioVenta
-            ? <button className="ghost" style={btn} onClick={(e) => { e.stopPropagation(); onVerCfdi(o.servicioVenta.invoiceId) }}>{mxn(o.servicioVenta.total)}</button>
+            ? <button className="ghost" style={BTN_FILA} onClick={(e) => { e.stopPropagation(); onVerCfdi(o.servicioVenta.invoiceId) }}>{mxn(o.servicioVenta.total)}</button>
             : <span className="muted">—</span>}
         </td>
         <td onClick={(e) => e.stopPropagation()}>
-          <div className="head-actions" style={{ gap: 4 }}>
-            {o.estado === 'RECIBIDA' && <button style={btn} disabled={busy} onClick={() => accion(o, 'iniciar')}>Iniciar</button>}
-            {o.estado === 'EN_PROCESO' && <button className="success" style={btn} disabled={busy} onClick={() => accion(o, 'terminar')}>Terminar</button>}
-            {o.estado === 'LISTA' && <button style={btn} disabled={busy} onClick={() => accion(o, 'entregar')}>Entregar</button>}
-            {o.estado === 'LISTA' && !o.servicioVenta && <button className="ghost" style={btn} disabled={busy} onClick={() => accion(o, 'ligarFactura')}>Ligar CFDI</button>}
-            {(o.estado === 'RECIBIDA' || o.estado === 'EN_PROCESO') && <button className="ghost" style={btn} disabled={busy} onClick={() => accion(o, 'cancelar')}>Cancelar</button>}
+          <div style={{ display: 'flex', gap: 5 }}>
+            {o.estado === 'RECIBIDA' && <button style={BTN_FILA} disabled={busy} onClick={() => accion(o, 'iniciar')}>Iniciar</button>}
+            {o.estado === 'EN_PROCESO' && <button style={BTN_FILA} disabled={busy} onClick={() => accion(o, 'terminar')}>Terminar</button>}
+            {o.estado === 'LISTA' && <button style={BTN_FILA} disabled={busy} onClick={() => accion(o, 'entregar')}>Entregar</button>}
+            {o.estado === 'LISTA' && !o.servicioVenta && <button className="ghost" style={BTN_FILA} disabled={busy} onClick={() => accion(o, 'ligarFactura')}>Ligar CFDI</button>}
+            {(o.estado === 'RECIBIDA' || o.estado === 'EN_PROCESO') && <button className="ghost" style={BTN_FILA} disabled={busy} onClick={() => accion(o, 'cancelar')}>Cancelar</button>}
           </div>
         </td>
       </tr>
-      {abierta && <tr><td colSpan={9} style={{ background: 'var(--panel-2, rgba(0,0,0,0.03))' }}>
+      {abierta && <tr><td colSpan={9} style={{ background: 'var(--surface-subtle)', padding: '18px 20px' }}>
         <OrdenDetalle o={o} onRefrescar={onRefrescar} empleados={empleados} cargarCatalogos={cargarCatalogos} />
       </td></tr>}
     </>
@@ -229,7 +240,10 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
 
   useEffect(() => { if (!empleados.length && !cerrada) cargarCatalogos() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const total = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0), 0)
+  const importe = (l) => (Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0)
+  const totalMO = lineas.filter((l) => l.tipo === 'MANO_OBRA').reduce((s, l) => s + importe(l), 0)
+  const totalRef = lineas.filter((l) => l.tipo === 'REFACCION').reduce((s, l) => s + importe(l), 0)
+  const total = totalMO + totalRef
   const setLinea = (i, campo, valor) => setLineas((ls) => ls.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)))
 
   const guardar = async () => {
@@ -250,50 +264,80 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
   }
 
   return (
-    <div style={{ padding: '10px 6px', display: 'grid', gap: 10 }}>
+    <div style={{ display: 'grid', gap: 12 }}>
       {error && <div className="error">{error}</div>}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13 }}>
-        <span className="muted">Recibida {fecha(o.recibidaAt)}{o.asesor ? ` · asesor ${nombreEmp(o.asesor)}` : ''}{o.kilometraje ? ` · ${o.kilometraje.toLocaleString('es-MX')} km` : ''}</span>
-        {o.servicioVenta && <span>Facturada: <b>{mxn(o.servicioVenta.total)}</b> el {fecha(o.servicioVenta.fecha)}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em' }}>Orden <span className="mono" style={{ fontSize: 16 }}>{o.folio}</span></span>
+        <span className={`badge ${BADGE[o.estado]}`}>{o.estado.replace('_', ' ')}</span>
+        <span className="muted" style={{ fontSize: 12 }}>
+          Recibida {fecha(o.recibidaAt)}{o.asesor ? ` · asesor ${nombreEmp(o.asesor)}` : ''}{o.kilometraje ? ` · ${o.kilometraje.toLocaleString('es-MX')} km` : ''}{o.prometidaAt ? ` · promesa ${fecha(o.prometidaAt)}` : ''}
+        </span>
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <textarea rows={2} placeholder="Diagnóstico del técnico…" value={diagnostico} disabled={cerrada}
-          onChange={(e) => setDiagnostico(e.target.value)} style={{ flex: 1, minWidth: 280 }} />
-        <select value={tecnicoId} disabled={cerrada} onChange={(e) => setTecnicoId(e.target.value)} style={{ minWidth: 170 }}>
-          <option value="">Técnico…</option>
-          {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
-        </select>
-      </div>
-      <table style={{ fontSize: 13 }}>
-        <thead><tr><th>Tipo</th><th>Descripción</th><th className="num">Cant.</th><th className="num">P. unitario</th><th className="num">Importe</th><th /></tr></thead>
-        <tbody>
-          {lineas.map((l, i) => (
-            <tr key={i}>
-              <td>
-                <select value={l.tipo} disabled={cerrada} onChange={(e) => setLinea(i, 'tipo', e.target.value)}>
-                  <option value="MANO_OBRA">Mano de obra</option>
-                  <option value="REFACCION">Refacción</option>
-                </select>
-              </td>
-              <td><input value={l.descripcion} disabled={cerrada} onChange={(e) => setLinea(i, 'descripcion', e.target.value)} style={{ width: '100%' }} /></td>
-              <td className="num"><input type="number" min="0" step="0.01" value={l.cantidad} disabled={cerrada} onChange={(e) => setLinea(i, 'cantidad', e.target.value)} style={{ width: 70 }} /></td>
-              <td className="num"><input type="number" min="0" step="0.01" value={l.precioUnitario} disabled={cerrada} onChange={(e) => setLinea(i, 'precioUnitario', e.target.value)} style={{ width: 110 }} /></td>
-              <td className="num">{mxn((Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0))}</td>
-              <td>{!cerrada && <button className="ghost" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setLineas((ls) => ls.filter((_, j) => j !== i))}>✕</button>}</td>
-            </tr>
-          ))}
-          {lineas.length === 0 && <tr><td colSpan={6} className="muted">Sin presupuesto — agrega mano de obra y refacciones.</td></tr>}
-        </tbody>
-      </table>
-      <div className="head-actions" style={{ gap: 8 }}>
-        {!cerrada && (
-          <>
-            <button className="ghost" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setLineas((ls) => [...ls, { tipo: 'MANO_OBRA', descripcion: '', cantidad: 1, precioUnitario: 0 }])}>+ Mano de obra</button>
-            <button className="ghost" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setLineas((ls) => [...ls, { tipo: 'REFACCION', descripcion: '', cantidad: 1, precioUnitario: 0 }])}>+ Refacción</button>
-            <button disabled={busy} style={{ padding: '4px 14px', fontSize: 12 }} onClick={guardar}>Guardar</button>
-          </>
-        )}
-        <span style={{ marginLeft: 'auto' }}>Presupuesto: <b>{mxn(total)}</b> <span className="muted">(sin IVA — el importe fiscal es el del CFDI)</span></span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 20, alignItems: 'start' }}>
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Falla reportada</div>
+          <div style={{ fontSize: 12.5, marginBottom: 14 }}>{o.fallaReportada}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Diagnóstico del técnico</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
+            <textarea rows={2} placeholder="Diagnóstico del técnico…" value={diagnostico} disabled={cerrada}
+              onChange={(e) => setDiagnostico(e.target.value)} style={{ flex: 1, minWidth: 280, color: 'var(--ink-2)', lineHeight: 1.5 }} />
+            <select value={tecnicoId} disabled={cerrada} onChange={(e) => setTecnicoId(e.target.value)} style={{ minWidth: 170, width: 'auto' }}>
+              <option value="">Técnico…</option>
+              {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
+            </select>
+          </div>
+          <table>
+            <thead><tr><th>Tipo</th><th>Descripción</th><th className="num">Cant.</th><th className="num">P. unitario</th><th className="num">Importe</th><th /></tr></thead>
+            <tbody>
+              {lineas.map((l, i) => (
+                <tr key={i}>
+                  <td>
+                    {cerrada
+                      ? <span className={`badge ${l.tipo === 'MANO_OBRA' ? 'badge-info' : 'badge-neutral'}`}>{l.tipo === 'MANO_OBRA' ? 'Mano de obra' : 'Refacción'}</span>
+                      : (
+                        <select value={l.tipo} onChange={(e) => setLinea(i, 'tipo', e.target.value)} style={{ width: 'auto' }}>
+                          <option value="MANO_OBRA">Mano de obra</option>
+                          <option value="REFACCION">Refacción</option>
+                        </select>
+                      )}
+                  </td>
+                  <td><input value={l.descripcion} disabled={cerrada} onChange={(e) => setLinea(i, 'descripcion', e.target.value)} style={{ width: '100%' }} /></td>
+                  <td className="num"><input type="number" min="0" step="0.01" value={l.cantidad} disabled={cerrada} onChange={(e) => setLinea(i, 'cantidad', e.target.value)} style={{ width: 70, textAlign: 'right' }} /></td>
+                  <td className="num"><input type="number" min="0" step="0.01" value={l.precioUnitario} disabled={cerrada} onChange={(e) => setLinea(i, 'precioUnitario', e.target.value)} style={{ width: 110, textAlign: 'right' }} /></td>
+                  <td className="num">{mxn(importe(l))}</td>
+                  <td>{!cerrada && <button className="ghost" style={BTN_FILA} onClick={() => setLineas((ls) => ls.filter((_, j) => j !== i))}>✕</button>}</td>
+                </tr>
+              ))}
+              {lineas.length === 0 && <tr><td colSpan={6} className="muted">Sin presupuesto — agrega mano de obra y refacciones.</td></tr>}
+            </tbody>
+          </table>
+          {!cerrada && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button className="ghost" style={{ fontSize: 12 }} onClick={() => setLineas((ls) => [...ls, { tipo: 'MANO_OBRA', descripcion: '', cantidad: 1, precioUnitario: 0 }])}>+ Mano de obra</button>
+              <button className="ghost" style={{ fontSize: 12 }} onClick={() => setLineas((ls) => [...ls, { tipo: 'REFACCION', descripcion: '', cantidad: 1, precioUnitario: 0 }])}>+ Refacción</button>
+              <button disabled={busy} style={{ padding: '6px 13px', fontSize: 12 }} onClick={guardar}>Guardar</button>
+            </div>
+          )}
+        </div>
+        <div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 9, background: 'var(--surface)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span className="muted">Mano de obra</span><span className="tnum">{mxn(totalMO)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span className="muted">Refacciones</span><span className="tnum">{mxn(totalRef)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--surface-hover)', paddingTop: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Presupuesto</span>
+              <span className="tnum" style={{ fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }}>{mxn(total)}</span>
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--muted-2)' }}>sin IVA — el importe fiscal es el del CFDI</div>
+          </div>
+          {o.servicioVenta && (
+            <div style={{ marginTop: 12, fontSize: 12.5 }}>
+              Facturada: <b className="tnum">{mxn(o.servicioVenta.total)}</b> el {fecha(o.servicioVenta.fecha)}
+            </div>
+          )}
+          <div className="card-note" style={{ marginTop: 12 }}>
+            La factura del cierre no se captura: cuando el CFDI se emita, el sync del SAT lo liga solo a esta orden por VIN o cliente. Si no empata, «Ligar CFDI» lo hace a mano.
+          </div>
+        </div>
       </div>
     </div>
   )
