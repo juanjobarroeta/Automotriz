@@ -55,25 +55,42 @@ export default function Alertas() {
     <div>
       <header className="page-head">
         <h1>Alertas</h1>
-        <span className="muted">{totalAlertas === 0 ? 'Todo en orden' : `${totalAlertas} punto(s) por revisar`}</span>
+        <span className="glosa">{totalAlertas === 0 ? 'todo en orden' : `${totalAlertas} punto(s) por revisar`}</span>
       </header>
 
-      <div className="cards">
-        <section className="card">
-          <h2>Auditor fiscal</h2>
-          <p className={`kpi ${criticos > 0 ? 'neg' : ''}`}>{data.hallazgos.length}</p>
-          <p className="muted">hallazgos abiertos{criticos > 0 ? ` · ${criticos} críticos` : ''}</p>
-        </section>
-        <section className="card">
-          <h2>REP por emitir</h2>
-          <p className={`kpi ${data.repPorEmitir.vencidos > 0 ? 'neg' : ''}`}>{mxn(data.repPorEmitir.montoPendiente)}</p>
-          <p className="muted">{data.repPorEmitir.totalPendientes} cobro(s) PPD sin complemento · {data.repPorEmitir.vencidos} vencido(s)</p>
-        </section>
-        <section className="card">
-          <h2>Inventario detenido</h2>
-          <p className={`kpi ${data.inventario.criticas > 0 ? 'neg' : ''}`}>{data.inventario.totalEnvejecidas}</p>
-          <p className="muted">unidad(es) en venta con +{data.inventario.diasAtencion} días · {data.inventario.criticas} con +{data.inventario.diasCritico}</p>
-        </section>
+      <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        <div className="kpi-item">
+          <span className="kpi-label">Auditor fiscal</span>
+          <span className={`kpi ${criticos > 0 ? 'neg' : data.hallazgos.length === 0 ? 'pos' : ''}`}>{data.hallazgos.length}</span>
+          <span className="kpi-sub">
+            hallazgos abiertos
+            {criticos > 0 && <span style={{ color: 'var(--danger)' }}> · {criticos} críticos</span>}
+          </span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">REP por emitir</span>
+          <span className={`kpi ${data.repPorEmitir.vencidos > 0 ? 'neg' : data.repPorEmitir.totalPendientes === 0 ? 'pos' : ''}`}>
+            {mxn(data.repPorEmitir.montoPendiente)}
+          </span>
+          <span className="kpi-sub">
+            {data.repPorEmitir.totalPendientes} cobro(s) PPD sin complemento
+            {data.repPorEmitir.vencidos > 0
+              ? <span style={{ color: 'var(--danger)' }}> · {data.repPorEmitir.vencidos} vencido(s)</span>
+              : ' · ninguno vencido'}
+          </span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Inventario detenido</span>
+          <span className={`kpi ${data.inventario.criticas > 0 ? 'neg' : data.inventario.totalEnvejecidas === 0 ? 'pos' : ''}`}>
+            {data.inventario.totalEnvejecidas}
+          </span>
+          <span className="kpi-sub">
+            unidad(es) en venta con +{data.inventario.diasAtencion} días
+            {data.inventario.criticas > 0 && (
+              <span style={{ color: 'var(--danger)' }}> · {data.inventario.criticas} con +{data.inventario.diasCritico}</span>
+            )}
+          </span>
+        </div>
       </div>
 
       {data.inventario.porRevisar > 0 && (

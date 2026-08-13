@@ -8,11 +8,20 @@ const nombreEmp = (e) => (e ? `${e.nombre} ${e.apellidoPaterno ?? ''}`.trim() : 
 
 const ESTADOS = ['NUEVO', 'CONTACTADO', 'CITA', 'DEMO', 'NEGOCIACION', 'GANADO', 'PERDIDO']
 const SIGUIENTE = { NUEVO: 'CONTACTADO', CONTACTADO: 'CITA', CITA: 'DEMO', DEMO: 'NEGOCIACION', NEGOCIACION: 'GANADO' }
+// Etiqueta legible del estado: los chips nunca van en mayúsculas forzadas.
+const ETIQUETA = {
+  NUEVO: 'Nuevo', CONTACTADO: 'Contactado', CITA: 'Cita', DEMO: 'Demo',
+  NEGOCIACION: 'Negociación', GANADO: 'Ganado', PERDIDO: 'Perdido',
+}
 const BADGE = {
-  NUEVO: 'badge-EN_TRANSITO', CONTACTADO: 'badge-EN_TRANSITO', CITA: 'badge-APARTADO',
-  DEMO: 'badge-APARTADO', NEGOCIACION: 'badge-DISPONIBLE', GANADO: 'badge-ENTREGADO', PERDIDO: 'badge-CANCELADO',
+  NUEVO: 'badge-info', CONTACTADO: 'badge-info', CITA: 'badge-warn',
+  DEMO: 'badge-warn', NEGOCIACION: 'badge-ok', GANADO: 'badge-neutral', PERDIDO: 'badge-danger',
 }
 const MEDIOS = ['PISO', 'TELEFONO', 'DIGITAL', 'REFERIDO', 'OTRO']
+
+// Botón de acción dentro de una fila (medidas del mockup: 3px 9px / 11.5px / radio 6px).
+const BTN_FILA = { padding: '3px 9px', fontSize: 11.5, borderRadius: 6 }
+const NOTA = { marginTop: 12, fontSize: 12, lineHeight: 1.5 }
 
 // Ventas y CRM (fase 2): dos caras —
 //   Pipeline: el registro de guardia y el avance de prospectos.
@@ -21,21 +30,29 @@ const MEDIOS = ['PISO', 'TELEFONO', 'DIGITAL', 'REFERIDO', 'OTRO']
 //   link wa.me. Sin API de Meta: el asesor da clic y decide enviar.
 export default function Ventas() {
   const [tab, setTab] = useState('PIPELINE')
-  return (
-    <div>
-      <header className="page-head">
-        <h1>Ventas y CRM</h1>
-        <div className="head-actions">
-          <button className={tab === 'PIPELINE' ? '' : 'ghost'} onClick={() => setTab('PIPELINE')}>Pipeline</button>
-          <button className={tab === 'WHATSAPP' ? '' : 'ghost'} onClick={() => setTab('WHATSAPP')}>WhatsApp</button>
-        </div>
-      </header>
-      {tab === 'PIPELINE' ? <Pipeline /> : <ColaWhatsApp />}
-    </div>
+
+  // El encabezado (h1 + glosa + tabs segmentados) es común a las dos vistas; la
+  // vista activa le entrega su acción principal para que viva a la derecha.
+  const encabezado = (acciones = null) => (
+    <header className="page-head">
+      <h1>Ventas y CRM</h1>
+      <span className="glosa">
+        {tab === 'PIPELINE'
+          ? 'el piso, el teléfono y el seguimiento de cada prospecto'
+          : 'la cola del día con el mensaje ya escrito — el asesor decide si lo envía'}
+      </span>
+      <div className="tabs" style={{ alignSelf: 'center' }}>
+        <span className={tab === 'PIPELINE' ? 'activo' : ''} onClick={() => setTab('PIPELINE')}>Pipeline</span>
+        <span className={tab === 'WHATSAPP' ? 'activo' : ''} onClick={() => setTab('WHATSAPP')}>WhatsApp</span>
+      </div>
+      <div className="head-actions">{acciones}</div>
+    </header>
   )
+
+  return tab === 'PIPELINE' ? <Pipeline encabezado={encabezado} /> : <ColaWhatsApp encabezado={encabezado} />
 }
 
-function ColaWhatsApp() {
+function ColaWhatsApp({ encabezado }) {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -65,28 +82,29 @@ function ColaWhatsApp() {
   }
 
   const fechaCorta = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
-  const btn = { padding: '2px 10px', fontSize: 12 }
 
-  if (error) return <div className="error">{error}</div>
-  if (!data) return <p className="muted">Componiendo la cola del día…</p>
+  if (error) return <div>{encabezado()}<div className="error">{error}</div></div>
+  if (!data) return <div>{encabezado()}<p className="muted">Componiendo la cola del día…</p></div>
+
+  const sinTelefono = data.sinTelefono.crm + data.sinTelefono.servicio
 
   const Fila = ({ item, acciones }) => (
     <tr>
-      <td>
+      <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
         {item.nombre}
-        <div className="mono muted" style={{ fontSize: 11 }}>{item.telefono}</div>
+        <div className="mono faint" style={{ marginTop: 2 }}>{item.telefono}</div>
       </td>
       <td style={{ maxWidth: 420 }}>
-        <div style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{item.mensaje}</div>
-        {item.nota && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Nota: {item.nota}</div>}
+        <div style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.mensaje}</div>
+        {item.nota && <div className="faint" style={{ fontSize: 11, marginTop: 2 }}>Nota: {item.nota}</div>}
       </td>
-      <td className="neg" style={{ fontSize: 12 }}>
+      <td className="neg" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
         {item.tipo === 'CRM' ? `venció ${fechaCorta(item.vencidaDesde)}` : `última visita ${fechaCorta(item.ultimaVisita)}`}
       </td>
       <td>
-        <div className="head-actions" style={{ gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <a href={item.link} target="_blank" rel="noreferrer">
-            <button className="success" style={btn} onClick={() => copiar(item.mensaje)}>Abrir WhatsApp</button>
+            <button style={BTN_FILA} onClick={() => copiar(item.mensaje)}>Abrir WhatsApp</button>
           </a>
           {acciones}
         </div>
@@ -96,48 +114,54 @@ function ColaWhatsApp() {
 
   return (
     <div>
-      <div className="cards" style={{ marginBottom: 14 }}>
-        <section className="card"><h2>Mensajes en cola</h2><p className="kpi">{data.total}</p>
-          <p className="muted">CRM {data.crm.length} · taller {data.servicio.length}</p></section>
-        <section className="card"><h2>Sin teléfono</h2><p className="kpi">{data.sinTelefono.crm + data.sinTelefono.servicio}</p>
-          <p className="muted">candidatos que no entraron a la cola — captura el teléfono</p></section>
+      {encabezado()}
+
+      <div className="kpi-strip">
+        <div className="kpi-item">
+          <span className="kpi-label">Mensajes en cola</span>
+          <span className="kpi">{data.total}</span>
+          <span className="kpi-sub">CRM {data.crm.length} · taller {data.servicio.length}</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Sin teléfono</span>
+          <span className={`kpi ${sinTelefono > 0 ? 'neg' : ''}`}>{sinTelefono}</span>
+          <span className="kpi-sub">candidatos fuera de la cola — captura el teléfono</span>
+        </div>
       </div>
 
-      <section className="card" style={{ marginBottom: 16 }}>
-        <h2>Seguimientos vencidos (CRM)</h2>
-        <table>
-          <thead><tr><th>Prospecto</th><th>Mensaje</th><th>Vencido</th><th>Acciones</th></tr></thead>
-          <tbody>
-            {data.crm.map((i) => (
-              <Fila key={i.prospectoId} item={i} acciones={
-                <>
-                  <button className="ghost" style={btn} disabled={busy} onClick={() => reprogramar(i.prospectoId, 3)}>+3d</button>
-                  <button className="ghost" style={btn} disabled={busy} onClick={() => reprogramar(i.prospectoId, 7)}>+7d</button>
-                </>
-              } />
-            ))}
-            {data.crm.length === 0 && <tr><td colSpan={4} className="muted">Sin seguimientos vencidos con teléfono — al día. 🎯</td></tr>}
-          </tbody>
-        </table>
-        <p className="muted" style={{ fontSize: 12 }}>«Abrir WhatsApp» copia el mensaje y abre el chat con el texto listo; al enviarlo, reprograma el seguimiento (+3d/+7d).</p>
-      </section>
+      <h2 style={{ marginBottom: 10 }}>Seguimientos vencidos (CRM)</h2>
+      <table>
+        <thead><tr><th>Prospecto</th><th>Mensaje</th><th>Vencido</th><th>Acciones</th></tr></thead>
+        <tbody>
+          {data.crm.map((i) => (
+            <Fila key={i.prospectoId} item={i} acciones={
+              <>
+                <button className="ghost" style={BTN_FILA} disabled={busy} onClick={() => reprogramar(i.prospectoId, 3)}>+3d</button>
+                <button className="ghost" style={BTN_FILA} disabled={busy} onClick={() => reprogramar(i.prospectoId, 7)}>+7d</button>
+              </>
+            } />
+          ))}
+          {data.crm.length === 0 && <tr><td colSpan={4} className="muted">Sin seguimientos vencidos con teléfono — al día.</td></tr>}
+        </tbody>
+      </table>
+      <p className="faint" style={NOTA}>
+        «Abrir WhatsApp» copia el mensaje y abre el chat con el texto listo; al enviarlo, reprograma el seguimiento (+3d/+7d).
+      </p>
 
-      <section className="card">
-        <h2>Taller — dejaron de venir</h2>
-        <table>
-          <thead><tr><th>Cliente</th><th>Mensaje</th><th>Última visita</th><th>Acciones</th></tr></thead>
-          <tbody>
-            {data.servicio.map((i) => <Fila key={i.clienteId} item={i} acciones={null} />)}
-            {data.servicio.length === 0 && <tr><td colSpan={4} className="muted">Nadie con ≥2 servicios lleva más de 6 meses sin venir (o falta teléfono).</td></tr>}
-          </tbody>
-        </table>
-        <p className="muted" style={{ fontSize: 12 }}>Salen de esta lista solos cuando su siguiente CFDI de servicio entra por el sync.</p>
-      </section>
+      <h2 style={{ margin: '26px 0 10px' }}>Taller — dejaron de venir</h2>
+      <table>
+        <thead><tr><th>Cliente</th><th>Mensaje</th><th>Última visita</th><th>Acciones</th></tr></thead>
+        <tbody>
+          {data.servicio.map((i) => <Fila key={i.clienteId} item={i} acciones={null} />)}
+          {data.servicio.length === 0 && <tr><td colSpan={4} className="muted">Nadie con ≥2 servicios lleva más de 6 meses sin venir (o falta teléfono).</td></tr>}
+        </tbody>
+      </table>
+      <p className="faint" style={NOTA}>Salen de esta lista solos cuando su siguiente CFDI de servicio entra por el sync.</p>
     </div>
   )
 }
 
-function Pipeline() {
+function Pipeline({ encabezado }) {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
   const [filtro, setFiltro] = useState('ABIERTOS')
@@ -265,24 +289,38 @@ function Pipeline() {
   const abiertos = ESTADOS.slice(0, 5).reduce((s, e) => s + n(e), 0)
   const mes = data?.mes
 
+  const pill = (clave, etiqueta) => (
+    <span key={clave} className={`filtro ${filtro === clave ? 'activo' : ''}`} onClick={() => setFiltro(clave)}>{etiqueta}</span>
+  )
+
   return (
     <div>
-      <div className="head-actions" style={{ marginBottom: 14 }}>
+      {encabezado(
         <button onClick={async () => { if (!creando) { setCreando(true); await cargarCatalogos() } else setCreando(false) }}>
           {creando ? 'Cerrar' : 'Registrar visita'}
-        </button>
-      </div>
+        </button>,
+      )}
       {error && <div className="error">{error}</div>}
 
       {mes && (
-        <div className="cards" style={{ marginBottom: 14 }}>
-          <section className="card"><h2>Leads del mes</h2><p className="kpi">{mes.nuevos}</p>
-            <p className="muted">{MEDIOS.filter((m) => mes.porMedio[m]).map((m) => `${m.toLowerCase()} ${mes.porMedio[m]}`).join(' · ') || 'sin registros'}</p></section>
-          <section className="card"><h2>Cerrados en el mes</h2><p className="kpi">{mes.ganados}</p>
-            <p className="muted">{mes.perdidos} perdidos · conversión {mes.nuevos ? Math.round((mes.ganados / mes.nuevos) * 100) : 0}%</p></section>
-          <section className="card"><h2>Seguimientos vencidos</h2>
-            <p className={`kpi ${data.vencidos > 0 ? 'neg' : ''}`}>{data.vencidos}</p>
-            <p className="muted">la lista de llamadas de hoy</p></section>
+        <div className="kpi-strip">
+          <div className="kpi-item">
+            <span className="kpi-label">Leads del mes</span>
+            <span className="kpi">{mes.nuevos}</span>
+            <span className="kpi-sub">
+              {MEDIOS.filter((m) => mes.porMedio[m]).map((m) => `${m.toLowerCase()} ${mes.porMedio[m]}`).join(' · ') || 'sin registros'}
+            </span>
+          </div>
+          <div className="kpi-item">
+            <span className="kpi-label">Cerrados en el mes</span>
+            <span className="kpi">{mes.ganados}</span>
+            <span className="kpi-sub">{mes.perdidos} perdidos · conversión {mes.nuevos ? Math.round((mes.ganados / mes.nuevos) * 100) : 0}%</span>
+          </div>
+          <div className="kpi-item">
+            <span className="kpi-label">Seguimientos vencidos</span>
+            <span className={`kpi ${data.vencidos > 0 ? 'neg' : ''}`}>{data.vencidos}</span>
+            <span className="kpi-sub">la lista de llamadas de hoy</span>
+          </div>
         </div>
       )}
 
@@ -303,7 +341,7 @@ function Pipeline() {
               <option value="">Vendedor…</option>
               {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
             </select>
-            <label className="muted" style={{ fontSize: 12 }}>Seguir el:{' '}
+            <label className="muted">Seguir el:{' '}
               <input type="datetime-local" value={form.proximaAccion} onChange={(e) => setForm((f) => ({ ...f, proximaAccion: e.target.value }))} />
             </label>
             <input placeholder="Nota del seguimiento" value={form.proximaNota}
@@ -313,15 +351,12 @@ function Pipeline() {
         </section>
       )}
 
-      <div className="head-actions" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
-        <button className={filtro === 'ABIERTOS' ? '' : 'ghost'} onClick={() => setFiltro('ABIERTOS')}>Abiertos · {abiertos}</button>
-        <button className={filtro === 'VENCIDOS' ? '' : 'ghost'} onClick={() => setFiltro('VENCIDOS')}>Vencidos · {data?.vencidos ?? 0}</button>
-        {ESTADOS.map((e) => (
-          <button key={e} className={filtro === e ? '' : 'ghost'} onClick={() => setFiltro(e)}>
-            {e.charAt(0) + e.slice(1).toLowerCase()} · {n(e)}
-          </button>
-        ))}
-        <input placeholder="Nombre, teléfono, interés…" value={q} onChange={(e) => setQ(e.target.value)} style={{ minWidth: 200, marginLeft: 'auto' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {pill('ABIERTOS', `Abiertos · ${abiertos}`)}
+        {pill('VENCIDOS', `Vencidos · ${data?.vencidos ?? 0}`)}
+        {ESTADOS.map((e) => pill(e, `${ETIQUETA[e]} · ${n(e)}`))}
+        <input placeholder="Nombre, teléfono, interés…" value={q} onChange={(e) => setQ(e.target.value)}
+          style={{ width: 220, marginLeft: 'auto' }} />
       </div>
 
       <table>
@@ -329,38 +364,37 @@ function Pipeline() {
         <tbody>
           {prospectos.map((p) => {
             const vencida = p.proximaAccion && new Date(p.proximaAccion) < new Date() && !['GANADO', 'PERDIDO'].includes(p.estado)
-            const btn = { padding: '2px 10px', fontSize: 12 }
             return (
               <tr key={p.id}>
-                <td>
+                <td style={{ fontSize: 13 }}>
                   {p.nombre}
-                  {p.cliente && <div style={{ fontSize: 11 }}><Link to={`/contactos/${p.cliente.id}`}>{p.cliente.razonSocial}</Link></div>}
-                  {p.telefono && <div className="mono muted" style={{ fontSize: 11 }}>{p.telefono}</div>}
+                  {p.cliente && <div style={{ fontSize: 11.5 }}><Link to={`/contactos/${p.cliente.id}`}>{p.cliente.razonSocial}</Link></div>}
+                  {p.telefono && <div className="mono faint" style={{ marginTop: 2 }}>{p.telefono}</div>}
                 </td>
                 <td style={{ maxWidth: 220 }}>
                   {p.interes ?? '—'}
-                  {p.vehiculo && <div style={{ fontSize: 11 }}><Link to={`/vehiculos/${p.vehiculo.id}`}>{p.vehiculo.marca} {p.vehiculo.modelo} {p.vehiculo.anio}</Link></div>}
+                  {p.vehiculo && <div style={{ fontSize: 11.5 }}><Link to={`/vehiculos/${p.vehiculo.id}`}>{p.vehiculo.marca} {p.vehiculo.modelo} {p.vehiculo.anio}</Link></div>}
                 </td>
                 <td className="muted" style={{ fontSize: 12 }}>{p.medio.charAt(0) + p.medio.slice(1).toLowerCase()}</td>
-                <td>{nombreEmp(p.vendedor) ?? <span className="muted">—</span>}</td>
+                <td style={{ color: 'var(--ink-3)' }}>{nombreEmp(p.vendedor) ?? <span className="muted">—</span>}</td>
                 <td>
-                  <span className={`badge ${BADGE[p.estado]}`}>{p.estado}</span>
-                  {p.estado === 'PERDIDO' && p.perdidoMotivo && <div className="muted" style={{ fontSize: 11 }}>{p.perdidoMotivo}</div>}
+                  <span className={`badge ${BADGE[p.estado]}`}>{ETIQUETA[p.estado]}</span>
+                  {p.estado === 'PERDIDO' && p.perdidoMotivo && <div className="faint" style={{ fontSize: 11, marginTop: 2 }}>{p.perdidoMotivo}</div>}
                 </td>
                 <td className={vencida ? 'neg' : ''}>
                   {fechaHora(p.proximaAccion)}
-                  {p.proximaNota && <div className="muted" style={{ fontSize: 11 }}>{p.proximaNota}</div>}
+                  {p.proximaNota && <div className="faint" style={{ fontSize: 11, marginTop: 2 }}>{p.proximaNota}</div>}
                 </td>
                 <td>
-                  <div className="head-actions" style={{ gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     {SIGUIENTE[p.estado] && SIGUIENTE[p.estado] !== 'GANADO' && (
-                      <button style={btn} disabled={busy} onClick={() => avanzar(p)}>→ {SIGUIENTE[p.estado].charAt(0) + SIGUIENTE[p.estado].slice(1).toLowerCase()}</button>
+                      <button style={BTN_FILA} disabled={busy} onClick={() => avanzar(p)}>→ {ETIQUETA[SIGUIENTE[p.estado]]}</button>
                     )}
-                    {p.estado === 'NEGOCIACION' && <button className="success" style={btn} disabled={busy} onClick={() => ganar(p)}>Ganado</button>}
+                    {p.estado === 'NEGOCIACION' && <button style={BTN_FILA} disabled={busy} onClick={() => ganar(p)}>Ganado</button>}
                     {!['GANADO', 'PERDIDO'].includes(p.estado) && (
                       <>
-                        <button className="ghost" style={btn} disabled={busy} onClick={() => reprogramar(p)}>Reprogramar</button>
-                        <button className="ghost" style={btn} disabled={busy} onClick={() => perder(p)}>Perdido</button>
+                        <button className="ghost" style={BTN_FILA} disabled={busy} onClick={() => reprogramar(p)}>Reprogramar</button>
+                        <button className="ghost" style={BTN_FILA} disabled={busy} onClick={() => perder(p)}>Perdido</button>
                       </>
                     )}
                   </div>
@@ -371,9 +405,9 @@ function Pipeline() {
           {prospectos.length === 0 && <tr><td colSpan={7} className="muted">Sin prospectos{filtro !== 'TODOS' ? ' con este filtro' : ''} — registra la primera visita de piso.</td></tr>}
         </tbody>
       </table>
-      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+      <p className="faint" style={NOTA}>
         Al marcar <b>Ganado</b> se liga el cliente del directorio (los que facturan ya existen por el sync) y la venta
-        sigue su curso en <Link to="/pedidos">Pedidos</Link>. Los seguimientos vencidos alimentarán el bot de WhatsApp.
+        sigue su curso en <Link to="/pedidos">Pedidos</Link>. Los seguimientos vencidos alimentan la cola de WhatsApp.
       </p>
     </div>
   )

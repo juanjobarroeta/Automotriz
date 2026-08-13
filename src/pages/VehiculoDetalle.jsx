@@ -144,7 +144,7 @@ export default function VehiculoDetalle() {
       </header>
 
       {error && <div className="error">{error}</div>}
-      {advertencias.map((a, i) => <div className="warn" key={i}>⚠️ {a}</div>)}
+      {advertencias.map((a, i) => <div className="warn" key={i}>{a}</div>)}
 
       <div className="cards">
         <section className="card">
@@ -192,10 +192,10 @@ export default function VehiculoDetalle() {
             <dt>Comisión</dt><dd>{mxn(v.comisionMonto)}</dd>
             <dt>CFDI venta</dt><dd><CfdiLinks inv={v.ventaInvoice} /></dd>
           </dl>
-          <div className="acciones" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+          <div className="acciones card-divider" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
             {puedeApartar && <button className="ghost" onClick={() => transicion('apartar')} disabled={busy}>Apartar</button>}
             {puedeDesapartar && <button className="ghost" onClick={() => transicion('desapartar')} disabled={busy}>Des-apartar</button>}
-            {puedeVender && <button className="success" onClick={vender} disabled={busy}>Vender (ISAN + IVA + pólizas)</button>}
+            {puedeVender && <button onClick={vender} disabled={busy}>Vender (ISAN + IVA + pólizas)</button>}
             {['DISPONIBLE', 'APARTADO'].includes(v.estado) && v.autoCreado && !v.ventaInvoiceId && (
               <button className="ghost" disabled={busy} onClick={async () => {
                 const f = window.prompt('Marcar VENDIDA sin CFDI ligable (sólo dato, no postea).\nFecha de venta (AAAA-MM-DD, vacío = hoy):', '')
@@ -226,7 +226,7 @@ export default function VehiculoDetalle() {
         </section>
 
         <section className="card">
-          <h2>Rentabilidad por VIN</h2>
+          <div className="card-head"><span>Rentabilidad por VIN</span></div>
           {v.rentabilidad ? (
             <dl>
               <dt>Precio venta</dt><dd>{mxn(v.rentabilidad.precioVenta)}</dd>
@@ -245,39 +245,35 @@ export default function VehiculoDetalle() {
 
       {(v.expediente?.length ?? 0) > 0 && (
         <section className="card">
-          <h2>Expediente CFDI del VIN</h2>
+          <div className="card-head"><span>Expediente CFDI del VIN</span></div>
           <table>
             <thead><tr><th>Fecha</th><th>Folio</th><th>Papel</th><th className="num">Total</th><th>CFDI</th></tr></thead>
             <tbody>
               {[...v.expediente].sort((a, b) => new Date(a.invoice.fecha) - new Date(b.invoice.fecha)).map((e) => (
                 <tr key={e.id}>
-                  <td>{fecha(e.invoice.fecha)}</td>
-                  <td>{[e.invoice.serie, e.invoice.folio].filter(Boolean).join('-') || e.invoice.uuid?.slice(0, 8)}</td>
+                  <td style={SEC}>{fecha(e.invoice.fecha)}</td>
+                  <td className="mono">{[e.invoice.serie, e.invoice.folio].filter(Boolean).join('-') || e.invoice.uuid?.slice(0, 8)}</td>
                   <td>
-                    <span className={`badge ${
-                      e.rol === 'COMPRA' || e.rol === 'VENTA' ? 'badge-DISPONIBLE'
-                      : e.rol === 'NOTA_CREDITO' || e.rol === 'COSTO' ? 'badge-APARTADO'
-                      : e.rol === 'SERVICIO' ? 'badge-ENTREGADO'
-                      : 'badge-CANCELADO'}`}>
-                      {e.rol.replaceAll('_', ' ')}
+                    <span className={`badge ${ROL_BADGE[e.rol] ?? 'badge-danger'}`}>
+                      {ROL_LABEL[e.rol] ?? e.rol.replaceAll('_', ' ')}
                     </span>
-                    {e.invoice.status === 'CANCELLED' && <span className="badge badge-CANCELADO" style={{ marginLeft: 4 }}>CANCELADA</span>}
+                    {e.invoice.status === 'CANCELLED' && <span className="badge badge-danger" style={{ marginLeft: 4 }}>Cancelada</span>}
                   </td>
                   <td className="num">{mxn(e.invoice.total)}</td>
                   <td>
-                    <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(e.invoice.id)}>Ver</button>{' '}
-                    <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(e.invoice, 'xml')}>XML</button>
+                    <button className="ghost" style={MINI} onClick={() => setCfdiVista(e.invoice.id)}>Ver</button>{' '}
+                    <button className="ghost" style={MINI} onClick={() => descargarCfdi(e.invoice, 'xml')}>XML</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="muted" style={{ fontSize: 12 }}>Toda factura que menciona este VIN, ligue o no: sustituidas y duplicadas quedan visibles para auditoría.</p>
+          <div className="card-note">Toda factura que menciona este VIN, ligue o no: sustituidas y duplicadas quedan visibles para auditoría.</div>
         </section>
       )}
 
       <section className="card">
-        <h2>Costos de la unidad</h2>
+        <div className="card-head"><span>Costos de la unidad</span></div>
         {v.costos.length === 0 ? (
           <p className="muted">Sin costos registrados.</p>
         ) : (
@@ -288,17 +284,17 @@ export default function VehiculoDetalle() {
             <tbody>
               {v.costos.map((c) => (
                 <tr key={c.id}>
-                  <td>{fecha(c.fecha)}</td>
-                  <td>{c.tipo.replaceAll('_', ' ')}</td>
-                  <td>{c.concepto}</td>
+                  <td style={SEC}>{fecha(c.fecha)}</td>
+                  <td>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')}</td>
+                  <td style={SEC}>{c.concepto}</td>
                   <td className={`num ${c.monto < 0 ? 'pos' : ''}`}>{mxn(c.monto)}</td>
                   <td>
                     {c.invoiceId ? (
                       <>
-                        <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
-                        <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi({ id: c.invoiceId }, 'xml')}>XML</button>
+                        <button className="ghost" style={MINI} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
+                        <button className="ghost" style={MINI} onClick={() => descargarCfdi({ id: c.invoiceId }, 'xml')}>XML</button>
                       </>
-                    ) : <span className="muted" style={{ fontSize: 12 }}>manual</span>}
+                    ) : <span className="muted">manual</span>}
                   </td>
                 </tr>
               ))}
@@ -308,13 +304,13 @@ export default function VehiculoDetalle() {
         {puedeCostos && (
           <form className="inline-form" onSubmit={agregarCosto}>
             <select value={costoForm.tipo} onChange={(e) => setCostoForm((f) => ({ ...f, tipo: e.target.value }))}>
-              {COSTO_TIPOS.map((t) => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}
+              {COSTO_TIPOS.map((t) => <option key={t} value={t}>{COSTO_LABEL[t] ?? t}</option>)}
             </select>
             <input placeholder="Concepto" value={costoForm.concepto}
               onChange={(e) => setCostoForm((f) => ({ ...f, concepto: e.target.value }))} />
             <input type="number" step="0.01" min="0.01" placeholder="Monto sin IVA" required value={costoForm.monto}
               onChange={(e) => setCostoForm((f) => ({ ...f, monto: e.target.value }))} />
-            <button type="submit" disabled={busy}>Agregar costo</button>
+            <button type="submit" className="ghost" disabled={busy}>Agregar costo</button>
           </form>
         )}
       </section>

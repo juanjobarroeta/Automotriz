@@ -36,13 +36,45 @@ export default function Contactos({ lado = 'CLIENTES' }) {
 
   const perfilUrl = (c) => `/contactos/${c.id}${esClientes ? '' : '?lado=PROVEEDOR'}`
 
+  // Franja de KPIs derivada del mismo directorio ya cargado (sin llamadas extra).
+  const delLado = items.filter((c) => (esClientes ? c.esCliente : c.esProveedor))
+  const monto = delLado.reduce((s, c) => s + (esClientes ? c.montoCliente : c.montoProveedor), 0)
+  const facturas = delLado.reduce((s, c) => s + (esClientes ? c.facturasCliente : c.facturasProveedor), 0)
+  const ambos = delLado.filter((c) => (esClientes ? c.esProveedor : c.esCliente)).length
+
   return (
     <div>
       <header className="page-head">
         <h1>{esClientes ? 'Clientes' : 'Proveedores'}</h1>
-        <input placeholder="Buscar por nombre o RFC…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 280 }} />
+        <span className="glosa">
+          {esClientes
+            ? 'derivados de los CFDIs de ingreso — ordenados por lo facturado'
+            : 'derivados de los CFDIs de egreso — ordenados por lo que nos han facturado'}
+        </span>
+        <div className="head-actions">
+          <input placeholder="Buscar por nombre o RFC…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
+        </div>
       </header>
       {error && <div className="error">{error}</div>}
+
+      <div className="kpi-strip">
+        <div className="kpi-item">
+          <span className="kpi-label">{esClientes ? 'Clientes' : 'Proveedores'}</span>
+          <span className="kpi">{delLado.length}</span>
+          <span className="kpi-sub">{ambos} también son {esClientes ? 'proveedores' : 'clientes'}</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">{esClientes ? 'Facturado' : 'Nos han facturado'}</span>
+          <span className="kpi">{mxn(monto)}</span>
+          <span className="kpi-sub">histórico del sync del SAT</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Facturas</span>
+          <span className="kpi">{facturas}</span>
+          <span className="kpi-sub">CFDIs de {esClientes ? 'ingreso' : 'egreso'} ligados al directorio</span>
+        </div>
+      </div>
+
       {loading ? <p className="muted">Cargando…</p> : (
         <table>
           <thead>
@@ -56,13 +88,13 @@ export default function Contactos({ lado = 'CLIENTES' }) {
           <tbody>
             {filtrados.map((c) => (
               <tr key={c.id}>
-                <td><Link to={perfilUrl(c)}>{c.razonSocial}</Link></td>
-                <td className="mono" style={{ fontSize: 11 }}>{c.rfc}</td>
+                <td style={{ fontSize: 13 }}><Link to={perfilUrl(c)}>{c.razonSocial}</Link></td>
+                <td className="mono">{c.rfc}</td>
                 <td className="num">{esClientes ? c.facturasCliente : c.facturasProveedor}</td>
                 <td className="num">{mxn(esClientes ? c.montoCliente : c.montoProveedor)}</td>
                 <td>
-                  {esClientes && c.esProveedor && <Link to={`/contactos/${c.id}?lado=PROVEEDOR`}><span className="badge badge-APARTADO">Proveedor · {mxn(c.montoProveedor)}</span></Link>}
-                  {!esClientes && c.esCliente && <Link to={`/contactos/${c.id}`}><span className="badge badge-DISPONIBLE">Cliente · {mxn(c.montoCliente)}</span></Link>}
+                  {esClientes && c.esProveedor && <Link to={`/contactos/${c.id}?lado=PROVEEDOR`}><span className="badge badge-warn">Proveedor · {mxn(c.montoProveedor)}</span></Link>}
+                  {!esClientes && c.esCliente && <Link to={`/contactos/${c.id}`}><span className="badge badge-ok">Cliente · {mxn(c.montoCliente)}</span></Link>}
                   {(esClientes ? !c.esProveedor : !c.esCliente) && <span className="muted">—</span>}
                 </td>
               </tr>
