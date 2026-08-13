@@ -173,7 +173,7 @@ export default function Fiscal() {
           </div>
 
           {data.retenciones && (
-            <section className="card">
+            <section className="card" style={{ marginBottom: 16 }}>
               <div className="card-head">Retenciones del periodo</div>
               <p className="muted" style={{ margin: '0 0 8px' }}>
                 Lo que la empresa retuvo a terceros y sólo custodia hasta el día 17. No es impuesto propio:
@@ -210,7 +210,7 @@ export default function Fiscal() {
             </section>
           )}
 
-          <section className="card">
+          <section className="card" style={{ marginBottom: 16 }}>
             <div className="card-head">Lo que sale del banco</div>
             <Fila label="IVA a pagar" valor={mxn(Math.max(data.iva.pagar, 0))} />
             <Fila label="ISR provisional" valor={mxn(Math.max(isrPagar ?? 0, 0))} />
