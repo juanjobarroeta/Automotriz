@@ -102,24 +102,27 @@ export default function Alertas() {
 
       {data.inventario.improbables?.total > 0 && (
         <section className="card">
-          <h2>En piso improbable — {data.inventario.improbables.total} unidad(es) · {mxn(data.inventario.improbables.costoTotal)}</h2>
-          <p className="muted" style={{ fontSize: 13 }}>
+          <div className="card-head">
+            <span>En piso improbable</span>
+            <span className="muted">{data.inventario.improbables.total} unidad(es) · {mxn(data.inventario.improbables.costoTotal)}</span>
+          </div>
+          <div className="card-note" style={{ marginTop: 10 }}>
             Unidades derivadas de CFDIs con +{data.inventario.improbables.diasUmbral} días «disponibles» y sin pedido:
             casi seguro se vendieron sin factura ligable (público en general sin VIN). Confírmalas una por una con
             <b> Marcar vendida</b> — es sólo dato (no postea pólizas; la factura real ya entró por el cierre). Así el
             piso, el aging y la rentabilidad regresan a la realidad.
-          </p>
-          <table>
+          </div>
+          <table style={{ marginTop: 14 }}>
             <thead><tr><th>Unidad</th><th>VIN</th><th className="num">Días</th><th className="num">Costo</th><th>Acción</th></tr></thead>
             <tbody>
               {data.inventario.improbables.top.map((v) => (
                 <tr key={v.id}>
-                  <td><Link to={`/vehiculos/${v.id}`}>{v.unidad}</Link></td>
-                  <td className="mono" style={{ fontSize: 11 }}>{v.vin}</td>
+                  <td style={{ fontSize: 13 }}><Link to={`/vehiculos/${v.id}`}>{v.unidad}</Link></td>
+                  <td className="mono">{v.vin}</td>
                   <td className="num neg">{v.dias}</td>
                   <td className="num">{mxn(v.costoCompra)}</td>
                   <td>
-                    <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => marcarVendida(v)}>
+                    <button className="ghost" style={{ padding: '4px 10px' }} onClick={() => marcarVendida(v)}>
                       Marcar vendida
                     </button>
                   </td>
@@ -128,7 +131,7 @@ export default function Alertas() {
             </tbody>
           </table>
           {data.inventario.improbables.total > data.inventario.improbables.top.length && (
-            <p className="muted" style={{ fontSize: 12 }}>
+            <p className="kpi-sub" style={{ margin: '10px 0 0' }}>
               Mostrando {data.inventario.improbables.top.length} de {data.inventario.improbables.total} — al confirmar, entran las siguientes.
             </p>
           )}
@@ -136,32 +139,34 @@ export default function Alertas() {
       )}
 
       {data.hallazgos.length > 0 && (
-        <section className="card">
-          <h2>Hallazgos del auditor fiscal</h2>
-          <div className="urgent-list">
-            {data.hallazgos.map((h) => (
-              <div key={h.id} className="urgent-row" style={{ cursor: 'default' }}>
-                <div>
-                  <div className="urgent-title">{h.mensaje}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>{h.sugerencia} · {h.fundamento}</div>
-                </div>
-                <span className={`badge ${SEV_BADGE[h.severidad] ?? ''}`}>{SEV_LABEL[h.severidad] ?? h.severidad}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+        <div className="urgent-list" style={{ margin: '16px 0' }}>
+          <div className="urgent-head">Hallazgos del auditor fiscal</div>
+          {data.hallazgos.map((h) => (
+            <div key={h.id} className="urgent-row" style={{ cursor: 'default' }}>
+              <span className={`badge ${SEV_BADGE[h.severidad] ?? ''}`} style={{ flexShrink: 0 }}>
+                {SEV_LABEL[h.severidad] ?? h.severidad}
+              </span>
+              <span className="urgent-title">{h.mensaje}</span>
+              <span className="muted" style={{ minWidth: 0 }}>{h.sugerencia} · {h.fundamento}</span>
+              <span className="chevron">›</span>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="cards">
         <section className="card">
-          <h2>Cobros PPD sin REP emitido</h2>
+          <div className="card-head">
+            <span>Cobros PPD sin REP emitido</span>
+            <Link to="/cartera">ver cartera</Link>
+          </div>
           {data.repPorEmitir.top.length === 0 ? <p className="muted">Al día — nada pendiente.</p> : (
             <table>
               <thead><tr><th>Cliente</th><th className="num">Pendiente</th><th className="num">Vence</th></tr></thead>
               <tbody>
                 {data.repPorEmitir.top.map((p) => (
                   <tr key={p.invoiceId}>
-                    <td>{p.cliente ?? '—'}</td>
+                    <td style={{ fontSize: 13 }}>{p.cliente ?? '—'}</td>
                     <td className="num">{mxn(p.montoPendiente)}</td>
                     <td className={`num ${p.urgencia === 'VENCIDO' ? 'neg' : ''}`}>{p.urgencia === 'VENCIDO' ? `hace ${-p.diasParaVencer} días` : `en ${p.diasParaVencer} días`}</td>
                   </tr>
@@ -169,18 +174,18 @@ export default function Alertas() {
               </tbody>
             </table>
           )}
-          <p className="muted" style={{ fontSize: 12 }}>Obligación propia (RMF 2.7.1.32): el REP vence el día 5 del mes siguiente al cobro. <Link to="/cartera">Ver cartera →</Link></p>
+          <div className="card-note">Obligación propia (RMF 2.7.1.32): el REP vence el día 5 del mes siguiente al cobro.</div>
         </section>
 
         <section className="card">
-          <h2>Pagos sin REP del proveedor</h2>
+          <div className="card-head">Pagos sin REP del proveedor</div>
           {data.repPorRecibir.top.length === 0 ? <p className="muted">Al día — nada pendiente.</p> : (
             <table>
               <thead><tr><th>Proveedor</th><th className="num">Pagado</th><th className="num">Límite</th></tr></thead>
               <tbody>
                 {data.repPorRecibir.top.map((p) => (
                   <tr key={p.invoiceId}>
-                    <td>{p.proveedor ?? '—'}</td>
+                    <td style={{ fontSize: 13 }}>{p.proveedor ?? '—'}</td>
                     <td className="num">{mxn(p.totalPagado)}</td>
                     <td className={`num ${p.urgencia === 'VENCIDO' ? 'neg' : ''}`}>{p.fechaLimite}</td>
                   </tr>
@@ -188,20 +193,23 @@ export default function Alertas() {
               </tbody>
             </table>
           )}
-          <p className="muted" style={{ fontSize: 12 }}>Sin el complemento del proveedor, tu deducción y acreditamiento de IVA quedan en riesgo (Art. 5-I LIVA).</p>
+          <div className="card-note">Sin el complemento del proveedor, tu deducción y acreditamiento de IVA quedan en riesgo (Art. 5-I LIVA).</div>
         </section>
       </div>
 
       <section className="card">
-        <h2>Unidades en venta detenidas (+{data.inventario.diasAtencion} días)</h2>
+        <div className="card-head">
+          <span>Unidades en venta detenidas</span>
+          <span className="muted">+{data.inventario.diasAtencion} días en piso</span>
+        </div>
         {data.inventario.envejecidas.length === 0 ? <p className="muted">Ninguna unidad envejecida — el piso rota bien.</p> : (
-          <table>
+          <table style={{ marginTop: 10 }}>
             <thead><tr><th>VIN</th><th>Unidad</th><th className="num">Días en piso</th><th className="num">Costo</th><th className="num">Interés piso est.</th></tr></thead>
             <tbody>
               {data.inventario.envejecidas.map((v) => (
                 <tr key={v.id}>
-                  <td><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
-                  <td>{v.unidad}</td>
+                  <td className="mono"><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
+                  <td style={{ fontSize: 13 }}>{v.unidad}</td>
                   <td className={`num ${v.dias >= data.inventario.diasCritico ? 'neg' : ''}`}>{v.dias}</td>
                   <td className="num">{mxn(v.costoCompra)}</td>
                   <td className="num">{v.interesEstimado != null ? mxn(v.interesEstimado) : '—'}</td>

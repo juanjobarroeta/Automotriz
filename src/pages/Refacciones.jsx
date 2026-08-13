@@ -7,6 +7,14 @@ import EtiquetasQr from '../components/EtiquetasQr'
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 
+// Tipos de movimiento del kardex → par de color del §2: entrada = ok,
+// salida = warn, ajuste = neutral (así los pinta el mockup).
+const MOV_BADGE = {
+  ENTRADA_COMPRA: 'badge-DISPONIBLE',
+  SALIDA_VENTA: 'badge-APARTADO',
+  AJUSTE: 'badge-ENTREGADO',
+}
+
 // Refacciones (fase 4): catálogo + kardex derivados de los CFDIs — compras de
 // proveedor = entradas, ventas de mostrador/taller = salidas. El conteo físico
 // (fase 4b) registra AJUSTEs por la diferencia contra lo derivado, y las
@@ -81,40 +89,65 @@ export default function Refacciones() {
       {etiquetas && data && <EtiquetasQr refacciones={data.refacciones} onCerrar={() => setEtiquetas(false)} />}
       <header className="page-head">
         <h1>Refacciones</h1>
+        <span className="glosa">Catálogo y kardex derivados de los CFDI</span>
         <div className="head-actions" style={{ flexWrap: 'wrap' }}>
           <input placeholder="Buscar número de parte o descripción…" value={q}
             onChange={(e) => { setQ(e.target.value); setPage(1) }} style={{ minWidth: 300 }} />
-          <button className={contando ? '' : 'ghost'} onClick={() => { setResultadoConteo(null); setConteo(contando ? null : {}) }}>
+          <button className="ghost" onClick={() => { setResultadoConteo(null); setConteo(contando ? null : {}) }}>
             {contando ? 'Salir del conteo' : 'Conteo físico'}
           </button>
           <button className="ghost" disabled={!data?.refacciones?.length} onClick={() => setEtiquetas(true)}>Etiquetas QR</button>
         </div>
       </header>
       {error && <div className="error">{error}</div>}
-      {contando && (
-        <div className="card" style={{ marginBottom: 14, padding: '10px 14px' }}>
-          <p style={{ margin: 0, fontSize: 13 }}>
-            <b>Conteo físico:</b> escanea o busca la parte, teclea lo contado y registra — se genera un movimiento
-            AJUSTE por la diferencia contra el kardex derivado. Las partes sin cantidad no se tocan.
-          </p>
-          <div className="head-actions" style={{ marginTop: 8 }}>
-            <button disabled={busy || conCantidad === 0} onClick={registrarConteo}>Registrar conteo ({conCantidad})</button>
+      {data && (
+        <div className="kpi-strip">
+          <div className="kpi-item">
+            <span className="kpi-label">Partes en el catálogo</span>
+            <span className="kpi">{data.total.toLocaleString('es-MX')}</span>
+            <span className="kpi-sub">derivadas de los CFDI de proveedor</span>
+          </div>
+          <div className="kpi-item">
+            <span className="kpi-label">Valor de inventario</span>
+            <span className="kpi">{mxn(valorPagina)}</span>
+            <span className="kpi-sub">a último costo conocido · en esta página</span>
+          </div>
+          <div className="kpi-item">
+            <span className="kpi-label">Existencia negativa</span>
+            <span className={`kpi${negativas > 0 ? ' neg' : ''}`}>{negativas}</span>
+            <span className="kpi-sub">{negativas > 0 ? 'revisar kardex o hacer conteo' : 'sin partes en negativo en esta página'}</span>
+          </div>
+          <div className="kpi-item">
+            <span className="kpi-label">Movimientos</span>
+            <span className="kpi">{movsPagina.toLocaleString('es-MX')}</span>
+            <span className="kpi-sub">de las partes de esta página</span>
           </div>
         </div>
       )}
+      {contando && (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head"><span>Conteo físico</span></div>
+          <p style={{ margin: '0 0 10px', fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5 }}>
+            Escanea o busca la parte, teclea lo contado y registra — se genera un movimiento AJUSTE por la
+            diferencia contra el kardex derivado. Las partes sin cantidad no se tocan.
+          </p>
+          <button disabled={busy || conCantidad === 0} onClick={registrarConteo}>Registrar conteo ({conCantidad})</button>
+        </section>
+      )}
       {resultadoConteo && (
-        <div className="card" style={{ marginBottom: 14, padding: '10px 14px' }}>
-          <p style={{ margin: 0, fontSize: 13 }}>
-            ✅ Conteo registrado: {resultadoConteo.contadas} parte(s) — {resultadoConteo.ajustadas} con ajuste,{' '}
+        <section className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head"><span>Conteo registrado</span></div>
+          <p style={{ margin: '0 0 4px', fontSize: 12.5, color: 'var(--ink-3)' }}>
+            {resultadoConteo.contadas} parte(s) — {resultadoConteo.ajustadas} con ajuste,{' '}
             {resultadoConteo.sinDiferencia} sin diferencia.
           </p>
           {resultadoConteo.ajustes.length > 0 && (
-            <table style={{ marginTop: 8, fontSize: 12 }}>
+            <table>
               <thead><tr><th>Parte</th><th className="num">Derivada</th><th className="num">Contada</th><th className="num">Ajuste</th></tr></thead>
               <tbody>
                 {resultadoConteo.ajustes.map((a) => (
                   <tr key={a.refaccionId}>
-                    <td className="mono" style={{ fontSize: 11 }}>{a.numeroParte}</td>
+                    <td className="mono">{a.numeroParte}</td>
                     <td className="num">{a.existencia}</td>
                     <td className="num">{a.contada}</td>
                     <td className={`num ${a.ajuste < 0 ? 'neg' : ''}`}>{a.ajuste > 0 ? `+${a.ajuste}` : a.ajuste}</td>
@@ -123,19 +156,19 @@ export default function Refacciones() {
               </tbody>
             </table>
           )}
-        </div>
+        </section>
       )}
       {loading && !data ? <p className="muted">Cargando catálogo…</p> : data && (
         <>
-          <p className="muted">{data.total.toLocaleString('es-MX')} parte(s){q ? ' encontradas' : ' en el catálogo'} · página {data.page} de {totalPaginas}</p>
+          <p className="muted" style={{ margin: '0 0 10px' }}>{data.total.toLocaleString('es-MX')} parte(s){q ? ' encontradas' : ' en el catálogo'} · página {data.page} de {totalPaginas}</p>
           <table>
             <thead><tr><th>No. de parte</th><th>Descripción</th><th className="num">Existencia</th>{contando && <th className="num">Contada</th>}<th className="num">Último costo</th><th className="num">Último precio</th><th className="num">Valor inv.</th><th className="num">Movs.</th></tr></thead>
             <tbody>
               {data.refacciones.map((r) => (
-                <>
-                  <tr key={r.id} onClick={() => !contando && verKardex(r)} style={{ cursor: contando ? 'default' : 'pointer' }}>
-                    <td className="mono" style={{ fontSize: 11 }}>{r.numeroParte}</td>
-                    <td>{r.descripcion}</td>
+                <Fragment key={r.id}>
+                  <tr onClick={() => !contando && verKardex(r)} style={{ cursor: contando ? 'default' : 'pointer' }}>
+                    <td className="mono">{r.numeroParte}</td>
+                    <td style={{ fontSize: 13 }}>{r.descripcion}</td>
                     <td className={`num ${r.existencia < 0 ? 'neg' : ''}`}>{r.existencia}</td>
                     {contando && (
                       <td className="num">
@@ -145,30 +178,32 @@ export default function Refacciones() {
                           style={{ width: 80, textAlign: 'right' }} />
                       </td>
                     )}
-                    <td className="num">{mxn(r.ultimoCosto)}</td>
-                    <td className="num">{mxn(r.ultimoPrecio)}</td>
+                    <td className="num" style={{ color: 'var(--ink-3)' }}>{mxn(r.ultimoCosto)}</td>
+                    <td className="num" style={{ color: 'var(--ink-3)' }}>{mxn(r.ultimoPrecio)}</td>
                     <td className="num">{r.valorInventario > 0 ? mxn(r.valorInventario) : '—'}</td>
-                    <td className="num">{r.movimientos}</td>
+                    <td className="num" style={{ color: 'var(--muted-2)' }}>{r.movimientos}</td>
                   </tr>
                   {kardex?.id === r.id && (
-                    <tr key={`${r.id}-kardex`}>
-                      <td colSpan={contando ? 8 : 7} style={{ background: 'var(--bg-row-hairline)' }}>
-                        <strong style={{ fontSize: 12 }}>Kardex — existencia {kardex.existencia}</strong>
-                        <table style={{ marginTop: 6 }}>
+                    <tr>
+                      <td colSpan={contando ? 8 : 7} style={{ background: 'var(--surface-subtle)', padding: '16px 20px' }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>
+                          Kardex · <span className="mono">{r.numeroParte}</span> — existencia {kardex.existencia}
+                        </div>
+                        <table style={{ background: 'var(--surface)' }}>
                           <thead><tr><th>Fecha</th><th>Tipo</th><th className="num">Cantidad</th><th className="num">$ unitario</th><th>CFDI</th></tr></thead>
                           <tbody>
                             {kardex.movimientos.map((m) => (
                               <tr key={m.id}>
-                                <td>{fecha(m.fecha)}</td>
-                                <td><span className={`badge ${m.tipo === 'ENTRADA_COMPRA' ? 'badge-DISPONIBLE' : m.tipo === 'SALIDA_VENTA' ? 'badge-APARTADO' : 'badge-ENTREGADO'}`}>{m.tipo.replaceAll('_', ' ')}</span></td>
+                                <td style={{ whiteSpace: 'nowrap' }}>{fecha(m.fecha)}</td>
+                                <td><span className={`badge ${MOV_BADGE[m.tipo] ?? 'badge-neutral'}`} style={{ whiteSpace: 'nowrap' }}>{m.tipo.replaceAll('_', ' ')}</span></td>
                                 <td className={`num ${m.cantidad < 0 ? 'neg' : ''}`}>{m.cantidad}</td>
-                                <td className="num">{mxn(m.montoUnitario)}</td>
+                                <td className="num" style={{ color: 'var(--ink-3)' }}>{mxn(m.montoUnitario)}</td>
                                 <td>{m.invoice ? (
-                                  <button className="ghost" style={{ padding: '1px 8px', fontSize: 11 }}
+                                  <button className="ghost" style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }}
                                     onClick={(e) => { e.stopPropagation(); setCfdiVista(m.invoice.id) }}>
-                                    {[m.invoice.serie, m.invoice.folio].filter(Boolean).join('-') || 'Ver'}
+                                    <span className="mono">{[m.invoice.serie, m.invoice.folio].filter(Boolean).join('-') || 'Ver'}</span>
                                   </button>
-                                ) : <span className="muted">ajuste</span>}</td>
+                                ) : <span className="muted">conteo físico</span>}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -176,7 +211,7 @@ export default function Refacciones() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
               {data.refacciones.length === 0 && <tr><td colSpan={contando ? 8 : 7} className="muted">Sin partes{q ? ' con esa búsqueda' : ' aún — corre el backfill de refacciones'}.</td></tr>}
             </tbody>
@@ -187,6 +222,10 @@ export default function Refacciones() {
               <button className="ghost" disabled={page >= totalPaginas} onClick={() => setPage((p) => p + 1)}>Siguiente →</button>
             </div>
           )}
+          <p style={{ marginTop: 14, fontSize: 12, color: 'var(--muted-2)', lineHeight: 1.5 }}>
+            El kardex se deriva de los CFDI: compras de proveedor son entradas, ventas de mostrador y salidas a
+            orden de servicio son salidas. El conteo físico registra un AJUSTE por la diferencia.
+          </p>
         </>
       )}
     </div>

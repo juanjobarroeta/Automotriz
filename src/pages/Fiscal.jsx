@@ -111,7 +111,7 @@ export default function Fiscal() {
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Total al SAT</span>
-              <span className="kpi" style={{ fontSize: 27, color: data.totalSat > 0 ? 'var(--danger)' : undefined }}>{mxn(data.totalSat)}</span>
+              <span className="kpi" style={{ fontSize: 27 }}>{mxn(data.totalSat)}</span>
               <span className="kpi-sub">IVA + ISR provisional + retenciones</span>
             </div>
             <div className="kpi-item">

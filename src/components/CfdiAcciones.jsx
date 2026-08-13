@@ -18,12 +18,26 @@ export default function CfdiAcciones({ invoice, onVer }) {
     }
   }
 
-  const btn = { padding: '2px 8px', fontSize: 11 }
+  // Acciones de celda como texto («Ver · XML · PDF» del mockup), no como
+  // botones sólidos: en una tabla densa el borde pelea con la fila.
+  const btn = {
+    background: 'none', border: 0, padding: 0, cursor: 'pointer',
+    color: 'var(--ink)', fontSize: 12, fontWeight: 400, fontFamily: 'var(--font-ui)',
+  }
+  const sep = <span style={{ color: 'var(--faint-2)' }}>·</span>
+  const acciones = [
+    onVer && <button key="ver" type="button" style={btn} onClick={() => onVer(invoice.id)}>Ver</button>,
+    <button key="xml" type="button" style={btn} onClick={() => bajar('xml')}>XML</button>,
+    invoice.facturapiId && <button key="pdf" type="button" style={btn} onClick={() => bajar('pdf')}>PDF</button>,
+  ].filter(Boolean)
+
   return (
-    <span className="head-actions" style={{ gap: 4, display: 'inline-flex' }}>
-      {onVer && <button className="ghost" style={btn} onClick={() => onVer(invoice.id)}>Ver</button>}
-      <button className="ghost" style={btn} onClick={() => bajar('xml')}>XML</button>
-      {invoice.facturapiId && <button className="ghost" style={btn} onClick={() => bajar('pdf')}>PDF</button>}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      {acciones.map((a, i) => (
+        <span key={a.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {i > 0 && sep}{a}
+        </span>
+      ))}
     </span>
   )
 }

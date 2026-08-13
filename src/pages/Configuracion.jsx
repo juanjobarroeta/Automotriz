@@ -33,8 +33,13 @@ function CargaInicial() {
 
   return (
     <section className="card" style={{ marginBottom: 16 }}>
-      <h2>Carga inicial {pendientes === 0 ? '✓' : `— ${pendientes} etapa(s) en curso`}</h2>
-      <p className="muted" style={{ fontSize: 13 }}>
+      <div className="card-head" style={{ marginBottom: 4, gap: 12, flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'flex-start' }}>
+        <h2>Carga inicial</h2>
+        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>
+          {pendientes === 0 ? 'todas las etapas listas' : `${pendientes} etapa(s) en curso`}
+        </span>
+      </div>
+      <p style={{ fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.55, margin: '0 0 12px' }}>
         {estado.cobertura.cfdis.toLocaleString('es-MX')} CFDIs sincronizados desde {fecha(estado.cobertura.desde)}.
         El sistema reconstruye inventario, refacciones y taller en segundo plano — no hay nada que capturar.
       </p>
@@ -43,13 +48,13 @@ function CargaInicial() {
         <tbody>
           {estado.etapas.map((e) => (
             <tr key={e.clave}>
-              <td>{e.nombre}</td>
+              <td style={{ fontSize: 13 }}>{e.nombre}</td>
               <td>
                 {e.completa
-                  ? <span className="badge badge-ENTREGADO">Lista</span>
-                  : <span className="badge badge-APARTADO">{e.avance != null ? `${e.avance}%` : 'En curso'}</span>}
+                  ? <span className="badge badge-ok">Lista</span>
+                  : <span className="badge badge-warn">{e.avance != null ? `${e.avance}%` : 'En curso'}</span>}
               </td>
-              <td className="muted" style={{ fontSize: 12 }}>
+              <td style={{ color: 'var(--ink-3)' }}>
                 {e.detalle}
                 {e.ultimoAvance && !e.completa ? ` · último avance ${new Date(e.ultimoAvance).toLocaleTimeString('es-MX')}` : ''}
               </td>
@@ -103,25 +108,33 @@ export default function Configuracion() {
 
   return (
     <div>
-      <header className="page-head"><h1>Configuración</h1></header>
+      <header className="page-head">
+        <h1>Configuración</h1>
+        <span className="glosa">plan piso y comisión — lo que el sistema aplica solo cuando no capturas un monto</span>
+      </header>
       {error && <div className="error">{error}</div>}
-      {msg && <div className="warn">✓ {msg}</div>}
+      {msg && (
+        <div style={{
+          background: 'var(--ok-tint)', color: 'var(--ok)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: '9px 12px', margin: '8px 0', fontSize: 12.5,
+        }}>{msg}</div>
+      )}
       <CargaInicial />
       <div className="cards">
         <section className="card" style={{ maxWidth: 520 }}>
           <h2>Plan piso</h2>
-          <form onSubmit={guardar}>
+          <form onSubmit={guardar} style={{ display: 'grid', gap: 12 }}>
             <label>Tasa anual default (%) — se aplica a unidades sin tasa propia
               <input type="number" step="0.01" min="0" max="100" placeholder="p. ej. 14.5"
                 value={form.planPisoTasaAnual}
                 onChange={(e) => setForm((f) => ({ ...f, planPisoTasaAnual: e.target.value }))} />
             </label>
-            <p className="muted" style={{ fontSize: 12 }}>
+            <p className="card-note" style={{ margin: 0 }}>
               Con tasa configurada, cada unidad en piso acumula su costo financiero mensual
               (costo × tasa × días/365) — resta en la utilidad por VIN y aparece en Alertas
               como cifra real. Deja vacío para desactivar.
             </p>
-            <h2 style={{ marginTop: 16 }}>Comisión del vendedor</h2>
+            <h2 className="card-divider" style={{ marginBottom: 0 }}>Comisión del vendedor</h2>
             <label>% de la utilidad estimada
               <input type="number" step="0.1" min="0" max="100" placeholder="p. ej. 20"
                 value={form.comisionPorcentajeUtilidad}
@@ -132,11 +145,13 @@ export default function Configuracion() {
                 value={form.comisionFija}
                 onChange={(e) => setForm((f) => ({ ...f, comisionFija: e.target.value }))} />
             </label>
-            <p className="muted" style={{ fontSize: 12 }}>
+            <p className="card-note" style={{ margin: 0 }}>
               Al vender sin capturar comisión, se aplica: fija + % × (precio − costo capitalizado).
               El monto capturado a mano siempre gana.
             </p>
-            <button type="submit" disabled={busy || !activeCompany}>{busy ? 'Guardando…' : 'Guardar'}</button>
+            <div className="acciones" style={{ marginTop: 0 }}>
+              <button type="submit" disabled={busy || !activeCompany}>{busy ? 'Guardando…' : 'Guardar'}</button>
+            </div>
           </form>
         </section>
       </div>

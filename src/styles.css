@@ -258,12 +258,19 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
 
 /* Píldora de filtro conmutable */
+/* Ojo con la especificidad: `button:hover` (0,1,1) le gana a `.filtro` (0,1,0),
+   así que sin un :hover propio un filtro inactivo se ennegrecía al pasar el
+   mouse. Los `:hover` de abajo son (0,2,x) y ganan, de modo que estos patrones
+   se pueden construir con <button> de verdad — enfocables con teclado — y no
+   con <span onClick>. */
 .filtro {
   border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 6px 11px; font-size: 12px; cursor: pointer;
+  padding: 6px 11px; font-size: 12px; font-weight: 400; cursor: pointer;
   background: var(--surface); color: var(--ink-3);
 }
+.filtro:hover { background: var(--surface-row); border-color: var(--border); color: var(--ink-3); }
 .filtro.activo { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
+.filtro.activo:hover { background: var(--ink-2); border-color: var(--ink-2); color: #FFFFFF; }
 
 /* Tabs segmentados */
 .tabs {
@@ -272,9 +279,14 @@ label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
 }
 .tabs > * {
   padding: 6px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer;
-  background: var(--surface); color: var(--ink-3); border: 0;
+  background: var(--surface); color: var(--ink-3); border: 0; border-radius: 0;
 }
+.tabs > *:hover { background: var(--surface-row); color: var(--ink-3); }
 .tabs > .activo { background: var(--ink); color: #FFFFFF; }
+.tabs > .activo:hover { background: var(--ink); color: #FFFFFF; }
+
+/* Botón compacto de fila (acciones dentro de una tabla) */
+.btn-fila { padding: 3px 9px; font-size: 11.5px; border-radius: 6px; font-weight: 400; }
 
 /* ── Tablas ─────────────────────────────────────────────────────────────── */
 

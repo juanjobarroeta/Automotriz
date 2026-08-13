@@ -122,21 +122,24 @@ export default function Pedidos() {
     <div>
       <header className="page-head">
         <h1>Pedidos</h1>
-        <button onClick={() => (creando ? setCreando(false) : abrirCrear())}>{creando ? 'Cerrar' : 'Nuevo pedido'}</button>
+        <span className="glosa">cotización → apartado → factura → entrega</span>
+        <div className="head-actions">
+          <button onClick={() => (creando ? setCreando(false) : abrirCrear())}>{creando ? 'Cerrar' : 'Nuevo pedido'}</button>
+        </div>
       </header>
-      <div className="head-actions" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
-        <button className={filtro === 'TODOS' ? '' : 'ghost'} onClick={() => setFiltro('TODOS')}>Todos</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        <span className={`filtro ${filtro === 'TODOS' ? 'activo' : ''}`} onClick={() => setFiltro('TODOS')}>Todos</span>
         {ESTADOS.map((e) => (
-          <button key={e} className={filtro === e ? '' : 'ghost'} onClick={() => setFiltro(e)}>
+          <span key={e} className={`filtro ${filtro === e ? 'activo' : ''}`} onClick={() => setFiltro(e)}>
             {e.charAt(0) + e.slice(1).toLowerCase()} · {n(e)}
-          </button>
+          </span>
         ))}
       </div>
       {error && <div className="error">{error}</div>}
 
       {creando && (
         <section className="card" style={{ marginBottom: 16 }}>
-          <h2>Nuevo pedido</h2>
+          <div className="card-head">Nuevo pedido</div>
           <form onSubmit={crear} className="inline-form" style={{ flexWrap: 'wrap', gap: 8 }}>
             <select required value={form.vehiculoId} onChange={(e) => {
               const v = unidades.find((u) => u.id === e.target.value)
@@ -160,27 +163,30 @@ export default function Pedidos() {
             <input placeholder="Notas" value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} style={{ minWidth: 200 }} />
             <button type="submit" disabled={busy}>Crear cotización</button>
           </form>
-          <p className="muted" style={{ fontSize: 12 }}>El cliente debe existir en el directorio (los derivados de CFDIs ya están; los nuevos se dan de alta en ContabilidadOS).</p>
+          <div className="card-note">El cliente debe existir en el directorio (los derivados de CFDIs ya están; los nuevos se dan de alta en ContabilidadOS).</div>
         </section>
       )}
 
       <table>
-        <thead><tr><th>Unidad</th><th>Cliente</th><th>Estado</th><th className="num">Precio</th><th className="num">Anticipo</th><th>Actualizado</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Unidad</th><th>Cliente</th><th>Estado</th><th className="num">Precio sin IVA</th><th className="num">Anticipo</th><th>Actualizado</th><th>Acciones</th></tr></thead>
         <tbody>
           {pedidos.map((p) => (
             <tr key={p.id}>
-              <td><Link to={`/vehiculos/${p.vehiculo.id}`}>{p.vehiculo.marca} {p.vehiculo.modelo} {p.vehiculo.anio}</Link><div className="mono muted" style={{ fontSize: 10 }}>{p.vehiculo.vin}</div></td>
+              <td style={{ fontSize: 13 }}>
+                <Link to={`/vehiculos/${p.vehiculo.id}`}>{p.vehiculo.marca} {p.vehiculo.modelo} {p.vehiculo.anio}</Link>
+                <div className="mono faint" style={{ marginTop: 2 }}>{p.vehiculo.vin}</div>
+              </td>
               <td><Link to={`/contactos/${p.cliente.id}`}>{p.cliente.razonSocial}</Link></td>
-              <td><span className={`badge ${BADGE[p.estado]}`}>{p.estado}</span></td>
+              <td><span className={`badge ${BADGE[p.estado]}`}>{p.estado.charAt(0) + p.estado.slice(1).toLowerCase()}</span></td>
               <td className="num">{mxn(p.precio)}</td>
               <td className="num">{p.anticipoRecibido > 0 ? mxn(p.anticipoRecibido) : '—'}</td>
-              <td>{fecha(p.updatedAt)}</td>
+              <td style={{ color: 'var(--ink-3)' }}>{fecha(p.updatedAt)}</td>
               <td>
-                <div className="head-actions" style={{ gap: 4 }}>
-                  {p.estado === 'COTIZACION' && <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} disabled={busy} onClick={() => accion(p, 'apartar')}>Apartar</button>}
-                  {(p.estado === 'COTIZACION' || p.estado === 'APARTADO') && <button className="success" style={{ padding: '2px 10px', fontSize: 12 }} disabled={busy} onClick={() => accion(p, 'facturar')}>Facturar</button>}
-                  {p.estado === 'FACTURADO' && <button style={{ padding: '2px 10px', fontSize: 12 }} disabled={busy} onClick={() => accion(p, 'entregar')}>Entregar</button>}
-                  {(p.estado === 'COTIZACION' || p.estado === 'APARTADO') && <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} disabled={busy} onClick={() => accion(p, 'cancelar')}>Cancelar</button>}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {p.estado === 'COTIZACION' && <button className="ghost" style={{ padding: '4px 10px' }} disabled={busy} onClick={() => accion(p, 'apartar')}>Apartar</button>}
+                  {(p.estado === 'COTIZACION' || p.estado === 'APARTADO') && <button className="ghost" style={{ padding: '4px 10px' }} disabled={busy} onClick={() => accion(p, 'facturar')}>Facturar</button>}
+                  {p.estado === 'FACTURADO' && <button className="ghost" style={{ padding: '4px 10px' }} disabled={busy} onClick={() => accion(p, 'entregar')}>Entregar</button>}
+                  {(p.estado === 'COTIZACION' || p.estado === 'APARTADO') && <button className="ghost" style={{ padding: '4px 10px' }} disabled={busy} onClick={() => accion(p, 'cancelar')}>Cancelar</button>}
                 </div>
               </td>
             </tr>
