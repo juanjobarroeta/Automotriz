@@ -91,35 +91,34 @@ export default function Inventario() {
         const vendidas = items.filter((v) => v.estado === 'VENDIDO' || v.estado === 'ENTREGADO')
         const sinCosto = vendidas.filter((v) => !v.costoCompra)
         const demos = items.filter((v) => v.uso && v.uso !== 'VENTA' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO')
-        // Cinco columnas ⇒ la cifra baja a 27px; cuatro ⇒ se queda en 30px.
+        // Inventario es pantalla de catálogo: la cifra va a 27px (DESIGN §6).
         const cols = sinCosto.length > 0 ? 5 : 4
-        const cifra = cols === 5 ? { fontSize: 27 } : undefined
         return (
-          <div className="kpi-strip" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, paddingBottom: 20, marginBottom: 20 }}>
+          <div className="kpi-strip densa" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, paddingBottom: 20, marginBottom: 20 }}>
             <div className="kpi-item">
               <span className="kpi-label">En piso</span>
-              <span className="kpi" style={cifra}>{enPiso.length}</span>
+              <span className="kpi">{enPiso.length}</span>
               <span className="kpi-sub">{mxn(enPiso.reduce((s, v) => s + v.costoCompra, 0))} en inventario</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Apartadas</span>
-              <span className="kpi" style={cifra}>{items.filter((v) => v.estado === 'APARTADO').length}</span>
+              <span className="kpi">{items.filter((v) => v.estado === 'APARTADO').length}</span>
               <span className="kpi-sub">comprometidas con cliente</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Vendidas</span>
-              <span className="kpi" style={cifra}>{vendidas.length}</span>
+              <span className="kpi">{vendidas.length}</span>
               <span className="kpi-sub">facturadas y entregadas</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Demos / cortesía</span>
-              <span className="kpi" style={cifra}>{demos.length}</span>
+              <span className="kpi">{demos.length}</span>
               <span className="kpi-sub">fuera del piso de venta</span>
             </div>
             {sinCosto.length > 0 && (
               <div className="kpi-item">
                 <span className="kpi-label">Sin costo (pre-2021)</span>
-                <span className="kpi neg" style={cifra}>{sinCosto.length}</span>
+                <span className="kpi neg">{sinCosto.length}</span>
                 <span className="kpi-sub">captúralos en el detalle</span>
               </div>
             )}

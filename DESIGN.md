@@ -84,7 +84,7 @@ de cifra cuando un KPI es bueno o malo.
 | H1 de pantalla | 25px | 700 | `letter-spacing:-0.025em` |
 | KPI grande | 30px | 600 | `line-height:1`, `letter-spacing:-0.03em` |
 | KPI en tarjeta | 29px | 600 | idem |
-| KPI en franja de 5 | 27px | 600 | idem |
+| KPI en pantalla de catálogo | 27px | 600 | ver la regla abajo |
 | Título de tarjeta | 13px | 600 | |
 | Nombre de unidad | 15px | 600 | |
 | Cuerpo / celda | 12.5px | 400 | tamaño por defecto del body |
@@ -148,8 +148,15 @@ Alto fijo 56px, borde inferior `--border`, padding lateral 18px, gap 14px.
 ### Franja de KPIs
 Rejilla de 3–5 columnas, `gap:28px`, **sin cajas**, cerrada por
 `border-bottom:1px solid --border` y `padding-bottom:20-22px`. Cada ítem:
-etiqueta 12px `--muted` → cifra 30px (27px si son 5) → sub-línea 11.5px
-`--muted-2`. La cifra toma color de estado solo cuando el dato es bueno o malo.
+etiqueta 12px `--muted` → cifra → sub-línea 11.5px `--muted-2`. La cifra toma
+color de estado solo cuando el dato es bueno o malo.
+
+**Tamaño de la cifra: 30px por defecto, 27px en las pantallas de catálogo**
+(Inventario y Refacciones — las que llevan una tabla larga debajo). No es una
+regla de número de columnas: en el mockup, Panel lleva 4 columnas a 30px y
+Refacciones 4 columnas a 27px; Inventario lleva 5 a 27px. Baja también a 27px
+cualquier franja de 5 ítems o más, para que un importe largo no se parta en dos
+renglones.
 
 ### Encabezado de pantalla
 `<h1>` de 25px seguido de una glosa en 13px `--muted` en la misma línea

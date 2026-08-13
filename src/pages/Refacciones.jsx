@@ -101,7 +101,7 @@ export default function Refacciones() {
       </header>
       {error && <div className="error">{error}</div>}
       {data && (
-        <div className="kpi-strip">
+        <div className="kpi-strip densa">
           <div className="kpi-item">
             <span className="kpi-label">Partes en el catálogo</span>
             <span className="kpi">{data.total.toLocaleString('es-MX')}</span>

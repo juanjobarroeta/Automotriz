@@ -84,17 +84,17 @@ export default function Fiscal() {
             </div>
           )}
 
-          <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+          <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
             <div className="kpi-item">
               <span className="kpi-label">IVA del periodo</span>
-              <span className="kpi" style={{ fontSize: 27, color: ivaCargo ? 'var(--danger)' : 'var(--ok)' }}>
+              <span className="kpi" style={{ color: ivaCargo ? 'var(--danger)' : 'var(--ok)' }}>
                 {ivaCargo ? mxn(data.iva.pagar) : mxn(data.iva.saldoAFavor)}
               </span>
               <span className="kpi-sub">{ivaCargo ? 'a pagar · en flujo de efectivo' : 'saldo a favor (se arrastra)'}</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">ISR provisional</span>
-              <span className="kpi" style={{ fontSize: 27 }}>{isrPagar == null ? '—' : mxn(isrPagar)}</span>
+              <span className="kpi">{isrPagar == null ? '—' : mxn(isrPagar)}</span>
               <span className="kpi-sub">
                 {data.isr.coeficiente != null
                   ? `coeficiente ${data.isr.coeficiente} (${data.isr.coeficienteFuente.replaceAll('_', ' ')})`
@@ -103,7 +103,7 @@ export default function Fiscal() {
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Retenciones a enterar</span>
-              <span className="kpi" style={{ fontSize: 27 }}>{mxn(data.retenciones?.aEnterar ?? 0)}</span>
+              <span className="kpi">{mxn(data.retenciones?.aEnterar ?? 0)}</span>
               <span className="kpi-sub">
                 dinero de terceros ya descontado
                 {data.retenciones?.recibosNomina > 0 ? ` · ${data.retenciones.recibosNomina.toLocaleString('es-MX')} recibos de nómina` : ''}
@@ -111,12 +111,12 @@ export default function Fiscal() {
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Total al SAT</span>
-              <span className="kpi" style={{ fontSize: 27 }}>{mxn(data.totalSat)}</span>
+              <span className="kpi">{mxn(data.totalSat)}</span>
               <span className="kpi-sub">IVA + ISR provisional + retenciones</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Checklist para declarar</span>
-              <span className="kpi" style={{ fontSize: 27 }}>
+              <span className="kpi">
                 {data.checklist.resumen.listos}/{data.checklist.resumen.listos + data.checklist.resumen.pendientes + data.checklist.resumen.atencion}
               </span>
               <span className="kpi-sub">

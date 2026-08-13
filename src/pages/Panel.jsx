@@ -7,9 +7,6 @@ import AbsorcionGrafica from '../components/AbsorcionGrafica'
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 
-// Cifra de franja con cinco columnas: 27px (DESIGN §3 «KPI en franja de 5»).
-const KPI5 = { fontSize: 27 }
-
 // Panel de la agencia («Automotriz PRO»): franja de KPIs sin caja sobre
 // hairline inferior + feed de urgentes con filas accionables (liga a unidad).
 export default function Panel() {
@@ -41,16 +38,16 @@ export default function Panel() {
         <span className="glosa">{MESES[periodo.month - 1]} {periodo.year} · {activeCompany?.razonSocial}</span>
       </header>
 
-      {/* Franja de 5 columnas: la cifra baja a 27px cuando son cinco (DESIGN §3). */}
-      <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      {/* Cinco ítems ⇒ franja densa: la cifra baja a 27px (DESIGN §6). */}
+      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         <div className="kpi-item">
           <span className="kpi-label">Valor en piso</span>
-          <span className="kpi" style={KPI5}>{mxn(piso.valorPiso)}</span>
+          <span className="kpi">{mxn(piso.valorPiso)}</span>
           <span className="kpi-sub">{piso.unidades} unidades · {piso.diasPromedio} días prom.</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Vendidas este mes</span>
-          <span className="kpi" style={KPI5}>{mes.vendidas}</span>
+          <span className="kpi">{mes.vendidas}</span>
           <span className="kpi-sub">
             {mxn(mes.ingresos)}
             {mes.nuevas ? ` · ${mes.nuevas.unidades} nuevas, ${mes.seminuevas.unidades} seminuevos` : ''}
@@ -58,17 +55,17 @@ export default function Panel() {
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Utilidad bruta del mes</span>
-          <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? 'pos' : 'neg'}`} style={KPI5}>{mxn(mes.utilidadBruta)}</span>
+          <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadBruta)}</span>
           <span className="kpi-sub">todas las líneas · antes de estructura</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Utilidad neta del mes</span>
-          <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? 'pos' : 'neg'}`} style={KPI5}>{mxn(mes.utilidadNeta)}</span>
+          <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadNeta)}</span>
           <span className="kpi-sub">después de {mxn(mes.estructura)} de estructura</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">+90 días en piso</span>
-          <span className={`kpi ${piso.masDe90 > 0 ? 'neg' : ''}`} style={KPI5}>{piso.masDe90}</span>
+          <span className={`kpi ${piso.masDe90 > 0 ? 'neg' : ''}`}>{piso.masDe90}</span>
           <span className="kpi-sub">{piso.masDe90 > 0 ? 'requieren acción de precio' : 'inventario sano'}</span>
         </div>
       </div>
