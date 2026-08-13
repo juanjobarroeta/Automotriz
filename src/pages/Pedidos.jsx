@@ -128,11 +128,11 @@ export default function Pedidos() {
         </div>
       </header>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        <span className={`filtro ${filtro === 'TODOS' ? 'activo' : ''}`} onClick={() => setFiltro('TODOS')}>Todos</span>
+        <button type="button" aria-pressed={filtro === 'TODOS'} className={`filtro ${filtro === 'TODOS' ? 'activo' : ''}`} onClick={() => setFiltro('TODOS')}>Todos</button>
         {ESTADOS.map((e) => (
-          <span key={e} className={`filtro ${filtro === e ? 'activo' : ''}`} onClick={() => setFiltro(e)}>
+          <button type="button" key={e} aria-pressed={filtro === e} className={`filtro ${filtro === e ? 'activo' : ''}`} onClick={() => setFiltro(e)}>
             {e.charAt(0) + e.slice(1).toLowerCase()} · {n(e)}
-          </span>
+          </button>
         ))}
       </div>
       {error && <div className="error">{error}</div>}

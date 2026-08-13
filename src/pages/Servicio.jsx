@@ -26,12 +26,11 @@ export default function Servicio() {
         <div className="head-actions">
           <div className="tabs" role="tablist">
             {TABS.map(([k, etiqueta]) => (
-              <span key={k} role="tab" tabIndex={0} aria-selected={tab === k}
+              <button type="button" key={k} role="tab" aria-selected={tab === k}
                 className={tab === k ? 'activo' : ''}
-                onClick={() => setTab(k)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTab(k) } }}>
+                onClick={() => setTab(k)}>
                 {etiqueta}
-              </span>
+              </button>
             ))}
           </div>
         </div>

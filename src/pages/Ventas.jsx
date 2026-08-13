@@ -41,9 +41,9 @@ export default function Ventas() {
           ? 'el piso, el teléfono y el seguimiento de cada prospecto'
           : 'la cola del día con el mensaje ya escrito — el asesor decide si lo envía'}
       </span>
-      <div className="tabs" style={{ alignSelf: 'center' }}>
-        <span className={tab === 'PIPELINE' ? 'activo' : ''} onClick={() => setTab('PIPELINE')}>Pipeline</span>
-        <span className={tab === 'WHATSAPP' ? 'activo' : ''} onClick={() => setTab('WHATSAPP')}>WhatsApp</span>
+      <div className="tabs" role="tablist" style={{ alignSelf: 'center' }}>
+        <button type="button" role="tab" aria-selected={tab === 'PIPELINE'} className={tab === 'PIPELINE' ? 'activo' : ''} onClick={() => setTab('PIPELINE')}>Pipeline</button>
+        <button type="button" role="tab" aria-selected={tab === 'WHATSAPP'} className={tab === 'WHATSAPP' ? 'activo' : ''} onClick={() => setTab('WHATSAPP')}>WhatsApp</button>
       </div>
       <div className="head-actions">{acciones}</div>
     </header>
@@ -290,7 +290,7 @@ function Pipeline({ encabezado }) {
   const mes = data?.mes
 
   const pill = (clave, etiqueta) => (
-    <span key={clave} className={`filtro ${filtro === clave ? 'activo' : ''}`} onClick={() => setFiltro(clave)}>{etiqueta}</span>
+    <button type="button" key={clave} aria-pressed={filtro === clave} className={`filtro ${filtro === clave ? 'activo' : ''}`} onClick={() => setFiltro(clave)}>{etiqueta}</button>
   )
 
   return (

@@ -155,9 +155,9 @@ export default function ContactoPerfil() {
               {perfil.contacto.email ? ` · ${perfil.contacto.email}` : ''}
             </span>
             <div className="head-actions">
-              <div className="tabs">
-                <span className={lado === 'CLIENTE' ? 'activo' : ''} onClick={() => setLado('CLIENTE')}>Como cliente</span>
-                <span className={lado === 'PROVEEDOR' ? 'activo' : ''} onClick={() => setLado('PROVEEDOR')}>Como proveedor</span>
+              <div className="tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={lado === 'CLIENTE'} className={lado === 'CLIENTE' ? 'activo' : ''} onClick={() => setLado('CLIENTE')}>Como cliente</button>
+                <button type="button" role="tab" aria-selected={lado === 'PROVEEDOR'} className={lado === 'PROVEEDOR' ? 'activo' : ''} onClick={() => setLado('PROVEEDOR')}>Como proveedor</button>
               </div>
               {lado === 'CLIENTE' && <button onClick={crearPortal}>Crear acceso al portal</button>}
             </div>
@@ -217,13 +217,13 @@ export default function ContactoPerfil() {
           {/* Secciones en pestañas: el expediente de un cliente con años de
               operación no cabe en una sola vista de scroll. El contador de cada
               pestaña dice de una si hay algo que ver. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '0 0 16px' }}>
+          <div role="tablist" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '0 0 16px' }}>
             {SECCIONES.filter((s) => s.lados.includes(lado)).map((s) => {
               const n = s.contar(perfil)
               return (
-                <span key={s.clave} className={`filtro ${seccion === s.clave ? 'activo' : ''}`} onClick={() => setSeccion(s.clave)}>
+                <button type="button" key={s.clave} role="tab" aria-selected={seccion === s.clave} className={`filtro ${seccion === s.clave ? 'activo' : ''}`} onClick={() => setSeccion(s.clave)}>
                   {s.titulo}{n != null ? ` · ${n}` : ''}
-                </span>
+                </button>
               )
             })}
           </div>

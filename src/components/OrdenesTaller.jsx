@@ -23,12 +23,11 @@ const BTN_FILA = { padding: '3px 9px', fontSize: 11.5, borderRadius: 6, whiteSpa
 // Píldora conmutable de la barra de filtros (§6 «Filtros conmutables»).
 function Filtro({ activo, onClick, children }) {
   return (
-    <span role="button" tabIndex={0} aria-pressed={activo}
+    <button type="button" aria-pressed={activo}
       className={`filtro${activo ? ' activo' : ''}`}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}>
+      onClick={onClick}>
       {children}
-    </span>
+    </button>
   )
 }
 

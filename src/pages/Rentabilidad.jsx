@@ -15,8 +15,6 @@ const sec = { color: 'var(--ink-3)' }
 // Notas al pie de una tarjeta: renglones de 11.5px, sin caja.
 const notas = { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }
 const nota = { fontSize: 11.5, color: 'var(--muted-2)', lineHeight: 1.5 }
-// Tab segmentado (DESIGN.md §6): activo en tinta, inactivo en blanco.
-const tab = (activo) => ({ background: activo ? 'var(--ink)' : 'var(--surface)', color: activo ? '#FFFFFF' : 'var(--ink-3)' })
 
 // Rentabilidad: dos lecturas del mismo negocio —
 //   Por unidad     : utilidad por VIN (precio − costo real − interés − comisión).
@@ -31,11 +29,9 @@ export default function Rentabilidad() {
         <h1>Rentabilidad</h1>
         <span className="glosa">venta − costo de compra − costos + notas de crédito − interés de piso − comisión</span>
         <div className="head-actions">
-          <div className="tabs">
-            {/* El fondo va en línea para que el hover del botón primario no
-                repinte la pestaña inactiva: el tab segmentado no tiene hover. */}
-            <button className={vista === 'LINEAS' ? 'activo' : ''} style={tab(vista === 'LINEAS')} onClick={() => setVista('LINEAS')}>Por línea de negocio</button>
-            <button className={vista === 'UNIDAD' ? 'activo' : ''} style={tab(vista === 'UNIDAD')} onClick={() => setVista('UNIDAD')}>Por unidad</button>
+          <div className="tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={vista === 'LINEAS'} className={vista === 'LINEAS' ? 'activo' : ''} onClick={() => setVista('LINEAS')}>Por línea de negocio</button>
+            <button type="button" role="tab" aria-selected={vista === 'UNIDAD'} className={vista === 'UNIDAD' ? 'activo' : ''} onClick={() => setVista('UNIDAD')}>Por unidad</button>
           </div>
         </div>
       </header>

@@ -34,12 +34,11 @@ export default function Cartera() {
         <div className="head-actions">
           <div className="tabs" role="tablist">
             {[['COBRAR', 'Por cobrar'], ['PAGAR', 'Por pagar']].map(([k, etiqueta]) => (
-              <span key={k} role="tab" tabIndex={0} aria-selected={lado === k}
+              <button type="button" key={k} role="tab" aria-selected={lado === k}
                 className={lado === k ? 'activo' : ''}
-                onClick={() => setLado(k)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLado(k) } }}>
+                onClick={() => setLado(k)}>
                 {etiqueta}
-              </span>
+              </button>
             ))}
           </div>
         </div>
