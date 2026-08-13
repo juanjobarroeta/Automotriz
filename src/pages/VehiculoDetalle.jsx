@@ -9,6 +9,29 @@ const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 
 const COSTO_TIPOS = ['ACONDICIONAMIENTO', 'TRASLADO', 'ACCESORIOS', 'INTERES_PISO', 'OTRO']
 
+// Rótulos: ningún chip ni celda va en mayúsculas forzadas (DESIGN §6).
+const ESTADO_LABEL = {
+  EN_TRANSITO: 'En tránsito', DISPONIBLE: 'Disponible', APARTADO: 'Apartado',
+  VENDIDO: 'Vendido', ENTREGADO: 'Entregado', CANCELADO: 'Cancelado',
+}
+const COSTO_LABEL = {
+  ACONDICIONAMIENTO: 'Acondicionamiento', TRASLADO: 'Traslado', ACCESORIOS: 'Accesorios',
+  INTERES_PISO: 'Interés de piso', OTRO: 'Otro',
+}
+const ROL_LABEL = {
+  COMPRA: 'Compra', VENTA: 'Venta', NOTA_CREDITO: 'Nota de crédito',
+  COSTO: 'Costo', SERVICIO: 'Servicio',
+}
+// Par de color del rol dentro del expediente (DESIGN §2 «Estados»).
+const ROL_BADGE = {
+  COMPRA: 'badge-ok', VENTA: 'badge-ok', NOTA_CREDITO: 'badge-warn',
+  COSTO: 'badge-warn', SERVICIO: 'badge-neutral',
+}
+// Columnas secundarias de tabla: 12.5px --ink-3.
+const SEC = { color: 'var(--ink-3)' }
+// Botón en línea dentro de celda: mismo control ghost en tamaño compacto.
+const MINI = { padding: '2px 10px', fontSize: 12 }
+
 export default function VehiculoDetalle() {
   const { id } = useParams()
   const [v, setV] = useState(null)
@@ -95,11 +118,11 @@ export default function VehiculoDetalle() {
   }
   const CfdiLinks = ({ inv }) => inv ? (
     <>
-      <span className="mono" style={{ fontSize: 11 }}>{inv.uuid ? `${inv.uuid.slice(0, 8)}…` : inv.id}</span>{' '}
-      <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => setCfdiVista(inv.id)}>Ver</button>
-      <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(inv, 'xml')}>XML</button>
+      <span className="mono">{inv.uuid ? `${inv.uuid.slice(0, 8)}…` : inv.id}</span>{' '}
+      <button className="ghost" style={MINI} onClick={() => setCfdiVista(inv.id)}>Ver</button>{' '}
+      <button className="ghost" style={MINI} onClick={() => descargarCfdi(inv, 'xml')}>XML</button>
       {inv.facturapiId && (
-        <button className="ghost" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => descargarCfdi(inv, 'pdf')}>PDF</button>
+        <> <button className="ghost" style={MINI} onClick={() => descargarCfdi(inv, 'pdf')}>PDF</button></>
       )}
     </>
   ) : '—'
@@ -107,25 +130,31 @@ export default function VehiculoDetalle() {
   return (
     <div>
       {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
-      <p><Link to="/">← Inventario</Link></p>
+      <p style={{ margin: '0 0 10px', fontSize: 12.5 }}><Link to="/" className="muted">← Inventario</Link></p>
       <header className="page-head">
         <h1>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</h1>
-        <span className={`badge badge-${v.estado}`}>{v.estado.replaceAll('_', ' ')}</span>
+        <span className="glosa">
+          VIN <span className="mono">{v.vin}</span>
+          {v.numeroMotor ? <> · motor <span className="mono">{v.numeroMotor}</span></> : null}
+          {' · '}{v.tipo === 'NUEVO' ? 'Nuevo' : 'Seminuevo'}{v.color ? ` · ${v.color}` : ''}
+        </span>
+        <div className="head-actions">
+          <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
+        </div>
       </header>
-      <p className="muted">VIN {v.vin} {v.numeroMotor ? `· Motor ${v.numeroMotor}` : ''} · {v.tipo} {v.color ? `· ${v.color}` : ''}</p>
 
       {error && <div className="error">{error}</div>}
       {advertencias.map((a, i) => <div className="warn" key={i}>⚠️ {a}</div>)}
 
       <div className="cards">
         <section className="card">
-          <h2>Compra</h2>
+          <div className="card-head"><span>Compra</span></div>
           <dl>
             <dt>Costo (sin IVA)</dt>
             <dd>
               {mxn(v.costoCompra)}
               {v.autoCreado && !v.compraInvoiceId && (
-                <button className="ghost" style={{ padding: '2px 10px', fontSize: 12, marginLeft: 6 }}
+                <button className="ghost" style={{ ...MINI, marginLeft: 6 }}
                   onClick={async () => {
                     const c = window.prompt('Costo real de compra (sin IVA) — la factura quedó fuera del archivo de 5 años del SAT:', v.costoCompra || '')
                     if (!c) return
@@ -140,17 +169,19 @@ export default function VehiculoDetalle() {
             <dt>Fecha</dt><dd>{fecha(v.fechaCompra)}</dd>
             <dt>Proveedor</dt><dd>{v.supplier?.razonSocial ?? '—'}</dd>
             <dt>CFDI compra</dt>
-            <dd>{v.compraInvoice ? <CfdiLinks inv={v.compraInvoice} /> : (v.autoCreado ? <span className="muted" style={{ fontSize: 12 }}>fuera del archivo SAT (anterior a sep 2021)</span> : '—')}</dd>
+            <dd>{v.compraInvoice ? <CfdiLinks inv={v.compraInvoice} /> : (v.autoCreado ? <span className="muted">fuera del archivo SAT (anterior a sep 2021)</span> : '—')}</dd>
             <dt>Plan piso</dt>
             <dd>{v.planPisoTasaAnual != null ? `${(v.planPisoTasaAnual * 100).toFixed(2)}% anual desde ${fecha(v.planPisoInicio)}` : '—'}</dd>
           </dl>
           {puedeRecibir && (
-            <button onClick={recibir} disabled={busy}>Recibir unidad (postea inventario)</button>
+            <div className="card-divider">
+              <button onClick={recibir} disabled={busy}>Recibir unidad (postea inventario)</button>
+            </div>
           )}
         </section>
 
         <section className="card">
-          <h2>Venta</h2>
+          <div className="card-head"><span>Venta</span></div>
           <dl>
             <dt>Precio lista</dt><dd>{mxn(v.precioLista)}</dd>
             <dt>Precio venta (sin IVA)</dt><dd>{mxn(v.precioVenta)}</dd>

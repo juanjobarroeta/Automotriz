@@ -14,15 +14,26 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 //            la factura llega por el sync y se liga sola.
 //   Reportes (fase 5): la historia reconstruida desde CFDIs — venta por mes,
 //            ticket promedio, top clientes y los que dejaron de venir.
+const TABS = [['ORDENES', 'Órdenes'], ['REPORTES', 'Reportes']]
+
 export default function Servicio() {
   const [tab, setTab] = useState('ORDENES')
   return (
     <div>
       <header className="page-head">
         <h1>Servicio</h1>
+        <span className="glosa">El taller del día y la historia reconstruida desde los CFDI</span>
         <div className="head-actions">
-          <button className={tab === 'ORDENES' ? '' : 'ghost'} onClick={() => setTab('ORDENES')}>Órdenes</button>
-          <button className={tab === 'REPORTES' ? '' : 'ghost'} onClick={() => setTab('REPORTES')}>Reportes</button>
+          <div className="tabs" role="tablist">
+            {TABS.map(([k, etiqueta]) => (
+              <span key={k} role="tab" tabIndex={0} aria-selected={tab === k}
+                className={tab === k ? 'activo' : ''}
+                onClick={() => setTab(k)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTab(k) } }}>
+                {etiqueta}
+              </span>
+            ))}
+          </div>
         </div>
       </header>
       {tab === 'ORDENES' ? <OrdenesTaller /> : <ReportesTaller />}

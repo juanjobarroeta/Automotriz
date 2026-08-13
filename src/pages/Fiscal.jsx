@@ -10,6 +10,21 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const BADGE = { listo: 'badge-DISPONIBLE', pendiente: 'badge-APARTADO', atencion: 'badge-CANCELADO', 'no-aplica': 'badge-ENTREGADO' }
 const ETIQUETA = { listo: 'Listo', pendiente: 'Pendiente', atencion: 'Atención', 'no-aplica': 'No aplica' }
 
+// Renglón de desglose dentro de una tarjeta (patrón del mockup: etiqueta a la
+// izquierda, importe a la derecha, divisor fino; sin tabla).
+function Fila({ label, valor, fuerte, tenue }) {
+  const color = tenue ? 'var(--muted)' : fuerte ? 'var(--ink)' : 'var(--ink-3)'
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', gap: 12,
+      padding: 'var(--rowpad) 0', borderBottom: '1px solid var(--border-hairline)',
+    }}>
+      <span style={{ fontSize: 12.5, color, fontWeight: fuerte ? 600 : 400 }}>{label}</span>
+      <span style={{ fontSize: 12.5, color: tenue ? 'var(--muted)' : 'var(--ink)', fontWeight: fuerte ? 600 : 400 }}>{valor}</span>
+    </div>
+  )
+}
+
 // Periodo por defecto: el MES ANTERIOR — el que está por declararse.
 function periodoDefault() {
   const hoy = new Date()
@@ -44,20 +59,19 @@ export default function Fiscal() {
     <div>
       <header className="page-head">
         <h1>Impuestos del mes</h1>
+        {data && (
+          <span className="glosa">
+            Declaración de {MESES[data.month - 1]} {data.year} — vence el{' '}
+            {new Date(data.fechaLimite).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+            {data.vencida
+              ? <span className="neg"> · vencida hace {-data.diasRestantes} día(s)</span>
+              : ` · en ${data.diasRestantes} día(s)`}
+          </span>
+        )}
         <div className="head-actions">
-          <input type="month" value={periodo} onChange={(e) => e.target.value && setPeriodo(e.target.value)} />
+          <input type="month" value={periodo} onChange={(e) => e.target.value && setPeriodo(e.target.value)} style={{ width: 'auto' }} />
         </div>
       </header>
-
-      {data && (
-        <p className="muted">
-          Declaración de {MESES[data.month - 1]} {data.year} — vence el{' '}
-          {new Date(data.fechaLimite).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
-          {data.vencida
-            ? <span className="neg"> · vencida hace {-data.diasRestantes} día(s)</span>
-            : ` · en ${data.diasRestantes} día(s)`}
-        </p>
-      )}
 
       {error && <div className="error">{error}</div>}
       {loading && <p className="muted">Calculando la posición fiscal…</p>}
