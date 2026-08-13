@@ -5,6 +5,17 @@ import { apiFetch } from '../config/api'
 
 const ESTADOS = ['', 'EN_TRANSITO', 'DISPONIBLE', 'APARTADO', 'VENDIDO', 'ENTREGADO', 'CANCELADO']
 
+// Los chips nunca van en mayúsculas forzadas (DESIGN §6): el enum se rotula.
+const ESTADO_LABEL = {
+  EN_TRANSITO: 'En tránsito', DISPONIBLE: 'Disponible', APARTADO: 'Apartado',
+  VENDIDO: 'Vendido', ENTREGADO: 'Entregado', CANCELADO: 'Cancelado',
+}
+const USO_LABEL = { VENTA: 'Venta', DEMO: 'Demo', CORTESIA: 'Cortesía' }
+const TIPO_LABEL = { NUEVO: 'Nuevo', SEMINUEVO: 'Seminuevo' }
+
+// Columnas secundarias de la tabla: 12.5px --ink-3 (DESIGN §6 «Tabla»).
+const SEC = { color: 'var(--ink-3)' }
+
 const mxn = (n) =>
   n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
 
