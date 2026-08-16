@@ -104,6 +104,24 @@ export default function VehiculoDetalle() {
     try { await apiFetch(`/api/automotriz/vehiculos/${id}/${accion}`, { method: 'POST', body: {} }); await cargar() }
     catch (err) { setError(err.message) } finally { setBusy(false) }
   }
+  // Edición puntual de un campo de la ficha (mismo idioma window.prompt que
+  // «Capturar costo»): vacío = limpiar, Cancelar = no tocar.
+  const editar = async (campo, label, { numero } = {}) => {
+    const val = window.prompt(`${label}:`, v?.[campo] ?? '')
+    if (val === null) return
+    setBusy(true); setError(null)
+    try {
+      await apiFetch(`/api/automotriz/vehiculos/${id}`, {
+        method: 'PATCH',
+        body: { [campo]: val.trim() === '' ? null : (numero ? Number(val) : val.trim()) },
+      })
+      await cargar()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+  const Editar = ({ campo, label, numero }) => (
+    <button className="ghost" style={{ ...MINI, marginLeft: 6 }} disabled={busy}
+      onClick={() => editar(campo, label, { numero })}>Editar</button>
+  )
   const puedeVender = v.estado === 'DISPONIBLE' || v.estado === 'APARTADO'
   const puedeCostos = !['VENDIDO', 'ENTREGADO', 'CANCELADO'].includes(v.estado)
 
@@ -136,7 +154,9 @@ export default function VehiculoDetalle() {
         <span className="glosa">
           VIN <span className="mono">{v.vin}</span>
           {v.numeroMotor ? <> · motor <span className="mono">{v.numeroMotor}</span></> : null}
+          {v.claveVehicular ? <> · clave <span className="mono">{v.claveVehicular}</span></> : null}
           {' · '}{v.tipo === 'NUEVO' ? 'Nuevo' : 'Seminuevo'}{v.color ? ` · ${v.color}` : ''}
+          {(v.otrosCiclos?.length ?? 0) > 0 ? <> · ciclo {v.ciclo} de {v.otrosCiclos.length + 1}</> : null}
         </span>
         <div className="head-actions">
           <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
@@ -239,6 +259,41 @@ export default function VehiculoDetalle() {
             </dl>
           ) : (
             <p className="muted">Se calcula al vender. Costos acumulados: {mxn(v.costosTotal)} (interés piso: {mxn(v.interesPiso)}).</p>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="card-head"><span>Ficha de la unidad</span></div>
+          <dl>
+            <dt>Color</dt>
+            <dd>{v.color ?? '—'}<Editar campo="color" label="Color" /></dd>
+            <dt>N.º económico</dt>
+            <dd>{v.numeroEconomico ?? '—'}<Editar campo="numeroEconomico" label="Número económico" /></dd>
+            <dt>Kilometraje</dt>
+            <dd>{v.kilometraje != null ? `${v.kilometraje.toLocaleString('es-MX')} km` : '—'}<Editar campo="kilometraje" label="Kilometraje" numero /></dd>
+            <dt>Clave vehicular</dt>
+            <dd>{v.claveVehicular ? <span className="mono">{v.claveVehicular}</span> : '—'}</dd>
+            <dt>Notas</dt>
+            <dd style={SEC}>{v.notas ?? '—'}<Editar campo="notas" label="Notas" /></dd>
+          </dl>
+          {(v.otrosCiclos?.length ?? 0) > 0 && (
+            <div className="card-divider">
+              <div className="glosa" style={{ marginBottom: 4 }}>Otros ciclos de este VIN</div>
+              {v.otrosCiclos.map((c) => (
+                <div key={c.id} style={{ fontSize: 12.5 }}>
+                  <Link to={`/vehiculos/${c.id}`}>Ciclo {c.ciclo}</Link>{' '}
+                  <span className="muted">
+                    {fecha(c.fechaCompra)} → {c.fechaVenta ? fecha(c.fechaVenta) : 'en piso'}
+                  </span>{' '}
+                  <span className={`badge badge-${c.estado}`}>{ESTADO_LABEL[c.estado] ?? c.estado}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {v.descripcionCfdi && (
+            <div className="card-note" title={v.descripcionCfdi}>
+              CFDI de origen: «{v.descripcionCfdi.length > 140 ? `${v.descripcionCfdi.slice(0, 140)}…` : v.descripcionCfdi}»
+            </div>
           )}
         </section>
       </div>

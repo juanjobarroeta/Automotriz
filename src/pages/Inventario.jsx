@@ -26,6 +26,7 @@ export default function Inventario() {
   const [soloUso, setSoloUso] = useState('')
   const [q, setQ] = useState('')
   const [marca, setMarca] = useState('')
+  const [color, setColor] = useState('')
   const [anio, setAnio] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -77,6 +78,10 @@ export default function Inventario() {
           <select value={marca} onChange={(e) => setMarca(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Todas las marcas</option>
             {[...new Set(items.map((v) => v.marca))].sort().map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Todos los colores</option>
+            {[...new Set(items.map((v) => v.color).filter(Boolean))].sort().map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={anio} onChange={(e) => setAnio(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Año</option>
@@ -134,7 +139,7 @@ export default function Inventario() {
         <table>
           <thead>
             <tr>
-              <th>VIN</th><th>Unidad</th><th>Tipo</th><th>Estado</th>
+              <th>VIN</th><th>Unidad</th><th>Color</th><th>Tipo</th><th>Estado</th>
               <th className="num">Costo</th><th className="num">Costos adic.</th>
               <th className="num">Precio venta</th><th>Cliente</th>
             </tr>
@@ -143,6 +148,7 @@ export default function Inventario() {
             {items
               .filter((v) => !soloUso || v.uso === soloUso)
               .filter((v) => !marca || v.marca === marca)
+              .filter((v) => !color || v.color === color)
               .filter((v) => !anio || String(v.anio) === String(anio))
               .filter((v) => {
                 if (!q.trim()) return true
@@ -152,8 +158,12 @@ export default function Inventario() {
               })
               .map((v) => (
               <tr key={v.id}>
-                <td className="mono"><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
+                <td className="mono">
+                  <Link to={`/vehiculos/${v.id}`}>{v.vin}</Link>
+                  {v.ciclo > 1 ? <> <span className="badge" title="La unidad ya pasó antes por el piso">{v.ciclo}º ciclo</span></> : null}
+                </td>
                 <td style={{ fontSize: 13 }}>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</td>
+                <td style={SEC}>{v.color ?? '—'}</td>
                 <td style={SEC}>
                   {TIPO_LABEL[v.tipo] ?? v.tipo}
                   {v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{USO_LABEL[v.uso] ?? v.uso}</span></> : null}
