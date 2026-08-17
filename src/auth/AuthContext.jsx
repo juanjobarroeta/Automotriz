@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { apiFetch, tokenStorage } from '../config/api'
+import { setSentryUser } from '../sentry'
 
 const PREFERRED_MODULE = 'AUTOMOTRIZ'
 const USER_KEY      = 'automotriz.user'
@@ -61,6 +62,14 @@ export function AuthProvider({ children }) {
     () => companies.find((c) => c.id === activeCompanyId) ?? null,
     [companies, activeCompanyId]
   )
+
+  // Un solo lugar para decirle a Sentry quién opera: cubre el login, el logout,
+  // la sesión restaurada de localStorage y el cambio de empresa. Sin esto, un
+  // error dice "algo falló"; con esto dice a QUÉ agencia le falla, que es la
+  // diferencia entre un bug que puede esperar y uno que no.
+  useEffect(() => {
+    setSentryUser(user ? { ...user, companyId: activeCompanyId } : null)
+  }, [user, activeCompanyId])
 
   const value = useMemo(
     () => ({ user, companies, activeCompany, activeCompanyId, isAuthenticated: !!user, booting, login, logout, selectCompany }),
