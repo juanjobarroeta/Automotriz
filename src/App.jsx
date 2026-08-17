@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Panel from './pages/Panel'
 import Cartera from './pages/Cartera'
+import ContabilidadCE from './pages/ContabilidadCE'
 import Inventario from './pages/Inventario'
 import Contactos from './pages/Contactos'
 import Fiscal from './pages/Fiscal'
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/" element={<Inventario />} />
             <Route path="/panel" element={<Panel />} />
             <Route path="/cartera" element={<Cartera />} />
+            <Route path="/contabilidad" element={<ContabilidadCE />} />
             <Route path="/fiscal" element={<Fiscal />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/rentabilidad" element={<Rentabilidad />} />
