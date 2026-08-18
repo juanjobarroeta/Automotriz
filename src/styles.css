@@ -221,11 +221,16 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
   display: flex; align-items: center; gap: 10px;
   height: 30px; margin-bottom: 16px; padding-left: 3px; min-width: 0;
 }
-.rail-mark {
-  width: 30px; height: 30px; border-radius: var(--radius);
-  background: var(--ink); color: #FFFFFF;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 14px; flex-shrink: 0;
+/* La marca ahora es un SVG (components/Layout.jsx → <Marca/>), no una letra
+   en un cuadro. El contenedor sólo tiene que no encogerla. */
+.rail-brand > svg { flex-shrink: 0; }
+
+/* «Automotriz PRO»: el PRO en versalita espaciada, para que el logotipo tenga
+   jerarquía y no sea una cadena de texto con un espacio. */
+.wordmark { display: inline-flex; align-items: baseline; gap: 5px; }
+.wordmark-pro {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em;
+  color: var(--muted); transform: translateY(-1px);
 }
 .rail-label {
   font-size: 13px; white-space: nowrap; flex-shrink: 0;

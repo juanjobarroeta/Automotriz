@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Automotriz PRO">
+  <!--
+    La marca: la «A» de Automotriz, con el travesaño como raya de carril.
+
+    El primer intento fue un triángulo hueco y se leía como señal de PELIGRO —
+    justo lo que un sistema de piso de venta no debe decir. La diferencia está
+    en que una A de verdad tiene las patas ABIERTAS abajo y el travesaño por
+    encima de la base; un anillo triangular cerrado es un señalamiento.
+
+    Se dibuja con trazo y no con relleno: un solo `path` con vértice en el
+    ápice evita la juntura que se desalinea al escalar, y a 32px la A sigue
+    siendo una A.
+  -->
+  <path d="M118 410 L256 102 L394 410" fill="none" stroke="#FFFFFF"
+        stroke-width="64" stroke-linejoin="miter" stroke-linecap="butt" />
+  <!-- Travesaño en el acento del sistema, aclarado para que exista sobre la
+       tinta: #2A4C9B sobre #0A0A0A es azul oscuro sobre negro, o sea nada. -->
+  <path d="M180 322 H332" fill="none" stroke="#6E93E8"
+        stroke-width="44" stroke-linecap="butt" />
+</svg>

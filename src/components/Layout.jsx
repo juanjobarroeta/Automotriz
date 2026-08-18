@@ -48,12 +48,40 @@ const NAV = [
 // La barra colapsada es una preferencia de espacio de trabajo: se recuerda.
 const MINI_KEY = 'automotriz.railMini'
 
+
+/**
+ * La marca. Va inline y no como <img>: hereda `currentColor` donde hace falta,
+ * no pide una petición extra y no parpadea en el primer render.
+ * El dibujo es EL MISMO de public/marca.svg, que es de donde salen los iconos
+ * del instalable — si se cambia uno, hay que cambiar el otro.
+ */
+export function Marca({ size = 30 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <rect width="512" height="512" rx="112" fill="var(--ink)" />
+      <path d="M118 410 L256 102 L394 410" fill="none" stroke="#FFFFFF"
+            strokeWidth="64" strokeLinejoin="miter" />
+      <path d="M180 322 H332" fill="none" stroke="#6E93E8" strokeWidth="44" />
+    </svg>
+  )
+}
+
+/** «Automotriz PRO»: el PRO va aparte, en versalita espaciada, para que el
+ *  logotipo tenga jerarquía en vez de ser una cadena de texto. */
+export function Wordmark() {
+  return (
+    <span className="rail-label wordmark">
+      Automotriz<span className="wordmark-pro">PRO</span>
+    </span>
+  )
+}
+
 export function BrandLockup({ tagline = false }) {
   return (
     <div>
       <div className="rail-brand" style={{ marginBottom: 0 }}>
-        <span className="rail-mark">A</span>
-        <span className="rail-label" style={{ opacity: 1, fontWeight: 600 }}>Automotriz PRO</span>
+        <Marca size={30} />
+        <Wordmark />
       </div>
       {tagline && (
         <div style={{ fontSize: 11, color: 'var(--muted-2)', margin: '6px 0 0 40px' }}>
@@ -92,8 +120,8 @@ export default function Layout() {
       <div className={mini ? 'rail-slot mini' : 'rail-slot'}>
         <div className={mini ? 'rail mini' : 'rail'}>
           <div className="rail-brand">
-            <span className="rail-mark">A</span>
-            <span className="rail-label">Automotriz PRO</span>
+            <Marca size={30} />
+            <Wordmark />
             <button
               type="button"
               className="rail-collapse"
