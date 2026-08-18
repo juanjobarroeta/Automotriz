@@ -1,22 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Automotriz PRO">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AutomotrizPro">
   <!--
-    La marca: una «a» de caja baja donde el bombo ES la llanta.
+    La marca: una «a» de caja baja cuyo bombo es una LLANTA, vista de frente.
+    La llanta se dibuja con dos anillos concéntricos —flanco y rin—, que es
+    como se ve una llanta de verdad de frente.
 
-    Antes fue una «A» de caja alta con el travesaño pintado como raya de
-    carril. Se cambió porque la raya era decoración, no significado: a 32px
-    desaparecía y a 20px era una mancha. Aquí la figura y el sentido son la
-    misma cosa —el contador redondo de la «a» ya tiene forma de rueda— así que
-    no hay nada que se pueda perder al encoger.
+    NO lleva dientes de rodamiento, y eso fue una decisión con evidencia:
+    un círculo con picos radiales se lee como ENGRANAJE, no como llanta. En una
+    interfaz eso además ya significa otra cosa —«Configuración»— así que el
+    icono de la app diría «Ajustes». Se probaron 30 dientes finos y 14 gruesos;
+    ambos se hacen pelusa a 32px y ninguno se leía como letra.
 
-    Tres piezas y ninguna suelta:
-      · anillo blanco  = el neumático
-      · disco de acento = el rin (el único color del sistema, con oficio)
-      · asta            = el trazo que la vuelve una letra y no un círculo
+    El asta va PEGADA al bombo. Separada, el ojo ve «rueda + barra»; pegada,
+    ve una «a». Es la diferencia entre un símbolo y un monograma.
 
-    Se probó también con rayos en el rin: a tamaño grande se lee como MIRILLA
-    y a 32px se hace lodo. El rin liso aguanta hasta 20px.
+    Monocroma a propósito: en este sistema el azul significa «aquí estás» y
+    «esto se puede tocar». Un logotipo no es ninguna de las dos.
   -->
-  <circle cx="239" cy="256" r="62" fill="#6E93E8" />
-  <circle cx="239" cy="256" r="91" fill="none" stroke="#FFFFFF" stroke-width="58" />
-  <rect x="335" y="136" width="58" height="240" fill="#FFFFFF" />
+  <g fill="#FFFFFF" fill-rule="evenodd">
+    <path d="M114 256 a118 118 0 1 0 236 0 a118 118 0 1 0 -236 0 M146 256 a86 86 0 1 0 172 0 a86 86 0 1 0 -172 0"/>
+    <path d="M170 256 a62 62 0 1 0 124 0 a62 62 0 1 0 -124 0 M188 256 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0"/>
+    <rect x="306" y="138" width="58" height="236" rx="6"/>
+  </g>
 </svg>

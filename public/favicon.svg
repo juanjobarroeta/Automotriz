@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Igual que marca.svg pero CON fondo: un favicon transparente con la marca
-       en blanco es invisible en una pestaña de tema claro. -->
-  <rect width="512" height="512" rx="112" fill="#0A0A0A" />
-  <circle cx="239" cy="256" r="62" fill="#6E93E8" />
-  <circle cx="239" cy="256" r="91" fill="none" stroke="#FFFFFF" stroke-width="58" />
-  <rect x="335" y="136" width="58" height="240" fill="#FFFFFF" />
+  <!-- Igual que marca.svg pero CON fondo: transparente y en blanco sería
+       invisible en una pestaña de tema claro. -->
+  <rect width="512" height="512" rx="112" fill="#0A0A0A"/>
+  <g fill="#FFFFFF" fill-rule="evenodd">
+    <path d="M114 256 a118 118 0 1 0 236 0 a118 118 0 1 0 -236 0 M146 256 a86 86 0 1 0 172 0 a86 86 0 1 0 -172 0"/>
+    <path d="M170 256 a62 62 0 1 0 124 0 a62 62 0 1 0 -124 0 M188 256 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0"/>
+    <rect x="306" y="138" width="58" height="236" rx="6"/>
+  </g>
 </svg>

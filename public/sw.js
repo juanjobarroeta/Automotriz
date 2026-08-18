@@ -1,5 +1,5 @@
 /*
- * Service worker de Automotriz PRO.
+ * Service worker de AutomotrizPro.
  *
  * LO QUE NO HACE, Y ES LO IMPORTANTE: no cachea páginas ni respuestas de la
  * API. Es la misma política que el hub (contabilidad-os/public/sw.js) y por la

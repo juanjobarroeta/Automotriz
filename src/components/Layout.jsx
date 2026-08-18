@@ -59,20 +59,20 @@ export function Marca({ size = 30 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
       <rect width="512" height="512" rx="112" fill="var(--ink)" />
-      <circle cx="239" cy="256" r="62" fill="#6E93E8" />
-      <circle cx="239" cy="256" r="91" fill="none" stroke="#FFFFFF" strokeWidth="58" />
-      <rect x="335" y="136" width="58" height="240" fill="#FFFFFF" />
+      <g fill="#FFFFFF" fillRule="evenodd">
+        <path d="M114 256 a118 118 0 1 0 236 0 a118 118 0 1 0 -236 0 M146 256 a86 86 0 1 0 172 0 a86 86 0 1 0 -172 0" />
+        <path d="M170 256 a62 62 0 1 0 124 0 a62 62 0 1 0 -124 0 M188 256 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0" />
+        <rect x="306" y="138" width="58" height="236" rx="6" />
+      </g>
     </svg>
   )
 }
 
-/** «Automotriz PRO»: el PRO va aparte, en versalita espaciada, para que el
- *  logotipo tenga jerarquía en vez de ser una cadena de texto. */
+/** «AutomotrizPro»: una sola palabra, con el «Pro» en otro peso para que se
+ *  lea la jerarquía sin partir el nombre en dos. */
 export function Wordmark() {
   return (
-    <span className="rail-label wordmark">
-      Automotriz<span className="wordmark-pro">PRO</span>
-    </span>
+    <span className="rail-label wordmark">Automotriz<span className="wordmark-pro">Pro</span></span>
   )
 }
 
