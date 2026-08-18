@@ -1,26 +1,52 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import CompanySwitcher from './CompanySwitcher'
+import PaletaComandos, { TECLA_PALETA, useAtajoPaleta } from './PaletaComandos'
 import Icons from './Icons'
 
-// Rail del mockup «Automotriz PRO»: 60px de iconos que se despliegan a 216px
-// al pasar el mouse. El orden agrupa operación → dinero → catálogos → ajustes.
+// Los 14 destinos en cuatro bloques. Una lista plana de 14 no tiene forma: se
+// lee entera cada vez. Agrupada por para-qué-sirve —lo que se mueve, lo que se
+// cobra, lo que se declara, a quién le vendes— se navega por posición.
 const NAV = [
-  { to: '/panel', label: 'Panel', icon: 'panel' },
-  { to: '/', label: 'Inventario', icon: 'inventario' },
-  { to: '/pedidos', label: 'Pedidos', icon: 'pedidos' },
-  { to: '/rentabilidad', label: 'Rentabilidad', icon: 'rentabilidad' },
-  { to: '/ventas', label: 'Ventas y CRM', icon: 'ventas' },
-  { to: '/servicio', label: 'Servicio', icon: 'servicio' },
-  { to: '/refacciones', label: 'Refacciones', icon: 'refacciones' },
-  { to: '/cartera', label: 'Cartera', icon: 'clientes' },
-  { to: '/contabilidad', label: 'Contabilidad (CE)', icon: 'contabilidad' },
-  { to: '/fiscal', label: 'Impuestos', icon: 'impuestos' },
-  { to: '/alertas', label: 'Alertas', icon: 'alertas' },
-  { to: '/cobertura', label: 'Cobertura', icon: 'cobertura' },
-  { to: '/clientes', label: 'Clientes', icon: 'clientes' },
-  { to: '/proveedores', label: 'Proveedores', icon: 'proveedores' },
+  {
+    grupo: 'Operación',
+    items: [
+      { to: '/panel', label: 'Panel', icon: 'panel' },
+      { to: '/', label: 'Inventario', icon: 'inventario' },
+      { to: '/pedidos', label: 'Pedidos', icon: 'pedidos' },
+      { to: '/servicio', label: 'Servicio', icon: 'servicio' },
+      { to: '/refacciones', label: 'Refacciones', icon: 'refacciones' },
+    ],
+  },
+  {
+    grupo: 'Comercial',
+    items: [
+      { to: '/ventas', label: 'Ventas y CRM', icon: 'ventas' },
+      { to: '/rentabilidad', label: 'Rentabilidad', icon: 'rentabilidad' },
+      { to: '/cartera', label: 'Cartera', icon: 'clientes' },
+    ],
+  },
+  {
+    grupo: 'Contabilidad',
+    items: [
+      { to: '/contabilidad', label: 'Contabilidad (CE)', icon: 'contabilidad' },
+      { to: '/fiscal', label: 'Impuestos', icon: 'impuestos' },
+      { to: '/alertas', label: 'Alertas', icon: 'alertas' },
+      { to: '/cobertura', label: 'Cobertura', icon: 'cobertura' },
+    ],
+  },
+  {
+    grupo: 'Directorio',
+    items: [
+      { to: '/clientes', label: 'Clientes', icon: 'clientes' },
+      { to: '/proveedores', label: 'Proveedores', icon: 'proveedores' },
+    ],
+  },
 ]
+
+// La barra colapsada es una preferencia de espacio de trabajo: se recuerda.
+const MINI_KEY = 'automotriz.railMini'
 
 export function BrandLockup({ tagline = false }) {
   return (
@@ -39,40 +65,72 @@ export function BrandLockup({ tagline = false }) {
 }
 
 export default function Layout() {
-  const { user, companies, activeCompany, selectCompany, logout } = useAuth()
-  const [railOpen, setRailOpen] = useState(false)
-  const conModulo = companies.filter((c) => c.modulos?.includes('AUTOMOTRIZ'))
+  const { user, logout } = useAuth()
+  const [mini, setMini] = useState(() => {
+    try {
+      const guardado = localStorage.getItem(MINI_KEY)
+      if (guardado !== null) return guardado === '1'
+    } catch {}
+    // Sin preferencia guardada, la decide la pantalla: en una laptop de 1440
+    // la barra con rótulos le quita a la tabla de inventario el ancho que
+    // necesita para no partir la fila en dos. Arriba de eso, rótulos.
+    return typeof window !== 'undefined' && window.innerWidth < 1440
+  })
+  useEffect(() => {
+    try { localStorage.setItem(MINI_KEY, mini ? '1' : '0') } catch {}
+  }, [mini])
+
+  const [paleta, setPaleta] = useState(false)
+  const abrirPaleta = useCallback(() => setPaleta(true), [])
+  useAtajoPaleta(abrirPaleta)
+
   const iniciales = (user?.name || user?.email || '?')
     .split(/[\s@]+/).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('')
 
   return (
     <div className="shell">
-      <div
-        className="rail-slot"
-        onMouseEnter={() => setRailOpen(true)}
-        onMouseLeave={() => setRailOpen(false)}
-      >
-        <div className={railOpen ? 'rail open' : 'rail'}>
+      <div className={mini ? 'rail-slot mini' : 'rail-slot'}>
+        <div className={mini ? 'rail mini' : 'rail'}>
           <div className="rail-brand">
             <span className="rail-mark">A</span>
             <span className="rail-label">Automotriz PRO</span>
+            <button
+              type="button"
+              className="rail-collapse"
+              onClick={() => setMini((v) => !v)}
+              title={mini ? 'Expandir la barra' : 'Colapsar la barra'}
+              aria-label={mini ? 'Expandir la barra' : 'Colapsar la barra'}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M9 4v16" />
+              </svg>
+            </button>
           </div>
 
-          {NAV.map((n) => {
-            const Icon = Icons[n.icon]
-            return (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                end={n.to === '/'}
-                title={n.label}
-                className={({ isActive }) => (isActive ? 'rail-item active' : 'rail-item')}
-              >
-                <Icon />
-                <span className="rail-label">{n.label}</span>
-              </NavLink>
-            )
-          })}
+          <nav className="rail-nav">
+            {NAV.map((g) => (
+              <div className="nav-group" key={g.grupo}>
+                <div className="nav-group-title">{g.grupo}</div>
+                {g.items.map((n) => {
+                  const Icon = Icons[n.icon]
+                  return (
+                    <NavLink
+                      key={n.to}
+                      to={n.to}
+                      end={n.to === '/'}
+                      title={n.label}
+                      className={({ isActive }) => (isActive ? 'rail-item active' : 'rail-item')}
+                    >
+                      <Icon />
+                      <span className="rail-label">{n.label}</span>
+                    </NavLink>
+                  )
+                })}
+              </div>
+            ))}
+          </nav>
 
           <div className="rail-foot">
             <NavLink
@@ -83,18 +141,13 @@ export default function Layout() {
               <Icons.configuracion />
               <span className="rail-label">Configuración</span>
             </NavLink>
-            <div className="rail-user">
+            <div className="rail-user" title={user?.name || user?.email}>
               <span className="avatar">{iniciales}</span>
-              <span className="rail-label">
+              <span className="rail-user-ident">
                 <span className="rail-user-name">{user?.name || user?.email}</span>
-                <span className="rail-user-role" style={{ display: 'block' }}>
-                  <span
-                    onClick={logout}
-                    style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                  >
-                    Cerrar sesión
-                  </span>
-                </span>
+                <button type="button" className="rail-user-role" onClick={logout}>
+                  Cerrar sesión
+                </button>
               </span>
             </div>
           </div>
@@ -103,25 +156,13 @@ export default function Layout() {
 
       <div className="main">
         <div className="topbar">
-          <div className="topbar-company">
-            <span className="mark">{(activeCompany?.razonSocial || '?')[0]}</span>
-            <span className="name">{activeCompany?.razonSocial || 'Sin agencia'}</span>
-            <span className="caret">▾</span>
-            <select
-              value={activeCompany?.id ?? ''}
-              onChange={(e) => selectCompany(e.target.value)}
-              aria-label="Cambiar de agencia"
-            >
-              {conModulo.map((c) => (
-                <option key={c.id} value={c.id}>{c.razonSocial}</option>
-              ))}
-            </select>
-          </div>
+          <CompanySwitcher />
 
-          <div className="topbar-search">
+          <button type="button" className="topbar-search" onClick={abrirPaleta}>
             <Icons.buscar />
             Buscar VIN, cliente, orden, refacción…
-          </div>
+            <kbd className="paleta-kbd topbar-search-kbd">{TECLA_PALETA}</kbd>
+          </button>
 
           <div className="topbar-right">
             <div className="sync-pill">
@@ -140,6 +181,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <PaletaComandos abierta={paleta} onCerrar={() => setPaleta(false)} />
     </div>
   )
 }

@@ -1,8 +1,10 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
 import EtiquetasQr from '../components/EtiquetasQr'
+import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
@@ -22,7 +24,10 @@ const MOV_BADGE = {
 export default function Refacciones() {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
-  const [q, setQ] = useState('')
+  // La paleta de comandos abre esta pantalla con ?q=<número de parte>: la
+  // búsqueda arranca con lo que ya se tecleó allá, no en blanco.
+  const [params] = useSearchParams()
+  const [q, setQ] = useState(() => params.get('q') ?? '')
   const [page, setPage] = useState(1)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -99,7 +104,7 @@ export default function Refacciones() {
           <button className="ghost" disabled={!data?.refacciones?.length} onClick={() => setEtiquetas(true)}>Etiquetas QR</button>
         </div>
       </header>
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {data && (
         <div className="kpi-strip densa">
           <div className="kpi-item">

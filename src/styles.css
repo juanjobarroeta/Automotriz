@@ -34,14 +34,27 @@
   --danger: #B3402E;      --danger-tint: #FCEFEC;
   --info: #2A4C9B;        --info-tint: #EFF3FB;
 
+  /* Acento de navegación
+     El sistema sigue siendo monocromo: la tinta manda y el color sólo aparece
+     como estado. La excepción es ESTA: un ancla para «dónde estoy» y «esto se
+     puede tocar». Antes el ítem activo del rail y el ítem bajo el mouse eran
+     exactamente el mismo gris (--surface-hover), así que la navegación no
+     decía en qué pantalla estabas — sólo dónde tenías el mouse.
+     No es un color nuevo: es el --info que ya existía, ascendido a ancla, para
+     no meter un tono ajeno a la paleta. */
+  --brand: #2A4C9B;
+  --brand-ink: #23407F;
+  --brand-tint: #EFF3FB;
+  --focus: #2A4C9B;
+
   /* Forma */
   --radius: 8px;
   --radius-chip: 4px;
   --rowpad: 9px;
 
   /* Shell */
-  --rail-w: 60px;
-  --rail-w-open: 216px;
+  --rail-w: 208px;
+  --rail-w-mini: 60px;
   --topbar-h: 56px;
 
   /* Tipografía */
@@ -75,10 +88,14 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-chip);
+}
+
 html, body { margin: 0; padding: 0; background: var(--surface); }
 body {
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink);
   background: var(--surface);
   -webkit-font-smoothing: antialiased;
@@ -107,6 +124,68 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 9px 12px; margin: 8px 0; font-size: 12.5px;
 }
+
+/* ── Los tres estados sin datos (ver components/Estados.jsx) ─────────────── */
+
+/* Error: además del qué-falló, un camino de vuelta. Antes el único remedio era
+   recargar la página y perder los filtros que costó poner. */
+.aviso-error {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--danger-tint); color: var(--danger);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; margin: 8px 0; font-size: 12.5px;
+}
+.aviso-error svg { flex-shrink: 0; }
+.aviso-error-texto { flex: 1; min-width: 0; }
+.aviso-error button { flex-shrink: 0; }
+
+/* Vacío: centrado en la zona donde iba la tabla, para que se lea como «aquí no
+   hay nada» y no como «se cortó la página». */
+.vacio {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 52px 20px; gap: 3px;
+}
+.vacio-icono {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; margin-bottom: 9px;
+  border-radius: 50%; background: var(--surface-soft); color: var(--faint);
+}
+.vacio-titulo { font-size: 13px; font-weight: 600; color: var(--ink); margin: 0; }
+.vacio-detalle {
+  font-size: 12.5px; color: var(--muted); margin: 0; max-width: 42ch; line-height: 1.55;
+}
+.vacio-accion { margin-top: 13px; }
+
+/* Cargando: el esqueleto ocupa el sitio que va a ocupar la tabla, así que la
+   página no pega un brinco cuando llegan los datos. */
+.esqueleto { display: flex; flex-direction: column; }
+.esqueleto-fila {
+  display: flex; align-items: center; gap: 24px;
+  height: 39px; padding: 0 12px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+.esqueleto-celda {
+  height: 9px; border-radius: 3px; flex-basis: 0; min-width: 26px;
+  background: linear-gradient(90deg, var(--surface-soft) 25%, var(--surface-hover) 50%, var(--surface-soft) 75%);
+  background-size: 280% 100%;
+  animation: esqueleto-brillo 1.5s ease-in-out infinite;
+}
+@keyframes esqueleto-brillo {
+  0% { background-position: 180% 0; }
+  100% { background-position: -80% 0; }
+}
+/* El destello es decorativo: si el sistema pide menos movimiento, se apaga. */
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto-celda { animation: none; background: var(--surface-soft); }
+  .sync-dot { animation: none; }
+}
+
+/* Texto sólo para lectores de pantalla: el esqueleto es puro adorno visual, así
+   que alguien con lector necesita que ALGUIEN diga «cargando». */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .warn {
   background: var(--warn-tint); color: var(--warn);
   border: 1px solid var(--border); border-radius: var(--radius);
@@ -118,20 +197,29 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
 
 .shell { display: flex; height: 100vh; overflow: hidden; background: var(--surface); }
 
-/* Rail: 60px colapsado, se despliega a 216px sobre el contenido (no lo recorre) */
-.rail-slot { width: var(--rail-w); flex-shrink: 0; position: relative; z-index: 20; }
+/* Barra lateral
+   Antes: 60px de iconos SIN rótulo que se desplegaban al pasar el mouse, y al
+   desplegarse tapaban el contenido (la columna VIN, el título, el primer KPI).
+   Con 14 destinos eso obliga a adivinar por icono o a barrer con el mouse para
+   leer, y hacerlo encima de la tabla que estabas leyendo.
+
+   Ahora los rótulos están siempre visibles y la barra ocupa su propio ancho
+   —no flota sobre nada— como en QuickBooks, Wave, Bonsai, Shopify o Fresha.
+   Quien prefiera densidad puede colapsarla a iconos con el botón del encabezado
+   y la elección se recuerda. */
+.rail-slot { width: var(--rail-w); flex-shrink: 0; transition: width .16s ease; }
+.rail-slot.mini { width: var(--rail-w-mini); }
+
 .rail {
-  position: absolute; top: 0; left: 0; bottom: 0; width: var(--rail-w);
+  width: 100%; height: 100%;
   background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; align-items: flex-start;
-  padding: 14px 12px; gap: 4px; overflow: hidden;
-  transition: width .18s ease, box-shadow .18s ease;
+  display: flex; flex-direction: column;
+  padding: 14px 10px 12px; gap: 2px; overflow: hidden;
 }
-.rail.open { width: var(--rail-w-open); box-shadow: 0 0 24px rgba(0, 0, 0, .07); }
 
 .rail-brand {
   display: flex; align-items: center; gap: 10px;
-  height: 30px; margin-bottom: 14px; padding-left: 3px;
+  height: 30px; margin-bottom: 16px; padding-left: 3px; min-width: 0;
 }
 .rail-mark {
   width: 30px; height: 30px; border-radius: var(--radius);
@@ -141,23 +229,94 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
 }
 .rail-label {
   font-size: 13px; white-space: nowrap; flex-shrink: 0;
-  opacity: 0; transition: opacity .14s ease;
+  overflow: hidden; text-overflow: ellipsis;
 }
-.rail.open .rail-label { opacity: 1; }
-.rail-brand .rail-label { font-weight: 600; }
+.rail-brand .rail-label { font-weight: 600; letter-spacing: -0.01em; }
+
+/* Botón de colapso: vive en el encabezado y sólo aparece al pasar por la barra,
+   para no competir con la marca. */
+.rail-collapse {
+  margin-left: auto; width: 26px; height: 26px; padding: 0;
+  background: transparent; border: 0; color: var(--faint);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-chip); flex-shrink: 0;
+  opacity: 0; transition: opacity .12s ease;
+}
+.rail:hover .rail-collapse, .rail-collapse:focus-visible { opacity: 1; }
+.rail-collapse:hover { background: var(--surface-hover); color: var(--ink-3); }
+
+.rail-nav { flex: 1; overflow-y: auto; overflow-x: hidden; margin: 0 -2px; padding: 0 2px; }
+
+/* Los 14 destinos en cuatro bloques con encabezado. Una lista plana de 14 no
+   tiene forma; agrupada se lee de un vistazo y se recuerda por posición. */
+.nav-group + .nav-group { margin-top: 14px; }
+/* Sin `text-transform: uppercase`: Instrument Sans pierde la tilde al
+   convertir, y «OPERACION» sin acento está mal escrito en español. El
+   encabezado se distingue con tamaño, peso y tracking, no con mayúsculas. */
+.nav-group-title {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--faint); padding: 0 9px 6px; white-space: nowrap;
+}
 
 .rail-item {
-  width: calc(var(--rail-w-open) - 24px); height: 36px; border-radius: var(--radius);
+  width: 100%; height: 34px; border-radius: var(--radius);
   display: flex; align-items: center; gap: 10px; padding-left: 9px;
-  cursor: pointer; overflow: hidden; flex-shrink: 0;
-  color: var(--muted-2); transition: background .12s ease;
+  cursor: pointer; overflow: hidden; flex-shrink: 0; position: relative;
+  color: var(--ink-3); font-size: 13px;
+  transition: background .12s ease, color .12s ease;
 }
-.rail-item:hover { background: var(--surface-hover); text-decoration: none; }
-.rail-item.active { background: var(--surface-hover); color: var(--ink); }
-.rail-item svg { flex-shrink: 0; }
-.rail-foot { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
-.rail-user { display: flex; align-items: center; gap: 10px; height: 36px; padding-left: 3px; overflow: hidden; }
+.rail-item:hover { background: var(--surface-hover); color: var(--ink); text-decoration: none; }
+.rail-item svg { flex-shrink: 0; color: var(--faint); transition: color .12s ease; }
+.rail-item:hover svg { color: var(--ink-3); }
+
+/* «Dónde estoy» ≠ «dónde tengo el mouse»: el activo lleva tinte, tinta de
+   acento, peso y una barra a la izquierda. El hover se queda en gris. */
+.rail-item.active {
+  background: var(--brand-tint); color: var(--brand-ink); font-weight: 600;
+}
+.rail-item.active svg { color: var(--brand); }
+.rail-item.active::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 2.5px; border-radius: 0 2px 2px 0; background: var(--brand);
+}
+
+.rail-foot {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-inner);
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+}
+.rail-user {
+  display: flex; align-items: center; gap: 10px;
+  height: 40px; padding-left: 3px; overflow: hidden; min-width: 0;
+}
 .rail-user .avatar { flex-shrink: 0; }
+.rail-user-ident { min-width: 0; display: flex; flex-direction: column; }
+.rail-user-name {
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.rail-user-role {
+  font-size: 11px; color: var(--muted-2); white-space: nowrap;
+  background: none; border: 0; padding: 0; text-align: left; font-weight: 400;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+.rail-user-role:hover { background: none; color: var(--ink-3); }
+
+/* Modo mini: sólo iconos, centrados. Los rótulos se van; el title del <a> los
+   devuelve como tooltip. */
+.rail.mini { padding-left: 14px; padding-right: 14px; align-items: center; }
+.rail.mini .rail-label,
+.rail.mini .nav-group-title,
+.rail.mini .rail-user-ident,
+.rail.mini .rail-collapse { display: none; }
+.rail.mini .rail-brand { margin-bottom: 16px; padding-left: 0; }
+.rail.mini .rail-item { width: 32px; padding-left: 0; justify-content: center; }
+.rail.mini .rail-item.active::before { display: none; }
+.rail.mini .nav-group + .nav-group {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-inner);
+}
+.rail.mini .rail-user { justify-content: center; padding-left: 0; }
+
+.avatar { flex-shrink: 0; }
 .rail-user-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rail-user-role { font-size: 11px; color: var(--muted-2); white-space: nowrap; }
 
@@ -175,26 +334,64 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
   height: var(--topbar-h); flex-shrink: 0; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 14px; padding: 0 18px;
 }
-.topbar-company {
-  display: flex; align-items: center; gap: 7px;
+/* Selector de agencia
+   Antes era un <select> nativo con opacity:0 encima de un div bonito: el menú
+   que se abría era el del sistema operativo —tipografía, colores y ancho
+   ajenos— y sólo listaba la razón social. Con «Margom Motors SA de CV» y
+   «Gommar Automotriz SA de CV» en la misma cuenta, el nombre no alcanza para
+   distinguirlas de un vistazo; el RFC sí.
+   Ahora es un popover propio: marca, razón social, RFC en mono y una palomita
+   en la activa. */
+.topbar-company { position: relative; }
+.topbar-company-btn {
+  display: flex; align-items: center; gap: 8px; max-width: 300px;
   border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 5px 10px; cursor: pointer; position: relative;
+  padding: 5px 9px; cursor: pointer; background: var(--surface); color: var(--ink);
+  font-weight: 400;
 }
+.topbar-company-btn:hover { background: var(--surface-subtle); border-color: var(--border-strong); }
+.topbar-company-btn[aria-expanded="true"] { background: var(--surface-soft); border-color: var(--border-strong); }
 .topbar-company .mark {
-  width: 16px; height: 16px; border-radius: var(--radius-chip);
-  background: var(--ink); color: #FFFFFF;
-  display: flex; align-items: center; justify-content: center; font-size: 9px;
+  width: 18px; height: 18px; border-radius: var(--radius-chip);
+  background: var(--ink); color: #FFFFFF; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 600;
 }
-.topbar-company .name { font-size: 12.5px; font-weight: 600; }
-.topbar-company .caret { color: var(--faint); font-size: 9px; }
-.topbar-company select {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  opacity: 0; cursor: pointer; border: 0; padding: 0;
+.topbar-company .name {
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
-.topbar-search {
-  display: flex; align-items: center; gap: 8px;
-  color: var(--muted-2); font-size: 13px; cursor: text;
+.topbar-company .caret { color: var(--faint); font-size: 9px; flex-shrink: 0; }
+
+.company-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  min-width: 288px; max-height: 60vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 5px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .10), 0 2px 6px rgba(0, 0, 0, .05);
 }
+.company-menu-title {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--faint); padding: 6px 9px 5px;
+}
+.company-option {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 9px; border: 0; border-radius: var(--radius-chip);
+  background: transparent; color: var(--ink); cursor: pointer;
+  font-weight: 400; text-align: left;
+}
+.company-option:hover { background: var(--surface-hover); }
+.company-option-ident { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.company-option-name {
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.company-option-rfc {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--muted);
+  letter-spacing: 0.01em;
+}
+.company-option .check { color: var(--brand); flex-shrink: 0; }
+.company-option.activa .company-option-name { color: var(--brand-ink); }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .sync-pill {
   display: flex; align-items: center; gap: 7px;
@@ -216,7 +413,11 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
   width: 5px; height: 5px; border-radius: 50%; background: #C2410C;
 }
 
-.content { flex: 1; overflow: auto; min-height: 0; padding: 26px 28px 36px; }
+.content { flex: 1; overflow: auto; min-height: 0; padding: 0 22px 36px; }
+/* El aire de arriba lo pone la página, no el contenedor de scroll (ver el
+   encabezado pegajoso de las tablas). Todas las pantallas devuelven UN
+   elemento raíz, así que esto es exactamente un selector por pantalla. */
+.content > * { padding-top: 24px; }
 
 /* ── Encabezado de pantalla ─────────────────────────────────────────────── */
 
@@ -291,11 +492,32 @@ label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
 /* ── Tablas ─────────────────────────────────────────────────────────────── */
 
 table { width: 100%; border-collapse: collapse; background: transparent; }
+
+/* Encabezado pegajoso: con 200 unidades en pantalla, al bajar se perdía cuál
+   columna era «Costo» y cuál «Precio venta» — dos cifras del mismo tamaño y
+   formato, a un renglón de distancia. Ahora los rótulos se quedan.
+   El borde va como box-shadow y no como border-bottom: con
+   `border-collapse: collapse` el borde de una celda pegajosa se despinta al
+   desplazar, porque pertenece a la tabla y no a la celda. */
 th {
   text-align: left; font-size: 11.5px; font-weight: 400; color: var(--muted);
   letter-spacing: 0.02em; text-transform: none;
-  padding: 9px 12px; border-bottom: 1px solid var(--border-strong);
+  padding: 9px 12px;
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface);
+  /* El borde va como sombra `inset` y no como `border-bottom`: con
+     `border-collapse: collapse` el borde pertenece a la TABLA, no a la celda,
+     así que la celda pegajosa se lo deja atrás al desplazar. La segunda sombra
+     despega el encabezado de las filas cuando hay algo debajo. */
+  box-shadow:
+    inset 0 -1px 0 var(--border-strong),
+    0 4px 8px -6px rgba(0, 0, 0, .14);
 }
+
+/* La fila bajo el mouse se marca: en una tabla de 9 columnas y 12.5px, seguir
+   un renglón hasta la última columna sin perder el hilo es trabajo. */
+tbody tr { transition: background .1s ease; }
+tbody tr:hover { background: var(--surface-subtle); }
 td {
   text-align: left; font-size: 12.5px;
   padding: var(--rowpad) 12px; border-bottom: 1px solid var(--border-hairline);
@@ -442,4 +664,115 @@ tfoot td { border-bottom: 0; font-weight: 600; }
   .cfdi-overlay { position: absolute; inset: 0; background: #fff; padding: 0; }
   .cfdi-modal { box-shadow: none; max-height: none; max-width: none; border-radius: 0; }
   .no-print { display: none !important; }
+}
+
+
+/* ── Paleta de comandos (⌘K) ─────────────────────────────────────────────────
+   El acto atómico de la herramienta es «encuentra esto»: un VIN dictado por
+   teléfono, media razón social, un folio. La paleta lo resuelve desde
+   cualquier pantalla, así que se pinta por encima de todo y se cierra sola.  */
+
+.paleta-fondo {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(10, 10, 10, .28);
+  display: flex; justify-content: center;
+  padding: 12vh 20px 20px;
+  /* La animación es corta a propósito: esto se abre decenas de veces al día y
+     una entrada lenta se vuelve un peaje. */
+  animation: paleta-entra .1s ease-out;
+}
+.paleta {
+  width: 100%; max-width: 620px; max-height: 68vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, .20), 0 3px 10px rgba(0, 0, 0, .08);
+}
+@keyframes paleta-entra { from { opacity: 0 } to { opacity: 1 } }
+
+.paleta-campo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 15px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.paleta-campo svg { color: var(--faint); flex-shrink: 0; }
+.paleta-campo input {
+  flex: 1; border: 0; padding: 0; font-size: 14.5px; background: transparent;
+}
+.paleta-campo input:focus { outline: none; }
+.paleta-kbd, .paleta-pie kbd {
+  font-family: var(--font-ui); font-size: 10px; color: var(--muted);
+  border: 1px solid var(--border-strong); border-radius: 4px;
+  padding: 2px 5px; background: var(--surface-subtle); flex-shrink: 0;
+}
+.paleta-cargando {
+  width: 12px; height: 12px; flex-shrink: 0;
+  border: 1.5px solid var(--border-strong); border-top-color: var(--brand);
+  border-radius: 50%; animation: paleta-gira .6s linear infinite;
+}
+@keyframes paleta-gira { to { transform: rotate(360deg) } }
+
+.paleta-lista { overflow-y: auto; padding: 6px; flex: 1; min-height: 0; }
+.paleta-grupo + .paleta-grupo { margin-top: 6px; }
+.paleta-grupo-titulo {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--faint); padding: 7px 9px 4px;
+}
+
+.paleta-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 9px; border: 0; border-radius: var(--radius-chip);
+  background: transparent; color: var(--ink); cursor: pointer;
+  font-weight: 400; text-align: left;
+}
+/* Sólo hay UN resaltado, y lo manda el teclado. Si el hover pintara por su
+   cuenta, al recorrer con las flechas se verían dos filas «elegidas»: la del
+   teclado y la de abajo del puntero, que es donde quedó la mano. */
+.paleta-item.activo { background: var(--brand-tint); }
+.paleta-item.activo .paleta-item-titulo { color: var(--brand-ink); font-weight: 600; }
+.paleta-item svg { flex-shrink: 0; color: var(--faint); }
+.paleta-item.activo svg { color: var(--brand); }
+.paleta-item-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.paleta-item-titulo {
+  font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.paleta-item-nota { font-size: 11px; color: var(--muted); }
+.paleta-item-mono {
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+  flex-shrink: 0; white-space: nowrap;
+}
+
+.paleta-mensaje {
+  font-size: 12.5px; color: var(--muted); text-align: center;
+  padding: 26px 20px; margin: 0;
+}
+
+.paleta-pie {
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  padding: 8px 13px; border-top: 1px solid var(--border);
+  background: var(--surface-subtle); font-size: 11px; color: var(--muted);
+}
+.paleta-pie kbd { margin-right: 3px; }
+.paleta-pie-agencia {
+  margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* El disparador de la topbar: era un <div> decorativo con un texto que
+   prometía una búsqueda que no existía. Ahora es el botón que la abre. */
+.topbar-search {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--muted-2); font-size: 13px; cursor: text;
+  background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius); padding: 6px 10px; font-weight: 400;
+  min-width: 280px; text-align: left;
+}
+.topbar-search:hover {
+  background: var(--surface-subtle); border-color: var(--border); color: var(--ink-3);
+}
+.topbar-search svg { flex-shrink: 0; }
+.topbar-search .topbar-search-kbd { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paleta-fondo { animation: none; }
+  .paleta-cargando { animation: none; }
 }

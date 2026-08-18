@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { apiDownload, apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
+import { AvisoError } from '../components/Estados'
 
 const mxn = (n) =>
   n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
@@ -163,7 +164,7 @@ export default function VehiculoDetalle() {
         </div>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {advertencias.map((a, i) => <div className="warn" key={i}>{a}</div>)}
 
       <div className="cards">

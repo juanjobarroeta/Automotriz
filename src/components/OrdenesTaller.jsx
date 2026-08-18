@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from './CfdiVista'
@@ -37,9 +38,15 @@ function Filtro({ activo, onClick, children }) {
 export default function OrdenesTaller() {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
-  const [filtro, setFiltro] = useState('ABIERTAS')
-  const [q, setQ] = useState('')
-  const [busqueda, setBusqueda] = useState('')
+  // La paleta de comandos abre /servicio?q=<folio>. Dos cosas hay que sembrar,
+  // no una: el texto Y el filtro. Con el filtro en «Abiertas» —el default—
+  // buscar el folio de una orden ya cerrada caería en una lista vacía, que es
+  // justo el resultado que hace desconfiar de un buscador.
+  const [params] = useSearchParams()
+  const qInicial = params.get('q') ?? ''
+  const [filtro, setFiltro] = useState(qInicial ? 'TODAS' : 'ABIERTAS')
+  const [q, setQ] = useState(qInicial)
+  const [busqueda, setBusqueda] = useState(qInicial)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [creando, setCreando] = useState(false)

@@ -269,7 +269,7 @@ export async function apiDownload(path, filename) {
 }
 
 export async function apiFetch(path, opts = {}) {
-  const { method = 'GET', body, headers = {}, skipAuth = false, reintentoTrasRenovar = false } = opts
+  const { method = 'GET', body, headers = {}, skipAuth = false, signal, reintentoTrasRenovar = false } = opts
   const finalHeaders = { Accept: 'application/json', ...headers }
   if (body !== undefined) finalHeaders['Content-Type'] = 'application/json'
   if (!skipAuth) {
@@ -283,8 +283,13 @@ export async function apiFetch(path, opts = {}) {
       method,
       headers: finalHeaders,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
     })
   } catch (causa) {
+    // Una cancelación NO es un fallo: es la paleta de comandos descartando la
+    // consulta de «MAJ» porque ya se tecleó «MAJ6S3». Reportarla llenaría
+    // Sentry de errores de red falsos, uno por tecla.
+    if (causa?.name === 'AbortError' || signal?.aborted) throw causa
     // La petición no llegó a salir: red caída, DNS, CORS mal configurado.
     // Sin este catch el fallo viajaba como "Failed to fetch" y `ignoreErrors`
     // lo descartaba, así que un hub caído se veía como silencio.
