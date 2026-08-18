@@ -392,10 +392,6 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
 }
 .company-option .check { color: var(--brand); flex-shrink: 0; }
 .company-option.activa .company-option-name { color: var(--brand-ink); }
-.topbar-search {
-  display: flex; align-items: center; gap: 8px;
-  color: var(--muted-2); font-size: 13px; cursor: text;
-}
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .sync-pill {
   display: flex; align-items: center; gap: 7px;
@@ -668,4 +664,115 @@ tfoot td { border-bottom: 0; font-weight: 600; }
   .cfdi-overlay { position: absolute; inset: 0; background: #fff; padding: 0; }
   .cfdi-modal { box-shadow: none; max-height: none; max-width: none; border-radius: 0; }
   .no-print { display: none !important; }
+}
+
+
+/* ── Paleta de comandos (⌘K) ─────────────────────────────────────────────────
+   El acto atómico de la herramienta es «encuentra esto»: un VIN dictado por
+   teléfono, media razón social, un folio. La paleta lo resuelve desde
+   cualquier pantalla, así que se pinta por encima de todo y se cierra sola.  */
+
+.paleta-fondo {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(10, 10, 10, .28);
+  display: flex; justify-content: center;
+  padding: 12vh 20px 20px;
+  /* La animación es corta a propósito: esto se abre decenas de veces al día y
+     una entrada lenta se vuelve un peaje. */
+  animation: paleta-entra .1s ease-out;
+}
+.paleta {
+  width: 100%; max-width: 620px; max-height: 68vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, .20), 0 3px 10px rgba(0, 0, 0, .08);
+}
+@keyframes paleta-entra { from { opacity: 0 } to { opacity: 1 } }
+
+.paleta-campo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 15px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.paleta-campo svg { color: var(--faint); flex-shrink: 0; }
+.paleta-campo input {
+  flex: 1; border: 0; padding: 0; font-size: 14.5px; background: transparent;
+}
+.paleta-campo input:focus { outline: none; }
+.paleta-kbd, .paleta-pie kbd {
+  font-family: var(--font-ui); font-size: 10px; color: var(--muted);
+  border: 1px solid var(--border-strong); border-radius: 4px;
+  padding: 2px 5px; background: var(--surface-subtle); flex-shrink: 0;
+}
+.paleta-cargando {
+  width: 12px; height: 12px; flex-shrink: 0;
+  border: 1.5px solid var(--border-strong); border-top-color: var(--brand);
+  border-radius: 50%; animation: paleta-gira .6s linear infinite;
+}
+@keyframes paleta-gira { to { transform: rotate(360deg) } }
+
+.paleta-lista { overflow-y: auto; padding: 6px; flex: 1; min-height: 0; }
+.paleta-grupo + .paleta-grupo { margin-top: 6px; }
+.paleta-grupo-titulo {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--faint); padding: 7px 9px 4px;
+}
+
+.paleta-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 9px; border: 0; border-radius: var(--radius-chip);
+  background: transparent; color: var(--ink); cursor: pointer;
+  font-weight: 400; text-align: left;
+}
+/* Sólo hay UN resaltado, y lo manda el teclado. Si el hover pintara por su
+   cuenta, al recorrer con las flechas se verían dos filas «elegidas»: la del
+   teclado y la de abajo del puntero, que es donde quedó la mano. */
+.paleta-item.activo { background: var(--brand-tint); }
+.paleta-item.activo .paleta-item-titulo { color: var(--brand-ink); font-weight: 600; }
+.paleta-item svg { flex-shrink: 0; color: var(--faint); }
+.paleta-item.activo svg { color: var(--brand); }
+.paleta-item-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.paleta-item-titulo {
+  font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.paleta-item-nota { font-size: 11px; color: var(--muted); }
+.paleta-item-mono {
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+  flex-shrink: 0; white-space: nowrap;
+}
+
+.paleta-mensaje {
+  font-size: 12.5px; color: var(--muted); text-align: center;
+  padding: 26px 20px; margin: 0;
+}
+
+.paleta-pie {
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  padding: 8px 13px; border-top: 1px solid var(--border);
+  background: var(--surface-subtle); font-size: 11px; color: var(--muted);
+}
+.paleta-pie kbd { margin-right: 3px; }
+.paleta-pie-agencia {
+  margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* El disparador de la topbar: era un <div> decorativo con un texto que
+   prometía una búsqueda que no existía. Ahora es el botón que la abre. */
+.topbar-search {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--muted-2); font-size: 13px; cursor: text;
+  background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius); padding: 6px 10px; font-weight: 400;
+  min-width: 280px; text-align: left;
+}
+.topbar-search:hover {
+  background: var(--surface-subtle); border-color: var(--border); color: var(--ink-3);
+}
+.topbar-search svg { flex-shrink: 0; }
+.topbar-search .topbar-search-kbd { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paleta-fondo { animation: none; }
+  .paleta-cargando { animation: none; }
 }

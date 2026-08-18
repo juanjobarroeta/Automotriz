@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
@@ -23,7 +24,10 @@ const MOV_BADGE = {
 export default function Refacciones() {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
-  const [q, setQ] = useState('')
+  // La paleta de comandos abre esta pantalla con ?q=<número de parte>: la
+  // búsqueda arranca con lo que ya se tecleó allá, no en blanco.
+  const [params] = useSearchParams()
+  const [q, setQ] = useState(() => params.get('q') ?? '')
   const [page, setPage] = useState(1)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)

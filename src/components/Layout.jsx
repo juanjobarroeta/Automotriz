@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import CompanySwitcher from './CompanySwitcher'
+import PaletaComandos, { TECLA_PALETA, useAtajoPaleta } from './PaletaComandos'
 import Icons from './Icons'
 
 // Los 14 destinos en cuatro bloques. Una lista plana de 14 no tiene forma: se
@@ -79,6 +80,10 @@ export default function Layout() {
     try { localStorage.setItem(MINI_KEY, mini ? '1' : '0') } catch {}
   }, [mini])
 
+  const [paleta, setPaleta] = useState(false)
+  const abrirPaleta = useCallback(() => setPaleta(true), [])
+  useAtajoPaleta(abrirPaleta)
+
   const iniciales = (user?.name || user?.email || '?')
     .split(/[\s@]+/).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('')
 
@@ -153,10 +158,11 @@ export default function Layout() {
         <div className="topbar">
           <CompanySwitcher />
 
-          <div className="topbar-search">
+          <button type="button" className="topbar-search" onClick={abrirPaleta}>
             <Icons.buscar />
             Buscar VIN, cliente, orden, refacción…
-          </div>
+            <kbd className="paleta-kbd topbar-search-kbd">{TECLA_PALETA}</kbd>
+          </button>
 
           <div className="topbar-right">
             <div className="sync-pill">
@@ -175,6 +181,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <PaletaComandos abierta={paleta} onCerrar={() => setPaleta(false)} />
     </div>
   )
 }
