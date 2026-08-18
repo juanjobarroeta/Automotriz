@@ -59,9 +59,9 @@ export function Marca({ size = 30 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
       <rect width="512" height="512" rx="112" fill="var(--ink)" />
-      <path d="M118 410 L256 102 L394 410" fill="none" stroke="#FFFFFF"
-            strokeWidth="64" strokeLinejoin="miter" />
-      <path d="M180 322 H332" fill="none" stroke="#6E93E8" strokeWidth="44" />
+      <circle cx="239" cy="256" r="62" fill="#6E93E8" />
+      <circle cx="239" cy="256" r="91" fill="none" stroke="#FFFFFF" strokeWidth="58" />
+      <rect x="335" y="136" width="58" height="240" fill="#FFFFFF" />
     </svg>
   )
 }

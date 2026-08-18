@@ -1,20 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Automotriz PRO">
   <!--
-    La marca: la «A» de Automotriz, con el travesaño como raya de carril.
+    La marca: una «a» de caja baja donde el bombo ES la llanta.
 
-    El primer intento fue un triángulo hueco y se leía como señal de PELIGRO —
-    justo lo que un sistema de piso de venta no debe decir. La diferencia está
-    en que una A de verdad tiene las patas ABIERTAS abajo y el travesaño por
-    encima de la base; un anillo triangular cerrado es un señalamiento.
+    Antes fue una «A» de caja alta con el travesaño pintado como raya de
+    carril. Se cambió porque la raya era decoración, no significado: a 32px
+    desaparecía y a 20px era una mancha. Aquí la figura y el sentido son la
+    misma cosa —el contador redondo de la «a» ya tiene forma de rueda— así que
+    no hay nada que se pueda perder al encoger.
 
-    Se dibuja con trazo y no con relleno: un solo `path` con vértice en el
-    ápice evita la juntura que se desalinea al escalar, y a 32px la A sigue
-    siendo una A.
+    Tres piezas y ninguna suelta:
+      · anillo blanco  = el neumático
+      · disco de acento = el rin (el único color del sistema, con oficio)
+      · asta            = el trazo que la vuelve una letra y no un círculo
+
+    Se probó también con rayos en el rin: a tamaño grande se lee como MIRILLA
+    y a 32px se hace lodo. El rin liso aguanta hasta 20px.
   -->
-  <path d="M118 410 L256 102 L394 410" fill="none" stroke="#FFFFFF"
-        stroke-width="64" stroke-linejoin="miter" stroke-linecap="butt" />
-  <!-- Travesaño en el acento del sistema, aclarado para que exista sobre la
-       tinta: #2A4C9B sobre #0A0A0A es azul oscuro sobre negro, o sea nada. -->
-  <path d="M180 322 H332" fill="none" stroke="#6E93E8"
-        stroke-width="44" stroke-linecap="butt" />
+  <circle cx="239" cy="256" r="62" fill="#6E93E8" />
+  <circle cx="239" cy="256" r="91" fill="none" stroke="#FFFFFF" stroke-width="58" />
+  <rect x="335" y="136" width="58" height="240" fill="#FFFFFF" />
 </svg>
