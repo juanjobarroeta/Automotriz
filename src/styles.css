@@ -34,14 +34,27 @@
   --danger: #B3402E;      --danger-tint: #FCEFEC;
   --info: #2A4C9B;        --info-tint: #EFF3FB;
 
+  /* Acento de navegación
+     El sistema sigue siendo monocromo: la tinta manda y el color sólo aparece
+     como estado. La excepción es ESTA: un ancla para «dónde estoy» y «esto se
+     puede tocar». Antes el ítem activo del rail y el ítem bajo el mouse eran
+     exactamente el mismo gris (--surface-hover), así que la navegación no
+     decía en qué pantalla estabas — sólo dónde tenías el mouse.
+     No es un color nuevo: es el --info que ya existía, ascendido a ancla, para
+     no meter un tono ajeno a la paleta. */
+  --brand: #2A4C9B;
+  --brand-ink: #23407F;
+  --brand-tint: #EFF3FB;
+  --focus: #2A4C9B;
+
   /* Forma */
   --radius: 8px;
   --radius-chip: 4px;
   --rowpad: 9px;
 
   /* Shell */
-  --rail-w: 60px;
-  --rail-w-open: 216px;
+  --rail-w: 208px;
+  --rail-w-mini: 60px;
   --topbar-h: 56px;
 
   /* Tipografía */
@@ -75,10 +88,14 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-chip);
+}
+
 html, body { margin: 0; padding: 0; background: var(--surface); }
 body {
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink);
   background: var(--surface);
   -webkit-font-smoothing: antialiased;
@@ -118,20 +135,29 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
 
 .shell { display: flex; height: 100vh; overflow: hidden; background: var(--surface); }
 
-/* Rail: 60px colapsado, se despliega a 216px sobre el contenido (no lo recorre) */
-.rail-slot { width: var(--rail-w); flex-shrink: 0; position: relative; z-index: 20; }
+/* Barra lateral
+   Antes: 60px de iconos SIN rótulo que se desplegaban al pasar el mouse, y al
+   desplegarse tapaban el contenido (la columna VIN, el título, el primer KPI).
+   Con 14 destinos eso obliga a adivinar por icono o a barrer con el mouse para
+   leer, y hacerlo encima de la tabla que estabas leyendo.
+
+   Ahora los rótulos están siempre visibles y la barra ocupa su propio ancho
+   —no flota sobre nada— como en QuickBooks, Wave, Bonsai, Shopify o Fresha.
+   Quien prefiera densidad puede colapsarla a iconos con el botón del encabezado
+   y la elección se recuerda. */
+.rail-slot { width: var(--rail-w); flex-shrink: 0; transition: width .16s ease; }
+.rail-slot.mini { width: var(--rail-w-mini); }
+
 .rail {
-  position: absolute; top: 0; left: 0; bottom: 0; width: var(--rail-w);
+  width: 100%; height: 100%;
   background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; align-items: flex-start;
-  padding: 14px 12px; gap: 4px; overflow: hidden;
-  transition: width .18s ease, box-shadow .18s ease;
+  display: flex; flex-direction: column;
+  padding: 14px 10px 12px; gap: 2px; overflow: hidden;
 }
-.rail.open { width: var(--rail-w-open); box-shadow: 0 0 24px rgba(0, 0, 0, .07); }
 
 .rail-brand {
   display: flex; align-items: center; gap: 10px;
-  height: 30px; margin-bottom: 14px; padding-left: 3px;
+  height: 30px; margin-bottom: 16px; padding-left: 3px; min-width: 0;
 }
 .rail-mark {
   width: 30px; height: 30px; border-radius: var(--radius);
@@ -141,23 +167,94 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
 }
 .rail-label {
   font-size: 13px; white-space: nowrap; flex-shrink: 0;
-  opacity: 0; transition: opacity .14s ease;
+  overflow: hidden; text-overflow: ellipsis;
 }
-.rail.open .rail-label { opacity: 1; }
-.rail-brand .rail-label { font-weight: 600; }
+.rail-brand .rail-label { font-weight: 600; letter-spacing: -0.01em; }
+
+/* Botón de colapso: vive en el encabezado y sólo aparece al pasar por la barra,
+   para no competir con la marca. */
+.rail-collapse {
+  margin-left: auto; width: 26px; height: 26px; padding: 0;
+  background: transparent; border: 0; color: var(--faint);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-chip); flex-shrink: 0;
+  opacity: 0; transition: opacity .12s ease;
+}
+.rail:hover .rail-collapse, .rail-collapse:focus-visible { opacity: 1; }
+.rail-collapse:hover { background: var(--surface-hover); color: var(--ink-3); }
+
+.rail-nav { flex: 1; overflow-y: auto; overflow-x: hidden; margin: 0 -2px; padding: 0 2px; }
+
+/* Los 14 destinos en cuatro bloques con encabezado. Una lista plana de 14 no
+   tiene forma; agrupada se lee de un vistazo y se recuerda por posición. */
+.nav-group + .nav-group { margin-top: 14px; }
+/* Sin `text-transform: uppercase`: Instrument Sans pierde la tilde al
+   convertir, y «OPERACION» sin acento está mal escrito en español. El
+   encabezado se distingue con tamaño, peso y tracking, no con mayúsculas. */
+.nav-group-title {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--faint); padding: 0 9px 6px; white-space: nowrap;
+}
 
 .rail-item {
-  width: calc(var(--rail-w-open) - 24px); height: 36px; border-radius: var(--radius);
+  width: 100%; height: 34px; border-radius: var(--radius);
   display: flex; align-items: center; gap: 10px; padding-left: 9px;
-  cursor: pointer; overflow: hidden; flex-shrink: 0;
-  color: var(--muted-2); transition: background .12s ease;
+  cursor: pointer; overflow: hidden; flex-shrink: 0; position: relative;
+  color: var(--ink-3); font-size: 13px;
+  transition: background .12s ease, color .12s ease;
 }
-.rail-item:hover { background: var(--surface-hover); text-decoration: none; }
-.rail-item.active { background: var(--surface-hover); color: var(--ink); }
-.rail-item svg { flex-shrink: 0; }
-.rail-foot { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
-.rail-user { display: flex; align-items: center; gap: 10px; height: 36px; padding-left: 3px; overflow: hidden; }
+.rail-item:hover { background: var(--surface-hover); color: var(--ink); text-decoration: none; }
+.rail-item svg { flex-shrink: 0; color: var(--faint); transition: color .12s ease; }
+.rail-item:hover svg { color: var(--ink-3); }
+
+/* «Dónde estoy» ≠ «dónde tengo el mouse»: el activo lleva tinte, tinta de
+   acento, peso y una barra a la izquierda. El hover se queda en gris. */
+.rail-item.active {
+  background: var(--brand-tint); color: var(--brand-ink); font-weight: 600;
+}
+.rail-item.active svg { color: var(--brand); }
+.rail-item.active::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 2.5px; border-radius: 0 2px 2px 0; background: var(--brand);
+}
+
+.rail-foot {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-inner);
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+}
+.rail-user {
+  display: flex; align-items: center; gap: 10px;
+  height: 40px; padding-left: 3px; overflow: hidden; min-width: 0;
+}
 .rail-user .avatar { flex-shrink: 0; }
+.rail-user-ident { min-width: 0; display: flex; flex-direction: column; }
+.rail-user-name {
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.rail-user-role {
+  font-size: 11px; color: var(--muted-2); white-space: nowrap;
+  background: none; border: 0; padding: 0; text-align: left; font-weight: 400;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+.rail-user-role:hover { background: none; color: var(--ink-3); }
+
+/* Modo mini: sólo iconos, centrados. Los rótulos se van; el title del <a> los
+   devuelve como tooltip. */
+.rail.mini { padding-left: 14px; padding-right: 14px; align-items: center; }
+.rail.mini .rail-label,
+.rail.mini .nav-group-title,
+.rail.mini .rail-user-ident,
+.rail.mini .rail-collapse { display: none; }
+.rail.mini .rail-brand { margin-bottom: 16px; padding-left: 0; }
+.rail.mini .rail-item { width: 32px; padding-left: 0; justify-content: center; }
+.rail.mini .rail-item.active::before { display: none; }
+.rail.mini .nav-group + .nav-group {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-inner);
+}
+.rail.mini .rail-user { justify-content: center; padding-left: 0; }
+
+.avatar { flex-shrink: 0; }
 .rail-user-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rail-user-role { font-size: 11px; color: var(--muted-2); white-space: nowrap; }
 
@@ -175,22 +272,64 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
   height: var(--topbar-h); flex-shrink: 0; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 14px; padding: 0 18px;
 }
-.topbar-company {
-  display: flex; align-items: center; gap: 7px;
+/* Selector de agencia
+   Antes era un <select> nativo con opacity:0 encima de un div bonito: el menú
+   que se abría era el del sistema operativo —tipografía, colores y ancho
+   ajenos— y sólo listaba la razón social. Con «Margom Motors SA de CV» y
+   «Gommar Automotriz SA de CV» en la misma cuenta, el nombre no alcanza para
+   distinguirlas de un vistazo; el RFC sí.
+   Ahora es un popover propio: marca, razón social, RFC en mono y una palomita
+   en la activa. */
+.topbar-company { position: relative; }
+.topbar-company-btn {
+  display: flex; align-items: center; gap: 8px; max-width: 300px;
   border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 5px 10px; cursor: pointer; position: relative;
+  padding: 5px 9px; cursor: pointer; background: var(--surface); color: var(--ink);
+  font-weight: 400;
 }
+.topbar-company-btn:hover { background: var(--surface-subtle); border-color: var(--border-strong); }
+.topbar-company-btn[aria-expanded="true"] { background: var(--surface-soft); border-color: var(--border-strong); }
 .topbar-company .mark {
-  width: 16px; height: 16px; border-radius: var(--radius-chip);
-  background: var(--ink); color: #FFFFFF;
-  display: flex; align-items: center; justify-content: center; font-size: 9px;
+  width: 18px; height: 18px; border-radius: var(--radius-chip);
+  background: var(--ink); color: #FFFFFF; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 600;
 }
-.topbar-company .name { font-size: 12.5px; font-weight: 600; }
-.topbar-company .caret { color: var(--faint); font-size: 9px; }
-.topbar-company select {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  opacity: 0; cursor: pointer; border: 0; padding: 0;
+.topbar-company .name {
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
+.topbar-company .caret { color: var(--faint); font-size: 9px; flex-shrink: 0; }
+
+.company-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  min-width: 288px; max-height: 60vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 5px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .10), 0 2px 6px rgba(0, 0, 0, .05);
+}
+.company-menu-title {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--faint); padding: 6px 9px 5px;
+}
+.company-option {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 9px; border: 0; border-radius: var(--radius-chip);
+  background: transparent; color: var(--ink); cursor: pointer;
+  font-weight: 400; text-align: left;
+}
+.company-option:hover { background: var(--surface-hover); }
+.company-option-ident { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.company-option-name {
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.company-option-rfc {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--muted);
+  letter-spacing: 0.01em;
+}
+.company-option .check { color: var(--brand); flex-shrink: 0; }
+.company-option.activa .company-option-name { color: var(--brand-ink); }
 .topbar-search {
   display: flex; align-items: center; gap: 8px;
   color: var(--muted-2); font-size: 13px; cursor: text;
@@ -216,7 +355,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
   width: 5px; height: 5px; border-radius: 50%; background: #C2410C;
 }
 
-.content { flex: 1; overflow: auto; min-height: 0; padding: 26px 28px 36px; }
+.content { flex: 1; overflow: auto; min-height: 0; padding: 24px 22px 36px; }
 
 /* ── Encabezado de pantalla ─────────────────────────────────────────────── */
 
@@ -291,6 +430,12 @@ label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
 /* ── Tablas ─────────────────────────────────────────────────────────────── */
 
 table { width: 100%; border-collapse: collapse; background: transparent; }
+
+/* Envoltura de desbordamiento: si no cabe, se desliza en horizontal. Partir la
+   fila en dos renglones duplica el alto de la tabla y rompe el barrido
+   vertical, que es como se lee un inventario. */
+.tabla-scroll { overflow-x: auto; margin: 0 -22px; padding: 0 22px; }
+.tabla-scroll > table { min-width: 1300px; }
 th {
   text-align: left; font-size: 11.5px; font-weight: 400; color: var(--muted);
   letter-spacing: 0.02em; text-transform: none;

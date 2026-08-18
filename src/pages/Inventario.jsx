@@ -136,6 +136,7 @@ export default function Inventario() {
       ) : items.length === 0 ? (
         <p className="muted">Sin unidades{estado ? ` en ${ESTADO_LABEL[estado].toLowerCase()}` : ''}. Da de alta la primera.</p>
       ) : (
+        <div className="tabla-scroll">
         <table>
           <thead>
             <tr>
@@ -177,6 +178,7 @@ export default function Inventario() {
               ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {showAlta && (
