@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
+import { AvisoError, EsqueletoTabla, Vacio } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 
@@ -55,7 +56,7 @@ export default function Contactos({ lado = 'CLIENTES' }) {
           <input placeholder="Buscar por nombre o RFC…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
         </div>
       </header>
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
 
       <div className="kpi-strip">
         <div className="kpi-item">
@@ -75,7 +76,26 @@ export default function Contactos({ lado = 'CLIENTES' }) {
         </div>
       </div>
 
-      {loading ? <p className="muted">Cargando…</p> : (
+      {loading ? (
+        <EsqueletoTabla columnas={[3, 2, 1, 1, 1]} filas={7} />
+      ) : filtrados.length === 0 ? (
+        // Mismo caso que en Inventario: la tabla se pintaba con encabezado y
+        // cero filas, sin decir nada. Y «no hay» por búsqueda no es lo mismo
+        // que «no hay» a secas.
+        error ? null : q.trim() ? (
+          <Vacio
+            icono="busca"
+            titulo={`Ningún ${esClientes ? 'cliente' : 'proveedor'} coincide con «${q.trim()}»`}
+            detalle="La búsqueda mira la razón social y el RFC."
+            accion={<button type="button" className="ghost" onClick={() => setQ('')}>Limpiar la búsqueda</button>}
+          />
+        ) : (
+          <Vacio
+            titulo={`Todavía no hay ${esClientes ? 'clientes' : 'proveedores'} en el directorio`}
+            detalle={`El directorio se llena solo con el sync del SAT: cada CFDI de ${esClientes ? 'ingreso' : 'egreso'} da de alta a su contraparte.`}
+          />
+        )
+      ) : (
         <table>
           <thead>
             <tr>

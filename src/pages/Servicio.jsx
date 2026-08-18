@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
 import OrdenesTaller from '../components/OrdenesTaller'
+import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
@@ -67,7 +68,7 @@ function ReportesTaller() {
           {anios.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
       </div>
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading ? <p className="muted">Reconstruyendo el taller desde los CFDIs…</p> : data && (
         <>
           <div className="kpi-strip">

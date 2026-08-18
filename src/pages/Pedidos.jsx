@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
+import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
@@ -135,7 +136,7 @@ export default function Pedidos() {
           </button>
         ))}
       </div>
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
 
       {creando && (
         <section className="card" style={{ marginBottom: 16 }}>

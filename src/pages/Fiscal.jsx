@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
+import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const pct = (n) => (n == null ? '—' : `${(n * 100).toFixed(n * 100 % 1 ? 2 : 0)}%`)
@@ -73,7 +74,7 @@ export default function Fiscal() {
         </div>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading && <p className="muted">Calculando la posición fiscal…</p>}
 
       {data && !loading && (

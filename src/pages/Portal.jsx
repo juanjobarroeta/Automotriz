@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BrandLockup } from '../components/Layout'
 import { portalDownload, portalFetch, portalTokenStorage } from '../config/api'
+import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
@@ -63,7 +64,7 @@ export default function Portal() {
             <label>Contraseña
               <input type="password" required value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
             </label>
-            {error && <div className="error">{error}</div>}
+            {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
             <button type="submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
           </form>
           <p className="card-note" style={{ marginTop: 4 }}>
@@ -90,7 +91,7 @@ export default function Portal() {
       </header>
 
       <div style={{ maxWidth: 940, margin: '0 auto', padding: '32px clamp(14px, 4vw, 24px) 48px' }}>
-        {error && <div className="error">{error}</div>}
+        {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
         {!data ? <p className="muted">Cargando tu estado de cuenta…</p> : (
           <>
             <h1 style={{ fontWeight: 700, fontSize: 25, margin: '0 0 4px', letterSpacing: '-0.025em' }}>

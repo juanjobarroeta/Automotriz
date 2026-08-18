@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
+import { AvisoError, EsqueletoTabla, Vacio } from '../components/Estados'
 
 const ESTADOS = ['', 'EN_TRANSITO', 'DISPONIBLE', 'APARTADO', 'VENDIDO', 'ENTREGADO', 'CANCELADO']
 
@@ -49,6 +50,28 @@ export default function Inventario() {
   }, [activeCompany?.id, estado])
 
   useEffect(() => { cargar() }, [cargar])
+
+  // Los filtros de cliente, en un solo lugar: los usa la tabla Y el estado
+  // vacío, que es lo que antes no cuadraba.
+  const visibles = items
+    .filter((v) => !soloUso || v.uso === soloUso)
+    .filter((v) => !marca || v.marca === marca)
+    .filter((v) => !color || v.color === color)
+    .filter((v) => !anio || String(v.anio) === String(anio))
+    .filter((v) => {
+      if (!q.trim()) return true
+      const texto = `${v.vin} ${v.marca} ${v.modelo} ${v.version ?? ''} ${v.anio} ${v.color ?? ''} ${v.numeroMotor ?? ''} ${v.numeroEconomico ?? ''} ${v.cliente?.razonSocial ?? ''} ${v.supplier?.razonSocial ?? ''}`.toLowerCase()
+      // Cada palabra de la búsqueda debe aparecer (VIN parcial cuenta).
+      return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => texto.includes(t))
+    })
+
+  // Filtrado a cero ≠ padrón vacío. Son dos mensajes distintos porque son dos
+  // problemas distintos: uno se arregla dando de alta una unidad, el otro
+  // quitando un filtro.
+  const hayFiltros = Boolean(estado || soloUso || marca || color || anio || q.trim())
+  const limpiarFiltros = () => {
+    setEstado(''); setSoloUso(''); setMarca(''); setColor(''); setAnio(''); setQ('')
+  }
 
   return (
     <div>
@@ -130,13 +153,33 @@ export default function Inventario() {
           </div>
         )
       })()}
-      {error && <div className="error">{error}</div>}
+      {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading ? (
-        <p className="muted">Cargando…</p>
-      ) : items.length === 0 ? (
-        <p className="muted">Sin unidades{estado ? ` en ${ESTADO_LABEL[estado].toLowerCase()}` : ''}. Da de alta la primera.</p>
+        <EsqueletoTabla columnas={[2, 3, 1, 1, 1, 1, 1, 1, 2]} filas={8} />
+      ) : visibles.length === 0 ? (
+        // Con error NO se pinta el vacío: si la consulta falló, el padrón no
+        // está vacío — no lo pudimos leer. Decirle «da de alta la primera
+        // unidad» a quien tiene 42 y se le cayó el hub es mentirle, y el aviso
+        // de arriba ya explica qué pasó.
+        error ? null : hayFiltros ? (
+          <Vacio
+            icono="filtro"
+            titulo="Ninguna unidad coincide con estos filtros"
+            detalle={
+              items.length > 0
+                ? `Hay ${items.length} ${items.length === 1 ? 'unidad' : 'unidades'} en el padrón, pero los filtros activos las dejan todas fuera.`
+                : 'Prueba con otros filtros.'
+            }
+            accion={<button type="button" className="ghost" onClick={limpiarFiltros}>Quitar los filtros</button>}
+          />
+        ) : (
+          <Vacio
+            titulo="Todavía no hay unidades en el padrón"
+            detalle="Cada unidad que des de alta aparece aquí con su VIN, su costo y su estado en el piso."
+            accion={<button type="button" onClick={() => setShowAlta(true)}>+ Alta de unidad</button>}
+          />
+        )
       ) : (
-        <div className="tabla-scroll">
         <table>
           <thead>
             <tr>
@@ -146,18 +189,7 @@ export default function Inventario() {
             </tr>
           </thead>
           <tbody>
-            {items
-              .filter((v) => !soloUso || v.uso === soloUso)
-              .filter((v) => !marca || v.marca === marca)
-              .filter((v) => !color || v.color === color)
-              .filter((v) => !anio || String(v.anio) === String(anio))
-              .filter((v) => {
-                if (!q.trim()) return true
-                const texto = `${v.vin} ${v.marca} ${v.modelo} ${v.version ?? ''} ${v.anio} ${v.color ?? ''} ${v.numeroMotor ?? ''} ${v.numeroEconomico ?? ''} ${v.cliente?.razonSocial ?? ''} ${v.supplier?.razonSocial ?? ''}`.toLowerCase()
-                // Cada palabra de la búsqueda debe aparecer (VIN parcial cuenta).
-                return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => texto.includes(t))
-              })
-              .map((v) => (
+            {visibles.map((v) => (
               <tr key={v.id}>
                 <td className="mono">
                   <Link to={`/vehiculos/${v.id}`}>{v.vin}</Link>
@@ -178,7 +210,6 @@ export default function Inventario() {
               ))}
           </tbody>
         </table>
-        </div>
       )}
 
       {showAlta && (
