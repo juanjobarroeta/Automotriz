@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sin conexión · AutomotrizPro</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        padding: 2rem; text-align: center; background: #FFFFFF; color: #0A0A0A;
+        font-family: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+      }
+      .caja { max-width: 30rem; }
+      .marca { width: 52px; height: 52px; margin: 0 auto 1.25rem; display: block; }
+      h1 { font-size: 1.25rem; margin: 0 0 .5rem; letter-spacing: -0.02em; }
+      p { color: #525252; line-height: 1.6; margin: 0 0 1.5rem; font-size: .9375rem; }
+      button {
+        border: 0; border-radius: .5rem; padding: .625rem 1.25rem; background: #0A0A0A;
+        color: #fff; font-size: .9375rem; font-weight: 600; cursor: pointer; font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="caja">
+      <svg class="marca" viewBox="0 0 512 512" aria-hidden="true">
+        <rect width="512" height="512" rx="112" fill="#0A0A0A" />
+        <g fill="#FFFFFF" fill-rule="evenodd">
+          <path d="M114 256 a118 118 0 1 0 236 0 a118 118 0 1 0 -236 0 M146 256 a86 86 0 1 0 172 0 a86 86 0 1 0 -172 0"/>
+          <path d="M170 256 a62 62 0 1 0 124 0 a62 62 0 1 0 -124 0 M188 256 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0"/>
+          <rect x="306" y="138" width="58" height="236" rx="6"/>
+        </g>
+      </svg>
+      <h1>Sin conexión</h1>
+      <!-- Se dice por qué no hay datos guardados: es una decisión, no una carencia. -->
+      <p>
+        AutomotrizPro no guarda el inventario en el teléfono a propósito: una
+        unidad marcada «Disponible» que en realidad ya se vendió causa más
+        problemas que una pantalla en blanco. En cuanto vuelva la señal, todo
+        está donde lo dejaste.
+      </p>
+      <button onclick="location.reload()">Reintentar</button>
+    </div>
+  </body>
+</html>

@@ -48,12 +48,40 @@ const NAV = [
 // La barra colapsada es una preferencia de espacio de trabajo: se recuerda.
 const MINI_KEY = 'automotriz.railMini'
 
+
+/**
+ * La marca. Va inline y no como <img>: hereda `currentColor` donde hace falta,
+ * no pide una petición extra y no parpadea en el primer render.
+ * El dibujo es EL MISMO de public/marca.svg, que es de donde salen los iconos
+ * del instalable — si se cambia uno, hay que cambiar el otro.
+ */
+export function Marca({ size = 30 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <rect width="512" height="512" rx="112" fill="var(--ink)" />
+      <g fill="#FFFFFF" fillRule="evenodd">
+        <path d="M114 256 a118 118 0 1 0 236 0 a118 118 0 1 0 -236 0 M146 256 a86 86 0 1 0 172 0 a86 86 0 1 0 -172 0" />
+        <path d="M170 256 a62 62 0 1 0 124 0 a62 62 0 1 0 -124 0 M188 256 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0" />
+        <rect x="306" y="138" width="58" height="236" rx="6" />
+      </g>
+    </svg>
+  )
+}
+
+/** «AutomotrizPro»: una sola palabra, con el «Pro» en otro peso para que se
+ *  lea la jerarquía sin partir el nombre en dos. */
+export function Wordmark() {
+  return (
+    <span className="rail-label wordmark">Automotriz<span className="wordmark-pro">Pro</span></span>
+  )
+}
+
 export function BrandLockup({ tagline = false }) {
   return (
     <div>
       <div className="rail-brand" style={{ marginBottom: 0 }}>
-        <span className="rail-mark">A</span>
-        <span className="rail-label" style={{ opacity: 1, fontWeight: 600 }}>Automotriz PRO</span>
+        <Marca size={30} />
+        <Wordmark />
       </div>
       {tagline && (
         <div style={{ fontSize: 11, color: 'var(--muted-2)', margin: '6px 0 0 40px' }}>
@@ -92,8 +120,8 @@ export default function Layout() {
       <div className={mini ? 'rail-slot mini' : 'rail-slot'}>
         <div className={mini ? 'rail mini' : 'rail'}>
           <div className="rail-brand">
-            <span className="rail-mark">A</span>
-            <span className="rail-label">Automotriz PRO</span>
+            <Marca size={30} />
+            <Wordmark />
             <button
               type="button"
               className="rail-collapse"

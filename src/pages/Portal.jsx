@@ -192,7 +192,7 @@ export default function Portal() {
             </section>
 
             <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--faint)', marginTop: 26 }}>
-              Automotriz PRO · powered by Contabilidad OS
+              AutomotrizPro · powered by Contabilidad OS
             </div>
           </>
         )}

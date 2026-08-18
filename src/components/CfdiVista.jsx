@@ -123,7 +123,7 @@ export default function CfdiVista({ invoiceId, onCerrar }) {
               <div className="mono" style={{ marginTop: 2 }}>{cfdi.uuid}</div>
               <div style={{ fontSize: 11.5, color: 'var(--muted-2)', marginTop: 6, lineHeight: 1.5 }}>
                 Timbrado: {cfdi.fechaTimbrado?.replace('T', ' ')} · Representación impresa generada por
-                Automotriz PRO a partir del XML auténtico del SAT.
+                AutomotrizPro a partir del XML auténtico del SAT.
               </div>
             </footer>
           </div>
