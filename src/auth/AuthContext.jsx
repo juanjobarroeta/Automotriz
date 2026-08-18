@@ -1,11 +1,24 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { apiFetch, tokenStorage } from '../config/api'
+import {
+  apiFetch,
+  guardarSesion,
+  limpiarSesion,
+  refreshTokenStorage,
+  renovarSesion,
+  sesionPorExpirar,
+  tokenStorage,
+} from '../config/api'
+import { elegirEmpresa, ordenarEmpresas, recordarEmpresa } from './empresaActiva'
 import { setSentryUser } from '../sentry'
 
-const PREFERRED_MODULE = 'AUTOMOTRIZ'
 const USER_KEY      = 'automotriz.user'
 const COMPANIES_KEY = 'automotriz.companies'
 const ACTIVE_KEY    = 'automotriz.activeCompanyId'
+
+// Etiqueta con la que esta sesión aparece en el hub (Configuración → Mi cuenta
+// → Accesos de API). Sin ella el acceso se lista con el User-Agent del
+// navegador, que no distingue este satélite de ningún otro.
+const CLIENTE = 'automotriz-spa'
 
 const AuthContext = createContext(null)
 
@@ -22,46 +35,92 @@ export function AuthProvider({ children }) {
   const [activeCompanyId, setActive] = useState(() => { try { return localStorage.getItem(ACTIVE_KEY) } catch { return null } })
   const [booting, setBooting]        = useState(true)
 
+  // Arranque: si el access token guardado ya venció, se renueva ANTES del
+  // primer render. Sin esto la primera llamada de la primera pantalla contesta
+  // 401 y expulsa al login — que es como se veía "me sacó otra vez" al volver
+  // a la pestaña al día siguiente.
   useEffect(() => {
-    const token = tokenStorage.get()
-    if (!token || !user || !companies.length) { tokenStorage.clear(); setBooting(false); return }
-    setBooting(false)
+    let cancelado = false
+    ;(async () => {
+      if (!user || !companies.length) {
+        limpiarSesion()
+        if (!cancelado) setBooting(false)
+        return
+      }
+
+      if ((!tokenStorage.get() || sesionPorExpirar()) && refreshTokenStorage.get()) {
+        await renovarSesion()
+      }
+
+      // Sin token utilizable y sin forma de renovarlo: la sesión terminó.
+      if (!tokenStorage.get()) {
+        limpiarSesion()
+        writeJson(USER_KEY, null)
+        writeJson(COMPANIES_KEY, null)
+        if (!cancelado) { setUser(null); setCompanies([]); setActive(null) }
+      }
+
+      if (!cancelado) setBooting(false)
+    })()
+    return () => { cancelado = true }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async ({ email, password }) => {
     const data = await apiFetch('/api/auth/token', {
       method: 'POST',
-      body: { email, password },
+      body: { email, password, cliente: CLIENTE },
       skipAuth: true,
     })
-    tokenStorage.set(data.token)
-    writeJson(USER_KEY, data.user)
-    writeJson(COMPANIES_KEY, data.companies)
-    setUser(data.user)
-    setCompanies(data.companies)
+    // Guarda el PAR (access + refresh) y la fecha de expiración. Guardar sólo
+    // `data.token`, como antes, es lo que hacía que la sesión durara una hora.
+    guardarSesion(data)
 
-    const preferred = data.companies.find((c) => c.modulos?.includes(PREFERRED_MODULE))
-    const pick = preferred ?? data.companies[0]
-    if (pick) { localStorage.setItem(ACTIVE_KEY, pick.id); setActive(pick.id) }
-    return data
+    const empresas = ordenarEmpresas(data.companies)
+    writeJson(USER_KEY, data.user)
+    writeJson(COMPANIES_KEY, empresas)
+    setUser(data.user)
+    setCompanies(empresas)
+
+    const pick = elegirEmpresa(empresas, data.user?.id)
+    if (pick) {
+      localStorage.setItem(ACTIVE_KEY, pick.id)
+      setActive(pick.id)
+      recordarEmpresa(data.user?.id, pick.id)
+    }
+    return { ...data, companies: empresas }
   }, [])
 
   const logout = useCallback(() => {
-    tokenStorage.clear()
+    limpiarSesion()
     localStorage.removeItem(ACTIVE_KEY)
     writeJson(USER_KEY, null)
     writeJson(COMPANIES_KEY, null)
+    // La última agencia usada (ver empresaActiva.js) NO se borra: es la
+    // preferencia que hace que el próximo login vuelva a donde estabas.
     setUser(null); setCompanies([]); setActive(null)
   }, [])
 
   const selectCompany = useCallback((id) => {
-    localStorage.setItem(ACTIVE_KEY, id); setActive(id)
-  }, [])
+    localStorage.setItem(ACTIVE_KEY, id)
+    setActive(id)
+    recordarEmpresa(user?.id, id)
+  }, [user?.id])
 
   const activeCompany = useMemo(
     () => companies.find((c) => c.id === activeCompanyId) ?? null,
     [companies, activeCompanyId]
   )
+
+  // Red de seguridad: si el id activo no corresponde a ninguna empresa de la
+  // lista (se revocó el acceso, cambió de usuario, quedó basura vieja), se
+  // vuelve a elegir. Sin esto `activeCompany` queda en null y las pantallas se
+  // quedan vacías para siempre, porque todas arrancan con `if (!activeCompany?.id) return`.
+  useEffect(() => {
+    if (!companies.length) return
+    if (companies.some((c) => c.id === activeCompanyId)) return
+    const pick = elegirEmpresa(companies, user?.id)
+    if (pick) { localStorage.setItem(ACTIVE_KEY, pick.id); setActive(pick.id) }
+  }, [companies, activeCompanyId, user?.id])
 
   // Un solo lugar para decirle a Sentry quién opera: cubre el login, el logout,
   // la sesión restaurada de localStorage y el cambio de empresa. Sin esto, un

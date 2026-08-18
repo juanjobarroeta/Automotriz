@@ -392,10 +392,10 @@ function ArchivoElegido({ file }) {
 
 // multipart upload con bearer (apiFetch fuerza JSON; aquí mandamos FormData).
 async function rawUpload(path, formData) {
-  const { api, tokenStorage } = await import('../config/api')
+  const { api, tokenVigente } = await import('../config/api')
   const res = await fetch(api(path), {
     method: 'POST',
-    headers: { Authorization: `Bearer ${tokenStorage.get()}` },
+    headers: { Authorization: `Bearer ${await tokenVigente()}` },
     body: formData,
   })
   const data = await res.json().catch(() => null)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, tokenStorage } from '../config/api'
+import { api, tokenVigente } from '../config/api'
 
 const mxn = (n) => (n == null || Number.isNaN(n) ? '—' : Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 
@@ -16,7 +16,7 @@ export default function CfdiVista({ invoiceId, onCerrar }) {
     ;(async () => {
       try {
         const res = await fetch(api(`/api/facturas/${invoiceId}/download?format=xml`), {
-          headers: { Authorization: `Bearer ${tokenStorage.get()}` },
+          headers: { Authorization: `Bearer ${await tokenVigente()}` },
         })
         if (!res.ok) throw new Error(`No se pudo leer el XML (${res.status})`)
         const xml = await res.text()
