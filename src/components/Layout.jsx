@@ -30,6 +30,7 @@ const NAV = [
   {
     grupo: 'Contabilidad',
     items: [
+      { to: '/estado-resultados', label: 'Estado de resultados', icon: 'contabilidad' },
       { to: '/contabilidad', label: 'Contabilidad (CE)', icon: 'contabilidad' },
       { to: '/fiscal', label: 'Impuestos', icon: 'impuestos' },
       { to: '/alertas', label: 'Alertas', icon: 'alertas' },
