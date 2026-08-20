@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
-import { construirPdfCfdi } from '../lib/cfdiPdf'
+import CfdiVista from '../components/CfdiVista'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -39,8 +39,7 @@ export default function EstadoResultados() {
   const [er, setEr] = useState(null)
   const [rubrosAbiertos, setRubrosAbiertos] = useState(() => new Set(['ingresos']))
   const [cuentas, setCuentas] = useState({})       // numCta → { cargando, data }
-  const [comprobantes, setComprobantes] = useState({}) // invoiceId → { cargando, rep }
-  const [docAbierto, setDocAbierto] = useState(null)
+  const [verCfdi, setVerCfdi] = useState(null) // { id, uuid } del comprobante en ventana
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -61,7 +60,7 @@ export default function EstadoResultados() {
   const cargar = useCallback(async () => {
     if (!activeCompany?.id || !sel) return
     setLoading(true); setError(null)
-    setCuentas({}); setComprobantes({}); setDocAbierto(null)
+    setCuentas({}); setVerCfdi(null)
     try {
       setEr(await apiFetch(
         `/api/contabilidad/ce-estado-resultados?companyId=${activeCompany.id}&anio=${sel.anio}&mes=${sel.mes}${ytd ? '&ytd=1' : ''}`,
@@ -95,20 +94,6 @@ export default function EstadoResultados() {
     } catch (err) {
       setError(err.message)
       setCuentas((c) => { const n = { ...c }; delete n[numCta]; return n })
-    }
-  }
-
-  const toggleComprobante = async (inv) => {
-    if (docAbierto === inv.id) { setDocAbierto(null); return }
-    setDocAbierto(inv.id)
-    if (comprobantes[inv.id]) return
-    setComprobantes((c) => ({ ...c, [inv.id]: { cargando: true } }))
-    try {
-      const r = await apiFetch(`/api/facturas/${inv.id}/representacion`)
-      setComprobantes((c) => ({ ...c, [inv.id]: { cargando: false, ...r } }))
-    } catch (err) {
-      setError(err.message)
-      setComprobantes((c) => ({ ...c, [inv.id]: { cargando: false, error: err.message } }))
     }
   }
 
@@ -263,9 +248,7 @@ export default function EstadoResultados() {
                                   cuenta={c}
                                   data={est.data}
                                   codigos={codigos}
-                                  docAbierto={docAbierto}
-                                  comprobantes={comprobantes}
-                                  onVer={toggleComprobante}
+                                  onVer={setVerCfdi}
                                 />
                               </td>
                             </tr>
@@ -299,6 +282,10 @@ export default function EstadoResultados() {
           </div>
         </section>
       )}
+
+      {verCfdi && (
+        <CfdiVista invoiceId={verCfdi.id} uuid={verCfdi.uuid} onCerrar={() => setVerCfdi(null)} />
+      )}
     </div>
   )
 }
@@ -307,8 +294,10 @@ function Chevron({ abierto }) {
   return <span className="muted" style={{ marginRight: 6, display: 'inline-block', width: 10 }}>{abierto ? '▾' : '▸'}</span>
 }
 
-// Los comprobantes de una cuenta, anidados bajo su renglón — no en otra caja.
-function Documentos({ cuenta, data, codigos, docAbierto, comprobantes, onVer }) {
+// Los movimientos de una cuenta, anidados bajo su renglón. El comprobante en
+// sí no: un PDF de página completa dentro de un renglón ensucia todo lo demás,
+// así que se abre en ventana.
+function Documentos({ cuenta, data, codigos, onVer }) {
   return (
     <div style={{ paddingLeft: 52, paddingRight: 8, paddingBottom: 10 }}>
       <p className="muted" style={{ margin: '2px 0 8px' }}>
@@ -329,10 +318,8 @@ function Documentos({ cuenta, data, codigos, docAbierto, comprobantes, onVer }) 
         <tbody>
           {data.documentos.map((d) => {
             const inv = d.invoice
-            const abierto = inv && docAbierto === inv.id
             return (
-              <Fragment key={d.id}>
-                <tr>
+                <tr key={d.id}>
                   <td style={{ whiteSpace: 'nowrap' }}>{dia(d.fecha)}</td>
                   <td>
                     {inv
@@ -351,115 +338,16 @@ function Documentos({ cuenta, data, codigos, docAbierto, comprobantes, onVer }) 
                   <td style={num}>{mxn(d.monto)}</td>
                   <td style={{ textAlign: 'right' }}>
                     {inv?.representable && (
-                      <button type="button" className="ghost" onClick={() => onVer(inv)}>
-                        {abierto ? 'Ocultar' : 'Ver'}
+                      <button type="button" className="ghost" onClick={() => onVer({ id: inv.id, uuid: inv.uuid })}>
+                        PDF
                       </button>
                     )}
                   </td>
                 </tr>
-                {abierto && (
-                  <tr>
-                    <td colSpan={5} style={{ background: 'var(--surface-row)' }}>
-                      <Comprobante estado={comprobantes[inv.id]} invoice={inv} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
             )
           })}
         </tbody>
       </table>
-    </div>
-  )
-}
-
-// El XML es el comprobante; lo demás son formas de leerlo. Se baja tal como lo
-// guardó el SAT y con su folio fiscal por nombre, para que se archive sin
-// renombrar. Va por fetch y no por <a href> porque el hub pide el token en el
-// encabezado y una liga no lo lleva.
-async function descargarXml(invoice, setFallo) {
-  try {
-    const xml = await apiFetch(`/api/facturas/${invoice.id}/download?format=xml`)
-    const blob = new Blob([typeof xml === 'string' ? xml : String(xml)], { type: 'application/xml' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${invoice.uuid ?? invoice.id}.xml`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  } catch (err) {
-    setFallo(err.message)
-  }
-}
-
-// El comprobante, a la vista. Nadie imprime desde una página web, así que en
-// vez de una lectura en HTML y un botón de imprimir se arma el PDF y se enseña
-// tal cual va a quedar; el mismo blob que se ve es el que se descarga.
-//
-// El PDF se genera en el navegador porque no hay ninguno que pedir: estos CFDIs
-// llegaron por descarga masiva y nunca pasaron por un PAC. El XML sí existe, y
-// es el comprobante de verdad — por eso baja junto al PDF.
-function Comprobante({ estado, invoice }) {
-  const [pdfUrl, setPdfUrl] = useState(null)
-  const [fallo, setFallo] = useState(null)
-
-  useEffect(() => {
-    let vivo = true
-    let creada = null
-    setPdfUrl(null); setFallo(null)
-    if (estado?.representacion) {
-      construirPdfCfdi(estado, invoice)
-        .then((blob) => {
-          if (!vivo) return
-          creada = URL.createObjectURL(blob)
-          setPdfUrl(creada)
-        })
-        .catch((err) => { if (vivo) setFallo(err.message) })
-    }
-    return () => {
-      vivo = false
-      if (creada) URL.revokeObjectURL(creada)
-    }
-  }, [estado, invoice])
-
-  if (!estado || estado.cargando) return <p className="muted" style={{ margin: 8 }}>Armando el comprobante…</p>
-  if (estado.error) return <p className="muted" style={{ margin: 8 }}>No se pudo leer el comprobante: {estado.error}</p>
-  if (!estado.representacion) return <p className="muted" style={{ margin: 8 }}>Este movimiento no tiene XML guardado.</p>
-
-  const descargar = (url, nombre) => {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = nombre
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  }
-
-  const base = invoice?.uuid ?? invoice?.id
-
-  return (
-    <div style={{ display: 'grid', gap: 8, padding: '10px 4px' }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button type="button" className="ghost" disabled={!pdfUrl} onClick={() => descargar(pdfUrl, `${base}.pdf`)}>
-          Descargar PDF
-        </button>
-        <button type="button" className="ghost" onClick={() => descargarXml(invoice, setFallo)}>
-          Descargar XML
-        </button>
-        {estado.cancelada && <span className="muted">· cancelado</span>}
-        {fallo && <span className="muted">· {fallo}</span>}
-      </div>
-      {pdfUrl ? (
-        <iframe
-          title={`Comprobante ${base}`}
-          src={pdfUrl}
-          style={{ width: '100%', height: 620, border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#FFFFFF' }}
-        />
-      ) : (
-        <p className="muted" style={{ margin: 0 }}>{fallo ? 'No se pudo armar el PDF.' : 'Armando el PDF…'}</p>
-      )}
     </div>
   )
 }
