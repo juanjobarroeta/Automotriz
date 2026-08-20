@@ -7,6 +7,7 @@ import Onboarding from './pages/Onboarding'
 import Panel from './pages/Panel'
 import Cartera from './pages/Cartera'
 import ContabilidadCE from './pages/ContabilidadCE'
+import EstadoResultados from './pages/EstadoResultados'
 import Inventario from './pages/Inventario'
 import Contactos from './pages/Contactos'
 import Fiscal from './pages/Fiscal'
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/panel" element={<Panel />} />
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/contabilidad" element={<ContabilidadCE />} />
+            <Route path="/estado-resultados" element={<EstadoResultados />} />
             <Route path="/fiscal" element={<Fiscal />} />
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/rentabilidad" element={<Rentabilidad />} />
