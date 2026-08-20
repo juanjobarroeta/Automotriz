@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
+import { construirPdfCfdi } from '../lib/cfdiPdf'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -393,73 +394,72 @@ async function descargarXml(invoice, setFallo) {
   }
 }
 
-// La representación impresa se arma del XML guardado: la descarga masiva del
-// SAT no entrega PDF, así que ésta ES la forma legible del comprobante. Para
-// tener un PDF, el navegador imprime SÓLO esta vista (ver @media print).
+// El comprobante, a la vista. Nadie imprime desde una página web, así que en
+// vez de una lectura en HTML y un botón de imprimir se arma el PDF y se enseña
+// tal cual va a quedar; el mismo blob que se ve es el que se descarga.
+//
+// El PDF se genera en el navegador porque no hay ninguno que pedir: estos CFDIs
+// llegaron por descarga masiva y nunca pasaron por un PAC. El XML sí existe, y
+// es el comprobante de verdad — por eso baja junto al PDF.
 function Comprobante({ estado, invoice }) {
+  const [pdfUrl, setPdfUrl] = useState(null)
   const [fallo, setFallo] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    let creada = null
+    setPdfUrl(null); setFallo(null)
+    if (estado?.representacion) {
+      construirPdfCfdi(estado, invoice)
+        .then((blob) => {
+          if (!vivo) return
+          creada = URL.createObjectURL(blob)
+          setPdfUrl(creada)
+        })
+        .catch((err) => { if (vivo) setFallo(err.message) })
+    }
+    return () => {
+      vivo = false
+      if (creada) URL.revokeObjectURL(creada)
+    }
+  }, [estado, invoice])
+
   if (!estado || estado.cargando) return <p className="muted" style={{ margin: 8 }}>Armando el comprobante…</p>
   if (estado.error) return <p className="muted" style={{ margin: 8 }}>No se pudo leer el comprobante: {estado.error}</p>
-  const c = estado.representacion
-  if (!c) return <p className="muted" style={{ margin: 8 }}>Este movimiento no tiene XML guardado.</p>
-  return (
-    <div className="comprobante-imprimible" style={{ display: 'grid', gap: 10, padding: '10px 4px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
-        <Campo etiqueta="Emisor" valor={`${c.emisor?.nombre ?? ''}${c.emisor?.rfc ? ` · ${c.emisor.rfc}` : ''}`} />
-        <Campo etiqueta="Receptor" valor={`${c.receptor?.nombre ?? ''}${c.receptor?.rfc ? ` · ${c.receptor.rfc}` : ''}`} />
-        <Campo etiqueta="Folio fiscal" valor={invoice?.uuid} mono />
-        <Campo etiqueta="Fecha" valor={c.fecha?.replace('T', ' ')} />
-        <Campo etiqueta="Forma de pago" valor={c.formaPago} />
-        <Campo etiqueta="Método de pago" valor={c.metodoPago} />
-      </div>
-      {c.conceptos?.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Concepto</th>
-              <th style={num}>Cantidad</th>
-              <th style={num}>Importe</th>
-            </tr>
-          </thead>
-          <tbody>
-            {c.conceptos.map((x, i) => (
-              <tr key={i}>
-                <td>{x.descripcion}</td>
-                <td style={num}>{x.cantidad}</td>
-                <td style={num}>{mxn(x.importe)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div className="no-imprimir" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="ghost" onClick={() => descargarXml(invoice, setFallo)}>Descargar XML</button>
-          <button type="button" className="ghost" onClick={() => window.print()}>Imprimir / PDF</button>
-          {c.verificacionUrl && (
-            <a href={c.verificacionUrl} target="_blank" rel="noreferrer">
-              <button type="button" className="ghost">Verificar en el SAT</button>
-            </a>
-          )}
-          {estado.cancelada && <span className="muted" style={{ alignSelf: 'center' }}>· cancelado</span>}
-          {fallo && <span className="muted" style={{ alignSelf: 'center' }}>· {fallo}</span>}
-        </div>
-        <div style={{ display: 'flex', gap: 20 }}>
-          <Campo etiqueta="Subtotal" valor={mxn(c.subtotal)} />
-          <Campo etiqueta="Total" valor={mxn(c.total)} />
-        </div>
-      </div>
-    </div>
-  )
-}
+  if (!estado.representacion) return <p className="muted" style={{ margin: 8 }}>Este movimiento no tiene XML guardado.</p>
 
-function Campo({ etiqueta, valor, mono }) {
+  const descargar = (url, nombre) => {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nombre
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
+  const base = invoice?.uuid ?? invoice?.id
+
   return (
-    <div>
-      <div className="kpi-label">{etiqueta}</div>
-      <div style={mono ? { fontVariantNumeric: 'tabular-nums', fontSize: '.85em', wordBreak: 'break-all' } : undefined}>
-        {valor || '—'}
+    <div style={{ display: 'grid', gap: 8, padding: '10px 4px' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" className="ghost" disabled={!pdfUrl} onClick={() => descargar(pdfUrl, `${base}.pdf`)}>
+          Descargar PDF
+        </button>
+        <button type="button" className="ghost" onClick={() => descargarXml(invoice, setFallo)}>
+          Descargar XML
+        </button>
+        {estado.cancelada && <span className="muted">· cancelado</span>}
+        {fallo && <span className="muted">· {fallo}</span>}
       </div>
+      {pdfUrl ? (
+        <iframe
+          title={`Comprobante ${base}`}
+          src={pdfUrl}
+          style={{ width: '100%', height: 620, border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#FFFFFF' }}
+        />
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>{fallo ? 'No se pudo armar el PDF.' : 'Armando el PDF…'}</p>
+      )}
     </div>
   )
 }
