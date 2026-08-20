@@ -6,7 +6,8 @@ import { apiFetch } from '../config/api'
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }))
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const per = (p) => `${MESES[p.mes - 1]} ${p.anio}`
-const fecha = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '—')
+const dia = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '—')
+const num = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
 
 // Los meses que van DESPUÉS del último presentado y hasta hoy: existen en el
 // ledger derivado pero el contador todavía no los declara.
@@ -25,16 +26,20 @@ function mesesPreliminares(ultimo) {
 
 // Estado de resultados con lo DECLARADO como columna vertebral: el número que
 // ya reconoce el SAT manda, y lo derivado de los CFDIs va al lado como
-// evidencia — hasta poder abrir el comprobante que sostiene cada renglón.
+// evidencia. Todo vive en UNA tabla que se abre hacia adentro —rubro, cuenta,
+// comprobante— porque mandar al usuario a otra caja al fondo de la pantalla le
+// hace perder el renglón que venía siguiendo.
 export default function EstadoResultados() {
   const { activeCompany } = useAuth()
   const [periodos, setPeriodos] = useState([])
   const [sel, setSel] = useState(null)
   const [ytd, setYtd] = useState(false)
+  const [codigos, setCodigos] = useState(false)
   const [er, setEr] = useState(null)
-  const [abierto, setAbierto] = useState(() => new Set(['ingresos']))
-  const [docs, setDocs] = useState(null)     // { cuenta, nombre, data }
-  const [comprobante, setComprobante] = useState(null)
+  const [rubrosAbiertos, setRubrosAbiertos] = useState(() => new Set(['ingresos']))
+  const [cuentas, setCuentas] = useState({})       // numCta → { cargando, data }
+  const [comprobantes, setComprobantes] = useState({}) // invoiceId → { cargando, rep }
+  const [docAbierto, setDocAbierto] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -54,7 +59,8 @@ export default function EstadoResultados() {
 
   const cargar = useCallback(async () => {
     if (!activeCompany?.id || !sel) return
-    setLoading(true); setError(null); setDocs(null); setComprobante(null)
+    setLoading(true); setError(null)
+    setCuentas({}); setComprobantes({}); setDocAbierto(null)
     try {
       setEr(await apiFetch(
         `/api/contabilidad/ce-estado-resultados?companyId=${activeCompany.id}&anio=${sel.anio}&mes=${sel.mes}${ytd ? '&ytd=1' : ''}`,
@@ -64,36 +70,49 @@ export default function EstadoResultados() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const abrirCuenta = async (numCta, nombre) => {
-    setError(null); setComprobante(null)
-    setDocs({ cuenta: numCta, nombre, data: null })
+  const toggleRubro = (clave) => setRubrosAbiertos((prev) => {
+    const s = new Set(prev)
+    s.has(clave) ? s.delete(clave) : s.add(clave)
+    return s
+  })
+
+  // La cuenta se abre DENTRO de la tabla y sus comprobantes se quedan cargados:
+  // volver a cerrarla y abrirla no vuelve a pedirlos.
+  const toggleCuenta = async (numCta) => {
+    const actual = cuentas[numCta]
+    if (actual) {
+      setCuentas((c) => ({ ...c, [numCta]: { ...actual, abierta: !actual.abierta } }))
+      return
+    }
+    setCuentas((c) => ({ ...c, [numCta]: { cargando: true, abierta: true } }))
     try {
       const data = await apiFetch(
         `/api/contabilidad/cuenta-documentos?companyId=${activeCompany.id}&cuenta=${encodeURIComponent(numCta)}` +
         `&anio=${sel.anio}&mes=${sel.mes}${ytd ? '&ytd=1' : ''}`,
       )
-      setDocs({ cuenta: numCta, nombre, data })
-    } catch (err) { setError(err.message); setDocs(null) }
+      setCuentas((c) => ({ ...c, [numCta]: { cargando: false, abierta: true, data } }))
+    } catch (err) {
+      setError(err.message)
+      setCuentas((c) => { const n = { ...c }; delete n[numCta]; return n })
+    }
   }
 
-  const abrirComprobante = async (inv) => {
-    setError(null)
-    setComprobante({ cargando: true, invoice: inv })
+  const toggleComprobante = async (inv) => {
+    if (docAbierto === inv.id) { setDocAbierto(null); return }
+    setDocAbierto(inv.id)
+    if (comprobantes[inv.id]) return
+    setComprobantes((c) => ({ ...c, [inv.id]: { cargando: true } }))
     try {
-      const rep = await apiFetch(`/api/facturas/${inv.id}/representacion`)
-      setComprobante({ cargando: false, invoice: inv, rep })
-    } catch (err) { setError(err.message); setComprobante(null) }
-  }
-
-  const toggle = (clave) => {
-    setAbierto((prev) => {
-      const s = new Set(prev)
-      s.has(clave) ? s.delete(clave) : s.add(clave)
-      return s
-    })
+      const r = await apiFetch(`/api/facturas/${inv.id}/representacion`)
+      setComprobantes((c) => ({ ...c, [inv.id]: { cargando: false, ...r } }))
+    } catch (err) {
+      setError(err.message)
+      setComprobantes((c) => ({ ...c, [inv.id]: { cargando: false, error: err.message } }))
+    }
   }
 
   const presentado = er?.presentado ?? false
+  const cols = presentado ? 4 : 2
   const cifra = (r) => (presentado ? r.declarado : r.derivado)
 
   const kpis = useMemo(() => {
@@ -103,7 +122,6 @@ export default function EstadoResultados() {
       ingresos: ing ? cifra(ing) : 0,
       bruta: presentado ? er.utilidadBruta.declarado : er.utilidadBruta.derivado,
       resultado: presentado ? er.resultado.declarado : er.resultado.derivado,
-      diferencia: er.resultado.diferencia,
     }
   }, [er, presentado])
 
@@ -113,14 +131,24 @@ export default function EstadoResultados() {
         <h1>Estado de resultados</h1>
         <span className="glosa">
           {presentado
-            ? 'lo declarado al SAT manda; lo derivado de los CFDIs va al lado, como evidencia'
-            : 'este mes aún no se declara — lo que ves es lo derivado de tus CFDIs, preliminar'}
+            ? 'lo declarado al SAT manda; los CFDIs lo sostienen'
+            : 'aún sin declarar — derivado de tus CFDIs'}
         </span>
-        <div className="head-actions">
-          <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input type="checkbox" checked={ytd} onChange={(e) => setYtd(e.target.checked)} />
-            acumulado del año
-          </label>
+        <div className="head-actions" style={{ alignSelf: 'center' }}>
+          <div style={{ display: 'flex' }}>
+            <button
+              type="button"
+              className={ytd ? 'ghost' : undefined}
+              onClick={() => setYtd(false)}
+              style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+            >Mes</button>
+            <button
+              type="button"
+              className={ytd ? undefined : 'ghost'}
+              onClick={() => setYtd(true)}
+              style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, marginLeft: -1 }}
+            >Año</button>
+          </div>
           {periodos.length > 0 && sel && (
             <select
               value={`${sel.anio}-${sel.mes}`}
@@ -147,11 +175,11 @@ export default function EstadoResultados() {
       )}
 
       {er && !presentado && (
-        <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--warn, #b07219)' }}>
+        <div className="card" style={{ marginBottom: 12 }}>
           <strong>Preliminar.</strong>{' '}
           <span className="muted">
-            {per(sel)} todavía no se presenta al SAT. Estas cifras salen de tus CFDIs y dicen dónde
-            va a cerrar el mes — no son la declaración.
+            {sel && per(sel)} todavía no se presenta al SAT. Estas cifras salen de tus CFDIs y dicen
+            dónde va a cerrar el mes — no son la declaración.
           </span>
         </div>
       )}
@@ -169,56 +197,89 @@ export default function EstadoResultados() {
           <div className="kpi-item">
             <div className="kpi-label">Resultado</div>
             <div className="kpi">{mxn(kpis.resultado)}</div>
-            {presentado && (
-              <div className="kpi-sub">{mxn(er.resultado.derivado)} derivado · {mxn(kpis.diferencia)} de diferencia</div>
-            )}
+            {presentado && <div className="kpi-sub">{mxn(er.resultado.derivado)} derivado</div>}
           </div>
         </div>
       )}
 
-      {/* ── El estado: rubro → cuenta ── */}
       {er && (
         <section className="card">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button type="button" className="ghost" onClick={() => setCodigos((v) => !v)}>
+              {codigos ? 'Ocultar códigos' : 'Ver códigos de cuenta'}
+            </button>
+          </div>
           <div style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
                   <th>Concepto</th>
-                  <th style={{ textAlign: 'right' }}>{presentado ? 'Declarado' : 'Derivado'}</th>
-                  {presentado && <th style={{ textAlign: 'right' }}>Derivado</th>}
-                  {presentado && <th style={{ textAlign: 'right' }}>Diferencia</th>}
+                  <th style={num}>{presentado ? 'Declarado' : 'Derivado'}</th>
+                  {presentado && <th style={num}>Derivado</th>}
+                  {presentado && <th style={num}>Diferencia</th>}
                 </tr>
               </thead>
               <tbody>
                 {er.rubros.map((r) => (
                   <Fragment key={r.clave}>
-                    <tr style={{ cursor: 'pointer' }} onClick={() => toggle(r.clave)}>
+                    <tr style={{ cursor: 'pointer' }} onClick={() => toggleRubro(r.clave)}>
                       <td style={{ fontWeight: 600 }}>
-                        <span className="muted" style={{ marginRight: 6 }}>{abierto.has(r.clave) ? '▾' : '▸'}</span>
-                        {r.titulo}
+                        <Chevron abierto={rubrosAbiertos.has(r.clave)} />{r.titulo}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{mxn(cifra(r))}</td>
-                      {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(r.derivado)}</td>}
-                      {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(r.diferencia)}</td>}
+                      <td style={{ ...num, fontWeight: 600 }}>{mxn(cifra(r))}</td>
+                      {presentado && <td style={num} className="muted">{mxn(r.derivado)}</td>}
+                      {presentado && <td style={num} className="muted">{mxn(r.diferencia)}</td>}
                     </tr>
-                    {abierto.has(r.clave) && r.cuentas.map((c) => (
-                      <tr key={c.numCta} style={{ cursor: 'pointer' }} onClick={() => abrirCuenta(c.numCta, c.nombre)}>
-                        <td style={{ paddingLeft: 28 }}>
-                          <span className="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{c.numCta}</span>{' '}
-                          {c.nombre}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>{mxn(presentado ? c.declarado : c.derivado)}</td>
-                        {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(c.derivado)}</td>}
-                        {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(c.diferencia)}</td>}
-                      </tr>
-                    ))}
-                    {abierto.has(r.clave) && r.clave === 'costos' && (
+
+                    {rubrosAbiertos.has(r.clave) && r.cuentas.map((c) => {
+                      const est = cuentas[c.numCta]
+                      const abierta = !!est?.abierta
+                      return (
+                        <Fragment key={c.numCta}>
+                          <tr style={{ cursor: 'pointer' }} onClick={() => toggleCuenta(c.numCta)}>
+                            <td style={{ paddingLeft: 26 }}>
+                              <Chevron abierto={abierta} />
+                              {c.nombre || c.numCta}
+                              {codigos && (
+                                <span className="muted" style={{ marginLeft: 8, fontVariantNumeric: 'tabular-nums' }}>
+                                  {c.numCta}
+                                </span>
+                              )}
+                            </td>
+                            <td style={num}>{mxn(presentado ? c.declarado : c.derivado)}</td>
+                            {presentado && <td style={num} className="muted">{mxn(c.derivado)}</td>}
+                            {presentado && <td style={num} className="muted">{mxn(c.diferencia)}</td>}
+                          </tr>
+
+                          {abierta && est?.cargando && (
+                            <tr><td colSpan={cols} style={{ paddingLeft: 52 }} className="muted">Buscando los comprobantes…</td></tr>
+                          )}
+
+                          {abierta && est?.data && (
+                            <tr>
+                              <td colSpan={cols} style={{ padding: 0 }}>
+                                <Documentos
+                                  cuenta={c}
+                                  data={est.data}
+                                  codigos={codigos}
+                                  docAbierto={docAbierto}
+                                  comprobantes={comprobantes}
+                                  onVer={toggleComprobante}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+
+                    {rubrosAbiertos.has(r.clave) && r.clave === 'costos' && (
                       <tr>
                         <td style={{ fontWeight: 600 }}>Utilidad bruta</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        <td style={{ ...num, fontWeight: 600 }}>
                           {mxn(presentado ? er.utilidadBruta.declarado : er.utilidadBruta.derivado)}
                         </td>
-                        {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(er.utilidadBruta.derivado)}</td>}
+                        {presentado && <td style={num} className="muted">{mxn(er.utilidadBruta.derivado)}</td>}
                         {presentado && <td />}
                       </tr>
                     )}
@@ -226,134 +287,143 @@ export default function EstadoResultados() {
                 ))}
                 <tr>
                   <td style={{ fontWeight: 700 }}>Resultado</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                  <td style={{ ...num, fontWeight: 700 }}>
                     {mxn(presentado ? er.resultado.declarado : er.resultado.derivado)}
                   </td>
-                  {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(er.resultado.derivado)}</td>}
-                  {presentado && <td style={{ textAlign: 'right' }} className="muted">{mxn(er.resultado.diferencia)}</td>}
+                  {presentado && <td style={num} className="muted">{mxn(er.resultado.derivado)}</td>}
+                  {presentado && <td style={num} className="muted">{mxn(er.resultado.diferencia)}</td>}
                 </tr>
               </tbody>
             </table>
           </div>
-          <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-            Haz clic en una cuenta para ver los comprobantes que la forman.
-          </p>
-        </section>
-      )}
-
-      {/* ── Los documentos de una cuenta ── */}
-      {docs && (
-        <section className="card" style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-            <h2 style={{ margin: 0 }}>
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{docs.cuenta}</span>
-              {docs.nombre && <span className="muted" style={{ fontWeight: 400 }}> · {docs.nombre}</span>}
-            </h2>
-            <button type="button" className="ghost" onClick={() => { setDocs(null); setComprobante(null) }}>Cerrar</button>
-          </div>
-          {!docs.data && <p className="muted">Buscando los comprobantes…</p>}
-          {docs.data && (
-            <>
-              <p className="muted" style={{ marginTop: 4 }}>
-                {docs.data.total.toLocaleString('es-MX')} asiento(s) · neto {mxn(docs.data.neto)}
-                {docs.data.mostrados < docs.data.total && ` · mostrando los ${docs.data.mostrados} más recientes`}
-              </p>
-              <div style={{ overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Comprobante</th>
-                      <th>Contraparte</th>
-                      <th style={{ textAlign: 'right' }}>Importe</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {docs.data.documentos.map((d) => (
-                      <tr key={d.id}>
-                        <td>{fecha(d.fecha)}</td>
-                        <td>
-                          {d.invoice
-                            ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{[d.invoice.serie, d.invoice.folio].filter(Boolean).join('-') || d.invoice.uuid?.slice(0, 8)}</span>
-                            : <span className="muted">{d.descripcion || d.fuente}</span>}
-                        </td>
-                        <td>
-                          {d.invoice?.customerId
-                            ? <Link to={`/contactos/${d.invoice.customerId}`}>{d.invoice.contraparteNombre || d.invoice.contraparteRfc}</Link>
-                            : (d.invoice?.contraparteNombre || d.invoice?.contraparteRfc || <span className="muted">—</span>)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>{mxn(d.monto)}</td>
-                        <td>
-                          {d.invoice?.representable && (
-                            <button type="button" className="ghost" onClick={() => abrirComprobante(d.invoice)}>Ver</button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </section>
-      )}
-
-      {/* ── El comprobante ── */}
-      {comprobante && (
-        <section className="card" style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-            <h2 style={{ margin: 0 }}>Comprobante</h2>
-            <button type="button" className="ghost" onClick={() => setComprobante(null)}>Cerrar</button>
-          </div>
-          {comprobante.cargando && <p className="muted">Armando la representación del XML…</p>}
-          {comprobante.rep && <Representacion rep={comprobante.rep} />}
         </section>
       )}
     </div>
   )
 }
 
-// La representación impresa se arma del XML guardado: la descarga masiva del
-// SAT no trae PDF, así que ésta ES la forma legible del comprobante.
-function Representacion({ rep }) {
-  const c = rep?.representacion ?? rep
-  if (!c) return <p className="muted">Sin datos del comprobante.</p>
+function Chevron({ abierto }) {
+  return <span className="muted" style={{ marginRight: 6, display: 'inline-block', width: 10 }}>{abierto ? '▾' : '▸'}</span>
+}
+
+// Los comprobantes de una cuenta, anidados bajo su renglón — no en otra caja.
+function Documentos({ cuenta, data, codigos, docAbierto, comprobantes, onVer }) {
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-        <Campo etiqueta="Emisor" valor={`${c.emisor?.nombre ?? ''} ${c.emisor?.rfc ? `(${c.emisor.rfc})` : ''}`} />
-        <Campo etiqueta="Receptor" valor={`${c.receptor?.nombre ?? ''} ${c.receptor?.rfc ? `(${c.receptor.rfc})` : ''}`} />
-        <Campo etiqueta="Folio fiscal" valor={rep?.uuid ?? c.uuid} mono />
-        <Campo etiqueta="Fecha" valor={c.fecha} />
+    <div style={{ paddingLeft: 52, paddingRight: 8, paddingBottom: 10 }}>
+      <p className="muted" style={{ margin: '2px 0 8px' }}>
+        {codigos && <span style={{ fontVariantNumeric: 'tabular-nums' }}>{cuenta.numCta} · </span>}
+        {data.total.toLocaleString('es-MX')} movimiento(s) · neto {mxn(data.neto)}
+        {data.mostrados < data.total && ` · los ${data.mostrados} más recientes`}
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Comprobante</th>
+            <th>Contraparte</th>
+            <th style={num}>Importe</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {data.documentos.map((d) => {
+            const inv = d.invoice
+            const abierto = inv && docAbierto === inv.id
+            return (
+              <Fragment key={d.id}>
+                <tr>
+                  <td style={{ whiteSpace: 'nowrap' }}>{dia(d.fecha)}</td>
+                  <td>
+                    {inv
+                      ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {[inv.serie, inv.folio].filter(Boolean).join('-') || (inv.uuid ?? '').slice(0, 8)}
+                        </span>
+                      : <span className="muted">{d.descripcion || d.fuente}</span>}
+                  </td>
+                  <td>
+                    {inv?.customerId
+                      ? <Link to={`/contactos/${inv.customerId}`} onClick={(e) => e.stopPropagation()}>
+                          {inv.contraparteNombre || inv.contraparteRfc}
+                        </Link>
+                      : (inv?.contraparteNombre || inv?.contraparteRfc || <span className="muted">—</span>)}
+                  </td>
+                  <td style={num}>{mxn(d.monto)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {inv?.representable && (
+                      <button type="button" className="ghost" onClick={() => onVer(inv)}>
+                        {abierto ? 'Ocultar' : 'Ver'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {abierto && (
+                  <tr>
+                    <td colSpan={5} style={{ background: 'var(--surface-row)' }}>
+                      <Comprobante estado={comprobantes[inv.id]} invoice={inv} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// La representación impresa se arma del XML guardado: la descarga masiva del
+// SAT no entrega PDF, así que ésta ES la forma legible del comprobante. Para
+// tener un PDF, el navegador imprime esta vista.
+function Comprobante({ estado, invoice }) {
+  if (!estado || estado.cargando) return <p className="muted" style={{ margin: 8 }}>Armando el comprobante…</p>
+  if (estado.error) return <p className="muted" style={{ margin: 8 }}>No se pudo leer el comprobante: {estado.error}</p>
+  const c = estado.representacion
+  if (!c) return <p className="muted" style={{ margin: 8 }}>Este movimiento no tiene XML guardado.</p>
+  return (
+    <div style={{ display: 'grid', gap: 10, padding: '10px 4px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+        <Campo etiqueta="Emisor" valor={`${c.emisor?.nombre ?? ''}${c.emisor?.rfc ? ` · ${c.emisor.rfc}` : ''}`} />
+        <Campo etiqueta="Receptor" valor={`${c.receptor?.nombre ?? ''}${c.receptor?.rfc ? ` · ${c.receptor.rfc}` : ''}`} />
+        <Campo etiqueta="Folio fiscal" valor={invoice?.uuid} mono />
+        <Campo etiqueta="Fecha" valor={c.fecha?.replace('T', ' ')} />
         <Campo etiqueta="Forma de pago" valor={c.formaPago} />
         <Campo etiqueta="Método de pago" valor={c.metodoPago} />
       </div>
       {c.conceptos?.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Concepto</th>
-                <th style={{ textAlign: 'right' }}>Cantidad</th>
-                <th style={{ textAlign: 'right' }}>Importe</th>
+        <table>
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th style={num}>Cantidad</th>
+              <th style={num}>Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            {c.conceptos.map((x, i) => (
+              <tr key={i}>
+                <td>{x.descripcion}</td>
+                <td style={num}>{x.cantidad}</td>
+                <td style={num}>{mxn(x.importe)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {c.conceptos.map((x, i) => (
-                <tr key={i}>
-                  <td>{x.descripcion}</td>
-                  <td style={{ textAlign: 'right' }}>{x.cantidad}</td>
-                  <td style={{ textAlign: 'right' }}>{mxn(x.importe)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       )}
-      <div style={{ display: 'flex', gap: 24, justifyContent: 'flex-end' }}>
-        <Campo etiqueta="Subtotal" valor={mxn(c.subtotal)} />
-        <Campo etiqueta="Total" valor={mxn(c.total)} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="ghost" onClick={() => window.print()}>Imprimir / PDF</button>
+          {c.verificacionUrl && (
+            <a href={c.verificacionUrl} target="_blank" rel="noreferrer">
+              <button type="button" className="ghost">Verificar en el SAT</button>
+            </a>
+          )}
+          {estado.cancelada && <span className="muted" style={{ alignSelf: 'center' }}>· cancelado</span>}
+        </div>
+        <div style={{ display: 'flex', gap: 20 }}>
+          <Campo etiqueta="Subtotal" valor={mxn(c.subtotal)} />
+          <Campo etiqueta="Total" valor={mxn(c.total)} />
+        </div>
       </div>
     </div>
   )
@@ -363,7 +433,9 @@ function Campo({ etiqueta, valor, mono }) {
   return (
     <div>
       <div className="kpi-label">{etiqueta}</div>
-      <div style={mono ? { fontVariantNumeric: 'tabular-nums', fontSize: '.9em' } : undefined}>{valor || '—'}</div>
+      <div style={mono ? { fontVariantNumeric: 'tabular-nums', fontSize: '.85em', wordBreak: 'break-all' } : undefined}>
+        {valor || '—'}
+      </div>
     </div>
   )
 }
