@@ -23,10 +23,13 @@ const mxn = (n) =>
 export default function Inventario() {
   const { activeCompany } = useAuth()
   const [items, setItems] = useState([])
-  const [estado, setEstado] = useState('')
+  // Por default sólo lo que está en piso: entrar a inventario es preguntar
+  // «qué tengo para vender», no «qué ha pasado por aquí».
+  const [estado, setEstado] = useState('DISPONIBLE')
   const [soloUso, setSoloUso] = useState('')
   const [q, setQ] = useState('')
   const [marca, setMarca] = useState('')
+  const [modelo, setModelo] = useState('')
   const [color, setColor] = useState('')
   const [anio, setAnio] = useState('')
   const [loading, setLoading] = useState(true)
@@ -38,8 +41,10 @@ export default function Inventario() {
     setLoading(true)
     setError(null)
     try {
+      // Se pide el padrón completo y el estado se filtra del lado del cliente:
+      // así las cifras de arriba (en piso, vendidas, demos) siguen contando
+      // sobre todo el inventario aunque la tabla enseñe una rebanada.
       const qs = new URLSearchParams({ companyId: activeCompany.id })
-      if (estado) qs.set('estado', estado)
       const data = await apiFetch(`/api/automotriz/vehiculos?${qs}`)
       setItems(Array.isArray(data) ? data : [])
     } catch (err) {
@@ -47,15 +52,17 @@ export default function Inventario() {
     } finally {
       setLoading(false)
     }
-  }, [activeCompany?.id, estado])
+  }, [activeCompany?.id])
 
   useEffect(() => { cargar() }, [cargar])
 
   // Los filtros de cliente, en un solo lugar: los usa la tabla Y el estado
   // vacío, que es lo que antes no cuadraba.
   const visibles = items
+    .filter((v) => !estado || v.estado === estado)
     .filter((v) => !soloUso || v.uso === soloUso)
     .filter((v) => !marca || v.marca === marca)
+    .filter((v) => !modelo || v.modelo === modelo)
     .filter((v) => !color || v.color === color)
     .filter((v) => !anio || String(v.anio) === String(anio))
     .filter((v) => {
@@ -68,9 +75,9 @@ export default function Inventario() {
   // Filtrado a cero ≠ padrón vacío. Son dos mensajes distintos porque son dos
   // problemas distintos: uno se arregla dando de alta una unidad, el otro
   // quitando un filtro.
-  const hayFiltros = Boolean(estado || soloUso || marca || color || anio || q.trim())
+  const hayFiltros = Boolean(estado || soloUso || marca || modelo || color || anio || q.trim())
   const limpiarFiltros = () => {
-    setEstado(''); setSoloUso(''); setMarca(''); setColor(''); setAnio(''); setQ('')
+    setEstado(''); setSoloUso(''); setMarca(''); setModelo(''); setColor(''); setAnio(''); setQ('')
   }
 
   return (
@@ -98,9 +105,14 @@ export default function Inventario() {
             <option value="DEMO">Demo</option>
             <option value="CORTESIA">Cortesía</option>
           </select>
-          <select value={marca} onChange={(e) => setMarca(e.target.value)} style={{ width: 'auto' }}>
+          <select value={marca} onChange={(e) => { setMarca(e.target.value); setModelo('') }} style={{ width: 'auto' }}>
             <option value="">Todas las marcas</option>
             {[...new Set(items.map((v) => v.marca))].sort().map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={modelo} onChange={(e) => setModelo(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Todos los modelos</option>
+            {[...new Set(items.filter((v) => !marca || v.marca === marca).map((v) => v.modelo).filter(Boolean))]
+              .sort().map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
           <select value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Todos los colores</option>
@@ -155,7 +167,7 @@ export default function Inventario() {
       })()}
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading ? (
-        <EsqueletoTabla columnas={[2, 3, 1, 1, 1, 1, 1, 1, 2]} filas={8} />
+        <EsqueletoTabla columnas={[2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2]} filas={8} />
       ) : visibles.length === 0 ? (
         // Con error NO se pinta el vacío: si la consulta falló, el padrón no
         // está vacío — no lo pudimos leer. Decirle «da de alta la primera
@@ -183,7 +195,8 @@ export default function Inventario() {
         <table>
           <thead>
             <tr>
-              <th>VIN</th><th>Unidad</th><th>Color</th><th>Tipo</th><th>Estado</th>
+              <th>VIN</th><th>Marca</th><th>Modelo</th><th className="num">Año</th>
+              <th>Color</th><th>Tipo</th><th>Estado</th>
               <th className="num">Costo</th><th className="num">Costos adic.</th>
               <th className="num">Precio venta</th><th>Cliente</th>
             </tr>
@@ -195,7 +208,12 @@ export default function Inventario() {
                   <Link to={`/vehiculos/${v.id}`}>{v.vin}</Link>
                   {v.ciclo > 1 ? <> <span className="badge" title="La unidad ya pasó antes por el piso">{v.ciclo}º ciclo</span></> : null}
                 </td>
-                <td style={{ fontSize: 13 }}>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</td>
+                <td style={{ fontSize: 13 }}>{v.marca}</td>
+                <td style={{ fontSize: 13 }}>
+                  {v.modelo}
+                  {v.version ? <span style={SEC}> {v.version}</span> : null}
+                </td>
+                <td className="num" style={SEC}>{v.anio}</td>
                 <td style={SEC}>{v.color ?? '—'}</td>
                 <td style={SEC}>
                   {TIPO_LABEL[v.tipo] ?? v.tipo}
