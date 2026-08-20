@@ -784,18 +784,3 @@ tfoot td { border-bottom: 0; font-weight: 600; }
   .paleta-fondo { animation: none; }
   .paleta-cargando { animation: none; }
 }
-
-/* ── Impresión del comprobante ───────────────────────────────────────────────
-   «Imprimir / PDF» es la única forma de tener un PDF de un CFDI que nunca tuvo
-   uno: la descarga masiva del SAT entrega XML, no PDF. Imprimir la pantalla
-   entera —con navegación, filtros y el resto del estado de resultados— no sirve
-   de comprobante, así que sólo se imprime la representación abierta. */
-@media print {
-  body * { visibility: hidden; }
-  .comprobante-imprimible, .comprobante-imprimible * { visibility: visible; }
-  .comprobante-imprimible {
-    position: absolute; left: 0; top: 0; width: 100%;
-    background: #FFFFFF; padding: 0;
-  }
-  .no-imprimir { display: none !important; }
-}
