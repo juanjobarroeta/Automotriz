@@ -372,16 +372,38 @@ function Documentos({ cuenta, data, codigos, docAbierto, comprobantes, onVer }) 
   )
 }
 
+// El XML es el comprobante; lo demás son formas de leerlo. Se baja tal como lo
+// guardó el SAT y con su folio fiscal por nombre, para que se archive sin
+// renombrar. Va por fetch y no por <a href> porque el hub pide el token en el
+// encabezado y una liga no lo lleva.
+async function descargarXml(invoice, setFallo) {
+  try {
+    const xml = await apiFetch(`/api/facturas/${invoice.id}/download?format=xml`)
+    const blob = new Blob([typeof xml === 'string' ? xml : String(xml)], { type: 'application/xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${invoice.uuid ?? invoice.id}.xml`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    setFallo(err.message)
+  }
+}
+
 // La representación impresa se arma del XML guardado: la descarga masiva del
 // SAT no entrega PDF, así que ésta ES la forma legible del comprobante. Para
-// tener un PDF, el navegador imprime esta vista.
+// tener un PDF, el navegador imprime SÓLO esta vista (ver @media print).
 function Comprobante({ estado, invoice }) {
+  const [fallo, setFallo] = useState(null)
   if (!estado || estado.cargando) return <p className="muted" style={{ margin: 8 }}>Armando el comprobante…</p>
   if (estado.error) return <p className="muted" style={{ margin: 8 }}>No se pudo leer el comprobante: {estado.error}</p>
   const c = estado.representacion
   if (!c) return <p className="muted" style={{ margin: 8 }}>Este movimiento no tiene XML guardado.</p>
   return (
-    <div style={{ display: 'grid', gap: 10, padding: '10px 4px' }}>
+    <div className="comprobante-imprimible" style={{ display: 'grid', gap: 10, padding: '10px 4px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
         <Campo etiqueta="Emisor" valor={`${c.emisor?.nombre ?? ''}${c.emisor?.rfc ? ` · ${c.emisor.rfc}` : ''}`} />
         <Campo etiqueta="Receptor" valor={`${c.receptor?.nombre ?? ''}${c.receptor?.rfc ? ` · ${c.receptor.rfc}` : ''}`} />
@@ -411,7 +433,8 @@ function Comprobante({ estado, invoice }) {
         </table>
       )}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="no-imprimir" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="ghost" onClick={() => descargarXml(invoice, setFallo)}>Descargar XML</button>
           <button type="button" className="ghost" onClick={() => window.print()}>Imprimir / PDF</button>
           {c.verificacionUrl && (
             <a href={c.verificacionUrl} target="_blank" rel="noreferrer">
@@ -419,6 +442,7 @@ function Comprobante({ estado, invoice }) {
             </a>
           )}
           {estado.cancelada && <span className="muted" style={{ alignSelf: 'center' }}>· cancelado</span>}
+          {fallo && <span className="muted" style={{ alignSelf: 'center' }}>· {fallo}</span>}
         </div>
         <div style={{ display: 'flex', gap: 20 }}>
           <Campo etiqueta="Subtotal" valor={mxn(c.subtotal)} />
