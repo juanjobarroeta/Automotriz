@@ -117,6 +117,7 @@ export default function BalanceGeneral() {
   }, [bg, presentado])
 
   const cuadra = kpis ? Math.abs(kpis.descuadre) < 1 : false
+  const sinBanco = bg?.sinBanco ?? false
 
   return (
     <div>
@@ -153,12 +154,26 @@ export default function BalanceGeneral() {
         <p className="muted">Esta empresa no tiene contabilidad electrónica importada todavía.</p>
       )}
 
-      {bg && !presentado && (
+      {bg && !presentado && !bg.antesDelAncla && (
         <div className="card" style={{ marginBottom: 12 }}>
           <strong>Preliminar.</strong>{' '}
           <span className="muted">
-            {sel && per(sel)} todavía no se presenta al SAT. Estas cifras salen de tus CFDIs y dicen
-            en qué posición va a cerrar el mes — no son la declaración.
+            {sel && per(sel)} todavía no se presenta al SAT. Estas cifras parten de la última
+            balanza declarada y le suman lo que pasó después — dicen en qué posición va a cerrar
+            el mes, no son la declaración.
+          </span>
+        </div>
+      )}
+
+      {/* Antes del ancla no hay derivado que valga: el libro arranca en la
+          apertura, y pintar una columna sin punto de partida sería inventar. */}
+      {bg?.antesDelAncla && bg.ancla && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <strong>Sólo lo declarado.</strong>{' '}
+          <span className="muted">
+            El libro derivado arranca en {per({ anio: bg.ancla.anio, mes: bg.ancla.mes })}, cuando
+            se capturaron los saldos iniciales. Para un corte anterior no hay de dónde derivar, así
+            que aquí sólo va la balanza que se presentó al SAT.
           </span>
         </div>
       )}
@@ -314,6 +329,18 @@ export default function BalanceGeneral() {
               ? `La foto cuadra: el activo iguala al pasivo más el capital más el resultado, al cierre de ${sel ? per(sel) : ''}.`
               : `No cuadra por ${mxn(kpis?.descuadre)} — así se declaró; no es un error de cálculo nuestro.`}
           </p>
+
+          {/* Sin banco no hay cobranza ni pagos: las cuentas por cobrar y por
+              pagar sólo pueden crecer. Decirlo aquí evita que alguien lea el
+              saldo como posición real y tome una decisión con él. */}
+          {sinBanco && !bg.antesDelAncla && (
+            <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
+              Todavía no hay estados de cuenta cargados, así que ningún cobro ni pago se registra:
+              desde {bg.ancla ? per({ anio: bg.ancla.anio, mes: bg.ancla.mes }) : 'la apertura'} las
+              cuentas por cobrar y por pagar sólo suman. Los saldos de clientes y proveedores van a
+              verse más altos que la realidad hasta que se concilie el banco.
+            </p>
+          )}
         </section>
       )}
 
