@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import CompanySwitcher from './CompanySwitcher'
 import PaletaComandos, { TECLA_PALETA, useAtajoPaleta } from './PaletaComandos'
 import Icons from './Icons'
+import { aplicarTema, temaGuardado } from '../lib/tema'
 
 // Los 14 destinos en cuatro bloques. Una lista plana de 14 no tiene forma: se
 // lee entera cada vez. Agrupada por para-qué-sirve —lo que se mueve, lo que se
@@ -195,6 +196,7 @@ export default function Layout() {
           </button>
 
           <div className="topbar-right">
+            <TemaToggle />
             <div className="sync-pill">
               <span className="sync-dot" />
               SAT sincronizado
