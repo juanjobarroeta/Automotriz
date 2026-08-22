@@ -141,6 +141,10 @@ const SECCIONES = [
   { clave: 'cobranza', titulo: 'Por cobrar', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.facturas.filter((f) => f.saldo > 1).length },
   { clave: 'facturas', titulo: 'Facturas', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.facturas.length },
   { clave: 'estado', titulo: 'Estado de cuenta', lados: ['CLIENTE'], contar: () => null },
+  // Relación: RPC e historial de contacto. Dibujadas, sin cablear —el modelo
+  // llega en la pasada de CRM—. Se dejan a la vista para que la arquitectura
+  // del expediente se lea completa y se vea qué falta.
+  { clave: 'relacion', titulo: 'Relación', lados: ['CLIENTE'], contar: () => null },
 ]
 
 export default function ContactoPerfil() {
@@ -541,6 +545,67 @@ export default function ContactoPerfil() {
           )}
 
           {seccion === 'estado' && lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} />}
+
+          {seccion === 'relacion' && lado === 'CLIENTE' && (
+            <>
+              {/* ── Reporte problema cliente (RPC) ───────────────────────────
+                  Sin modelo todavía. La caja va con la forma que va a tener:
+                  cuatro cifras arriba y la lista de reportes abajo. */}
+              <section className="card">
+                <div className="card-head">
+                  <span>Reporte problema cliente</span>
+                  <span className="badge">RPC</span>
+                  <span className="muted" style={{ marginLeft: 'auto', fontWeight: 400 }}>por cablear</span>
+                </div>
+                <div className="caja-stats">
+                  {['RPC abiertos', 'Cerrados 12 m', 'Cierre promedio', 'Reincidencias'].map((k) => (
+                    <div key={k}>
+                      <span className="v pendiente">—</span>
+                      <span className="k">{k}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="sin-cablear">
+                  <b>Todavía no se levantan RPC en el sistema.</b> No hay dónde guardarlos: falta el
+                  modelo con folio, severidad, área, estado y el compromiso de respuesta. Se conecta
+                  en la pasada de CRM.
+                </p>
+                <p className="nota-regla">
+                  Cómo debe portarse cuando exista: un RPC abierto bloquea la encuesta de satisfacción
+                  de la unidad y escala a planta a los 5 días hábiles.
+                </p>
+              </section>
+
+              {/* ── Historial de contacto ────────────────────────────────────
+                  Lo más cercano hoy es Prospecto.notas, que es UN renglón por
+                  prospecto y se pierde cuando el prospecto se convierte en
+                  cliente. Un historial necesita un renglón por toque. */}
+              <section className="card">
+                <div className="card-head">
+                  <span>Historial de contacto</span>
+                  <span className="muted" style={{ marginLeft: 'auto', fontWeight: 400 }}>por cablear</span>
+                </div>
+                <div className="caja-stats">
+                  {['Contactos 12 m', 'Efectivos', 'Tasa de contacto'].map((k) => (
+                    <div key={k}>
+                      <span className="v pendiente">—</span>
+                      <span className="k">{k}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="sin-cablear">
+                  <b>No se registran los toques con el cliente.</b> Lo más cercano que existe hoy es la
+                  nota del prospecto, que es un solo renglón y se pierde cuando el prospecto se vuelve
+                  cliente. Un historial necesita un renglón por contacto —canal, si fue efectivo, qué se
+                  dijo y quién lo hizo— y sobrevivir a la conversión. Se conecta en la pasada de CRM.
+                </p>
+                <p className="nota-regla">
+                  Los mensajes de WhatsApp que ya se guardan NO sirven aquí: son del asistente hablando
+                  con el personal de la agencia, no de la agencia hablando con el cliente.
+                </p>
+              </section>
+            </>
+          )}
 
           {seccion === 'unidades' && (
           <section>
