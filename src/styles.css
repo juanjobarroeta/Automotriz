@@ -1096,3 +1096,24 @@ body { font-variant-numeric: tabular-nums; }
 /* Renglón de total dentro de la tabla de costos: el «Costo acumulado» no es
    un pie de tabla cualquiera, es la cifra que la tira de arriba promete. */
 .tabla tr.fila-total td { font-weight: 600; color: var(--ink); border-top: 1px solid var(--line2); }
+
+/* ─── CRM: cajas por cablear ───────────────────────────────────────────────
+   RPC e historial de contacto están dibujados con la forma que van a tener,
+   pero sin datos: todavía no hay modelo. Se dejan a la vista a propósito —un
+   hueco callado se lee como que la pantalla ya está completa— y se cablean en
+   la pasada de CRM. La estructura es la del handoff para que conectarlas sea
+   llenar arreglos, no rediseñar. */
+.caja-stats { display: flex; gap: 20px; padding: 12px 0 14px; border-bottom: 1px solid var(--line); }
+.caja-stats > div { min-width: 0; }
+.caja-stats .v { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; display: block; }
+.caja-stats .k { font-size: 10.5px; color: var(--ink3); margin-top: 3px; display: block; }
+.caja-stats .v.pendiente { color: var(--ink3); }
+
+.sin-cablear {
+  font-size: 12px; color: var(--ink2); line-height: 1.55; padding: 14px 0 4px;
+}
+.sin-cablear b { color: var(--ink); font-weight: 600; }
+.nota-regla {
+  padding-top: 11px; margin-top: 4px; border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--ink3); line-height: 1.5;
+}
