@@ -53,6 +53,76 @@ function valorLegible(campo, valor) {
   return String(valor)
 }
 
+// ── Especificación de la unidad ──────────────────────────────────────────
+// `version` NO es un nombre de versión: es la ficha de planta tal como viene
+// en el CFDI de compra —«Active, automático, 1.5 lts., Turbo, 4 cil.
+// Transmisión variable continua (CVT)»—. El handoff enseña Motor y
+// Transmisión como chips separados, así que hay que sacarlos de ahí.
+//
+// Se extrae por patrón sobre la cadena COMPLETA y no partiendo por comas: la
+// coma no separa hechos de forma confiable («4 cil. Transmisión variable
+// continua (CVT)» viaja en un solo pedazo). Lo que sobra después de quitar lo
+// reconocido es el nombre de la versión, que se conserva en vez de tirarse.
+const PATRONES = [
+  { clave: 'litros', re: /(\d+(?:[.,]\d+)?)\s*lts?\b\.?/i, valor: (m) => `${m[1].replace(',', '.')} L` },
+  { clave: 'cilindros', re: /(\d+)\s*cil\b\.?/i, valor: (m) => `${m[1]} cil` },
+  { clave: 'turbo', re: /\bturbo\b/i, valor: () => 'Turbo' },
+  { clave: 'transmision', re: /transmisi[óo]n\s+variable\s+continua(?:\s*\(CVT\))?|\bCVT\b/i, valor: () => 'CVT' },
+  { clave: 'transmision', re: /autom[áa]tic[oa]\b/i, valor: () => 'Automática' },
+  { clave: 'transmision', re: /\bmanual\b|\best[áa]ndar\b/i, valor: () => 'Manual' },
+  { clave: 'velocidades', re: /(\d+)\s*vel\b\.?/i, valor: (m) => `${m[1]} vel` },
+  { clave: 'combustible', re: /\bdi[ée]sel\b/i, valor: () => 'Diésel' },
+  { clave: 'combustible', re: /\bgasolina\b/i, valor: () => 'Gasolina' },
+  { clave: 'combustible', re: /h[íi]brid[oa]\b/i, valor: () => 'Híbrido' },
+  { clave: 'combustible', re: /el[ée]ctric[oa]\b/i, valor: () => 'Eléctrico' },
+  { clave: 'pasajeros', re: /(\d+)\s*pasajeros\b/i, valor: (m) => `${m[1]} pasajeros` },
+  { clave: 'pbv', re: /([\d,]+)\s*Kg\b\.?\s*PBV/i, valor: (m) => `${m[1]} kg` },
+]
+
+export function leerVersion(version) {
+  const out = {}
+  let resto = version ?? ''
+  for (const p of PATRONES) {
+    const m = resto.match(p.re)
+    if (!m) continue
+    // Se retira SIEMPRE, aunque la clave ya esté tomada: si «CVT» ganó la
+    // transmisión, la palabra «automático» sigue en la cadena y acabaría
+    // colándose al nombre comercial.
+    resto = resto.replace(p.re, ' ')
+    if (!out[p.clave]) out[p.clave] = p.valor(m)
+  }
+  // Lo no reconocido es el nombre comercial («Pick Up T8, Doble Cabina»).
+  const nombre = resto
+    .split(',')
+    .map((t) => t.replace(/[.\s]+$/g, '').trim())
+    .filter((t) => t.length >= 3 && /[a-zA-ZáéíóúñÁÉÍÓÚÑ]/.test(t))
+    .join(' · ')
+  return { ...out, nombre: nombre || null }
+}
+
+// Los chips que la unidad REALMENTE tiene. Nunca un chip vacío: un hueco
+// rotulado se lee como dato faltante que alguien debería llenar, y aquí hay
+// campos que el sistema no captura todavía (llaves, ubicación).
+export function chipsDeUnidad(v) {
+  const e = leerVersion(v.version)
+  const motor = [e.litros, e.cilindros, e.turbo].filter(Boolean).join(' · ')
+  const chips = []
+  if (e.nombre) chips.push({ k: 'Versión', v: e.nombre })
+  if (motor) chips.push({ k: 'Motor', v: motor })
+  if (e.transmision || e.velocidades) {
+    chips.push({ k: 'Transmisión', v: [e.transmision, e.velocidades].filter(Boolean).join(' · ') })
+  }
+  if (e.combustible) chips.push({ k: 'Combustible', v: e.combustible })
+  if (e.pasajeros) chips.push({ k: 'Capacidad', v: e.pasajeros })
+  if (e.pbv) chips.push({ k: 'PBV', v: e.pbv })
+  if (v.color) chips.push({ k: 'Color', v: v.color })
+  if (v.kilometraje != null) chips.push({ k: 'Km', v: Number(v.kilometraje).toLocaleString('es-MX') })
+  if (v.numeroEconomico) chips.push({ k: 'N.º económico', v: v.numeroEconomico })
+  if (v.fechaCompra) chips.push({ k: 'Entrada', v: new Date(v.fechaCompra).toLocaleDateString('es-MX') })
+  if (v.claveVehicular) chips.push({ k: 'Clave vehicular', v: v.claveVehicular })
+  return chips
+}
+
 const fechaHora = (d) =>
   d ? new Date(d).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
@@ -158,6 +228,18 @@ export default function VehiculoDetalle() {
     try { await apiDownload(`/api/facturas/${inv.id}/download?format=${format}`, nombre) }
     catch (err) { setError(err.message) }
   }
+  const chips = chipsDeUnidad(v)
+  const utilidad = v.costoCompra && v.precioLista
+    ? v.precioLista - v.costoCompra - (v.costosTotal ?? 0)
+    : null
+
+  // El cron de plan piso escribe UN renglón por mes completo («… 2026-05»),
+  // así que una unidad de 94 días trae tres. El handoff enseña una sola línea
+  // de interés y tiene razón: lo que se decide es cuánto lleva devengado, no
+  // en qué mes se devengó. Se juntan en un renglón que dice cuántos meses son.
+  const costosNormales = v.costos.filter((c) => c.tipo !== 'INTERES_PISO')
+  const mesesInteres = v.costos.filter((c) => c.tipo === 'INTERES_PISO')
+
   const CfdiLinks = ({ inv }) => inv ? (
     <>
       <span className="mono">{inv.uuid ? `${inv.uuid.slice(0, 8)}…` : inv.id}</span>{' '}
@@ -173,130 +255,344 @@ export default function VehiculoDetalle() {
     <div>
       {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
       <p style={{ margin: '0 0 10px', fontSize: 12.5 }}><Link to="/" className="muted">← Inventario</Link></p>
-      <header className="page-head">
-        <h1>{v.marca} {v.modelo} {v.anio}</h1>
-        <span className="glosa" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span className="mono" style={{ fontSize: 12.5 }}>
-            <span style={{ color: 'var(--ink3)' }}>{(v.vin ?? '').slice(0, -6)}</span>
-            <b style={{ color: 'var(--ink)', fontWeight: 700 }}>{(v.vin ?? '').slice(-6)}</b>
-          </span>
-          <button
-            type="button"
-            className="ghost"
-            style={{ ...MINI }}
-            onClick={() => navigator.clipboard?.writeText(v.vin ?? '')}
-            title="Copiar el VIN completo"
-          >
-            Copiar
-          </button>
-          <span className="muted" style={{ fontSize: 11 }}>
-            los últimos 6 son los que dicta la gente por teléfono
-          </span>
-        </span>
-        {v.version && (
-          <span className="glosa" style={{ display: 'block', marginTop: 2 }}>{v.version}</span>
-        )}
-        <div className="head-actions">
-          <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
-          {v.diasEnPiso != null && (
-            <span
-              className="badge"
-              style={v.diasEnPiso > 90
-                ? { background: 'var(--negBg)', color: 'var(--neg)' }
-                : { background: 'var(--panel3)', color: 'var(--ink2)' }}
-            >
-              {v.diasEnPiso} días en piso
-            </span>
-          )}
-          {(v.otrosCiclos?.length ?? 0) > 0 && (
-            <span className="badge" title="La unidad ya pasó antes por el piso">
-              ciclo {v.ciclo} de {v.otrosCiclos.length + 1}
-            </span>
-          )}
+      <div className="expediente-hero">
+        {/* El handoff abre con la galería. No hay dónde guardar fotos —ni
+            campo ni modelo—, así que el hueco lo DICE en vez de fingir una
+            galería vacía que nadie podría llenar. */}
+        <div className="hero-fotos">
+          Todavía no se guardan fotos de la unidad.<br />
+          No hay dónde: falta el modelo.
         </div>
-      </header>
 
-      {/* La tira de cuatro: precio, lo que lleva costado, lo que devenga y lo
-          que quedaría. Un número no se enseña sin el que lo contradice. */}
-      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
-        <div className="kpi-item">
-          <span className="kpi-label">Precio de lista</span>
-          <span className="kpi">{v.precioLista ? mxn(v.precioLista) : <span style={{ color: 'var(--ink3)' }}>n/d</span>}</span>
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">Costo acumulado</span>
-          <span className="kpi">
-            {v.costoCompra
-              ? mxn(v.costoCompra + (v.costosTotal ?? 0))
-              : <span style={{ color: 'var(--neg)' }}>sin documentar</span>}
-          </span>
-          <span className="kpi-sub">compra {mxn(v.costoCompra)} + costos {mxn(v.costosTotal)}</span>
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">Interés devengado</span>
-          <span className="kpi" style={v.interesPiso > 0 ? { color: 'var(--neg)' } : undefined}>
-            {mxn(v.interesPiso)}
-          </span>
-          {v.planPisoTasaAnual != null && (
-            <span className="kpi-sub">{(v.planPisoTasaAnual * 100).toFixed(2)}% anual devengado a diario</span>
+        <section className="card hero-card">
+          <div className="hero-ident">
+            <div style={{ minWidth: 0 }}>
+              <h1>{v.marca} {v.modelo} {v.anio}</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span className="mono" style={{ fontSize: 12.5 }}>
+                  <span style={{ color: 'var(--ink3)' }}>{(v.vin ?? '').slice(0, -6)}</span>
+                  <b style={{ color: 'var(--ink)', fontWeight: 700 }}>{(v.vin ?? '').slice(-6)}</b>
+                </span>
+                <button
+                  type="button"
+                  className="ghost"
+                  style={MINI}
+                  onClick={() => navigator.clipboard?.writeText(v.vin ?? '')}
+                  title="Copiar el VIN completo"
+                >
+                  Copiar
+                </button>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  los últimos 6 son los que dicta la gente por teléfono
+                </span>
+              </div>
+            </div>
+            <div className="hero-pills">
+              <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
+              {v.diasEnPiso != null && (
+                <span
+                  className="badge"
+                  style={v.diasEnPiso > 90
+                    ? { background: 'var(--negBg)', color: 'var(--neg)' }
+                    : { background: 'var(--panel3)', color: 'var(--ink2)' }}
+                >
+                  {v.diasEnPiso} días en piso
+                </span>
+              )}
+              {(v.otrosCiclos?.length ?? 0) > 0 && (
+                <span className="badge" title="La unidad ya pasó antes por el piso">
+                  ciclo {v.ciclo} de {v.otrosCiclos.length + 1}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Especificación. Sólo lo que esta unidad tiene — ver chipsDeUnidad. */}
+          {chips.length > 0 ? (
+            <div className="chips-unidad">
+              {chips.map((c) => (
+                <span className="chip-dato" key={c.k}>
+                  <span className="k">{c.k}</span>
+                  <span className="v">{c.v}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="chips-vacio">
+              Sin especificación capturada. El CFDI de compra no traía ficha de planta y
+              nadie ha llenado color, kilometraje ni número económico.
+            </p>
           )}
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">Utilidad proyectada</span>
-          <span className="kpi" style={(() => {
-            const u = v.costoCompra && v.precioLista
-              ? v.precioLista - v.costoCompra - (v.costosTotal ?? 0) : null
-            return u != null && u < 0 ? { color: 'var(--neg)' } : undefined
-          })()}>
-            {v.costoCompra && v.precioLista
-              ? mxn(v.precioLista - v.costoCompra - (v.costosTotal ?? 0))
-              : <span style={{ color: 'var(--ink3)' }}>n/d</span>}
-          </span>
-          {!(v.costoCompra && v.precioLista) && (
-            <span className="kpi-sub">falta {!v.costoCompra ? 'el costo' : 'el precio de lista'}</span>
-          )}
-        </div>
+
+          {/* La tira de cuatro: precio, lo que lleva costado, lo que devenga y
+              lo que quedaría. Un número no se enseña sin el que lo contradice. */}
+          <div className="kpi-embebido">
+            <div>
+              <span className="kpi-label">Precio de lista</span>
+              <span className="kpi">{v.precioLista ? mxn(v.precioLista) : <span style={{ color: 'var(--ink3)' }}>n/d</span>}</span>
+            </div>
+            <div>
+              <span className="kpi-label">Costo acumulado</span>
+              <span className="kpi">
+                {v.costoCompra
+                  ? mxn(v.costoCompra + (v.costosTotal ?? 0))
+                  : <span style={{ color: 'var(--neg)' }}>sin documentar</span>}
+              </span>
+              <span className="kpi-sub">compra {mxn(v.costoCompra)} + costos {mxn(v.costosTotal)}</span>
+            </div>
+            <div>
+              <span className="kpi-label">Interés devengado</span>
+              <span className="kpi" style={v.interesPiso > 0 ? { color: 'var(--neg)' } : undefined}>
+                {mxn(v.interesPiso)}
+              </span>
+              {v.planPisoTasaAnual != null && (
+                <span className="kpi-sub">{(v.planPisoTasaAnual * 100).toFixed(2)}% anual devengado a diario</span>
+              )}
+            </div>
+            <div>
+              <span className="kpi-label">Utilidad proyectada</span>
+              <span className="kpi" style={utilidad != null && utilidad < 0 ? { color: 'var(--neg)' } : undefined}>
+                {utilidad != null
+                  ? mxn(utilidad)
+                  : <span style={{ color: 'var(--ink3)' }}>n/d</span>}
+              </span>
+              {utilidad == null && (
+                <span className="kpi-sub">falta {!v.costoCompra ? 'el costo' : 'el precio de lista'}</span>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
 
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {advertencias.map((a, i) => <div className="warn" key={i}>{a}</div>)}
 
-      <div className="cards">
+      <div className="expediente-cols">
+        <div>
+        {/* ── Costos de la unidad ─────────────────────────────────────────────
+            UNA tabla, de la compra al costo acumulado. Estaba partida: la compra
+            vivía en su propia tarjeta y esta tabla empezaba en el traslado, así
+            que el «costo acumulado» que promete la tira de arriba no aparecía en
+            ningún renglón. Ahora la suma se puede seguir con el dedo. */}
         <section className="card">
-          <div className="card-head"><span>Compra</span></div>
-          <dl>
-            <dt>Costo (sin IVA)</dt>
-            <dd>
-              {mxn(v.costoCompra)}
-              {v.autoCreado && !v.compraInvoiceId && (
-                <button className="ghost" style={{ ...MINI, marginLeft: 6 }}
-                  onClick={async () => {
-                    const c = window.prompt('Costo real de compra (sin IVA) — la factura quedó fuera del archivo de 5 años del SAT:', v.costoCompra || '')
-                    if (!c) return
-                    setBusy(true); setError(null)
-                    try { await apiFetch(`/api/automotriz/vehiculos/${id}`, { method: 'PATCH', body: { costoCompra: Number(c) } }); await cargar() }
-                    catch (err) { setError(err.message) } finally { setBusy(false) }
-                  }} disabled={busy}>
-                  {v.costoCompra > 0 ? 'Corregir' : 'Capturar costo'}
-                </button>
+          <div className="card-head">
+            <span>Costos de la unidad</span>
+            <span className="muted" style={{ fontWeight: 400 }}>de la compra al costo acumulado</span>
+          </div>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Concepto</th><th>CFDI</th><th>Origen</th>
+                <th style={{ textAlign: 'right' }}>Importe</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="celda2">
+                  <b>Costo de compra</b>
+                  <span>
+                    {v.supplier?.razonSocial ?? 'sin proveedor'}
+                    {v.fechaCompra ? ` · ${fecha(v.fechaCompra)}` : ''}
+                  </span>
+                </td>
+                <td>
+                  {v.compraInvoice
+                    ? <CfdiLinks inv={v.compraInvoice} />
+                    : v.autoCreado
+                      ? <span className="muted">fuera del archivo SAT (anterior a sep 2021)</span>
+                      : <span style={{ color: 'var(--neg)' }}>sin CFDI</span>}
+                </td>
+                <td>
+                  {v.autoCreado
+                    ? <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>
+                    : <span className="badge">Persona</span>}
+                </td>
+                <td className="num">
+                  {mxn(v.costoCompra)}
+                  {v.autoCreado && !v.compraInvoiceId && (
+                    <button className="ghost" style={{ ...MINI, marginLeft: 6 }}
+                      onClick={async () => {
+                        const c = window.prompt('Costo real de compra (sin IVA) — la factura quedó fuera del archivo de 5 años del SAT:', v.costoCompra || '')
+                        if (!c) return
+                        setBusy(true); setError(null)
+                        try { await apiFetch(`/api/automotriz/vehiculos/${id}`, { method: 'PATCH', body: { costoCompra: Number(c) } }); await cargar() }
+                        catch (err) { setError(err.message) } finally { setBusy(false) }
+                      }} disabled={busy}>
+                      {v.costoCompra > 0 ? 'Corregir' : 'Capturar'}
+                    </button>
+                  )}
+                </td>
+              </tr>
+
+              {costosNormales.map((c) => (
+                <tr key={c.id}>
+                  <td className="celda2">
+                    <b>{c.concepto || (COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' '))}</b>
+                    <span>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')} · {fecha(c.fecha)}</span>
+                  </td>
+                  <td>
+                    {c.invoiceId ? (
+                      <>
+                        <button className="ghost" style={MINI} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
+                        <button className="ghost" style={MINI} onClick={() => descargarCfdi({ id: c.invoiceId }, 'xml')}>XML</button>
+                      </>
+                    ) : <span style={{ color: 'var(--neg)' }}>sin CFDI</span>}
+                  </td>
+                  {/* Quién escribió el renglón. Sin esta marca no se puede volver a
+                      derivar una factura sin arriesgarse a borrar un costo que
+                      alguien capturó a mano. */}
+                  <td>
+                    {c.autoCreado
+                      ? <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>
+                      : <span className="badge">Persona</span>}
+                  </td>
+                  <td className="num">{mxn(c.monto)}</td>
+                </tr>
+              ))}
+
+              {(mesesInteres.length > 0 || v.planPisoTasaAnual != null) && (
+                <tr>
+                  <td className="celda2">
+                    <b>Interés de plan piso{v.diasEnPiso != null ? ` · ${v.diasEnPiso} d` : ''}</b>
+                    <span>
+                      {mesesInteres.length === 0
+                        ? 'sin mes completo devengado todavía'
+                        : `${mesesInteres.length} mes${mesesInteres.length === 1 ? '' : 'es'} completo${mesesInteres.length === 1 ? '' : 's'}`}
+                      {v.planPisoTasaAnual != null ? ` · ${(v.planPisoTasaAnual * 100).toFixed(2)}% anual` : ''}
+                      {v.planPisoInicio ? ` desde ${fecha(v.planPisoInicio)}` : ''}
+                    </span>
+                  </td>
+                  <td className="muted">devengado</td>
+                  <td><span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span></td>
+                  <td className="num">{mxn(v.interesPiso)}</td>
+                </tr>
               )}
-            </dd>
-            <dt>Fecha</dt><dd>{fecha(v.fechaCompra)}</dd>
-            <dt>Proveedor</dt><dd>{v.supplier?.razonSocial ?? '—'}</dd>
-            <dt>CFDI compra</dt>
-            <dd>{v.compraInvoice ? <CfdiLinks inv={v.compraInvoice} /> : (v.autoCreado ? <span className="muted">fuera del archivo SAT (anterior a sep 2021)</span> : '—')}</dd>
-            <dt>Plan piso</dt>
-            <dd>{v.planPisoTasaAnual != null ? `${(v.planPisoTasaAnual * 100).toFixed(2)}% anual desde ${fecha(v.planPisoInicio)}` : '—'}</dd>
-          </dl>
-          {puedeRecibir && (
-            <div className="card-divider">
-              <button onClick={recibir} disabled={busy}>Recibir unidad (postea inventario)</button>
-            </div>
+
+              {v.costoCompra === 0 && v.costos.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    Sin costos registrados. Ni la compra tiene importe ni hay conceptos capturados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="fila-total">
+                <td className="celda2">
+                  <b>Costo acumulado</b>
+                  <span>{costosNormales.length + (mesesInteres.length > 0 ? 1 : 0) + 1} concepto(s)</span>
+                </td>
+                <td /><td />
+                <td className="num">{mxn((v.costoCompra ?? 0) + (v.costosTotal ?? 0))}</td>
+              </tr>
+            </tfoot>
+          </table>
+          {puedeCostos && (
+            <form className="inline-form" onSubmit={agregarCosto}>
+              <select value={costoForm.tipo} onChange={(e) => setCostoForm((f) => ({ ...f, tipo: e.target.value }))}>
+                {COSTO_TIPOS.map((t) => <option key={t} value={t}>{COSTO_LABEL[t] ?? t}</option>)}
+              </select>
+              <input placeholder="Concepto" value={costoForm.concepto}
+                onChange={(e) => setCostoForm((f) => ({ ...f, concepto: e.target.value }))} />
+              <input type="number" step="0.01" min="0.01" placeholder="Monto sin IVA" required value={costoForm.monto}
+                onChange={(e) => setCostoForm((f) => ({ ...f, monto: e.target.value }))} />
+              <button type="submit" className="ghost" disabled={busy}>Agregar costo</button>
+            </form>
           )}
         </section>
 
+        {(v.expediente?.length ?? 0) > 0 && (
+          <section className="card">
+            <div className="card-head"><span>Expediente CFDI del VIN</span></div>
+            <table>
+              <thead><tr><th>Fecha</th><th>Folio</th><th>Papel</th><th className="num">Total</th><th>CFDI</th></tr></thead>
+              <tbody>
+                {[...v.expediente].sort((a, b) => new Date(a.invoice.fecha) - new Date(b.invoice.fecha)).map((e) => (
+                  <tr key={e.id}>
+                    <td style={SEC}>{fecha(e.invoice.fecha)}</td>
+                    <td className="mono">{[e.invoice.serie, e.invoice.folio].filter(Boolean).join('-') || e.invoice.uuid?.slice(0, 8)}</td>
+                    <td>
+                      <span className={`badge ${ROL_BADGE[e.rol] ?? 'badge-danger'}`}>
+                        {ROL_LABEL[e.rol] ?? e.rol.replaceAll('_', ' ')}
+                      </span>
+                      {e.invoice.status === 'CANCELLED' && <span className="badge badge-danger" style={{ marginLeft: 4 }}>Cancelada</span>}
+                    </td>
+                    <td className="num">{mxn(e.invoice.total)}</td>
+                    <td>
+                      <button className="ghost" style={MINI} onClick={() => setCfdiVista(e.invoice.id)}>Ver</button>{' '}
+                      <button className="ghost" style={MINI} onClick={() => descargarCfdi(e.invoice, 'xml')}>XML</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="card-note">Toda factura que menciona este VIN, ligue o no: sustituidas y duplicadas quedan visibles para auditoría.</div>
+          </section>
+        )}
+
+        {/* ── Bitácora del expediente ─────────────────────────────────────────
+            Quién escribió qué, qué decía antes y qué dice ahora. Es la pregunta
+            que meses después nadie podía contestar: «¿de dónde salió este
+            costo?». Sólo existe desde que se empezó a registrar, y el pie lo
+            dice en vez de fingir un historial completo. */}
         <section className="card">
+          <div className="card-head"><span>Bitácora del expediente</span></div>
+          {(v.bitacora?.length ?? 0) === 0 ? (
+            <p className="muted">
+              Todavía no hay cambios registrados en esta unidad. La bitácora anota cada campo que se
+              edita —lo que decía antes y lo que dice ahora— desde que se empezó a registrar.
+            </p>
+          ) : (
+            <>
+              <table className="tabla">
+                <thead>
+                  <tr><th>Cuándo</th><th>Quién</th><th>Campo</th><th>Cambio</th><th>Motivo</th></tr>
+                </thead>
+                <tbody>
+                  {v.bitacora.flatMap((e) => {
+                    const d = e.detalle ?? {}
+                    const cambios = Array.isArray(d.cambios) ? d.cambios : []
+                    if (cambios.length === 0) return []
+                    return cambios.map((c, i) => (
+                      <tr key={`${e.id}-${i}`}>
+                        <td style={SEC}>{fechaHora(e.createdAt)}</td>
+                        <td>
+                          {e.actorEmail
+                            ? <span className="badge">{e.actorEmail.split('@')[0]}</span>
+                            : <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>}
+                        </td>
+                        <td style={SEC}>{CAMPO_LABEL[c.campo] ?? c.campo}</td>
+                        <td>
+                          {/* Tachado el valor viejo, en rojo; el nuevo en verde.
+                              Aquí el color SÍ es información: dice qué se fue. */}
+                          <span style={{ color: 'var(--neg)', textDecoration: 'line-through' }}>
+                            {valorLegible(c.campo, c.antes)}
+                          </span>
+                          {' → '}
+                          <span style={{ color: 'var(--pos)' }}>{valorLegible(c.campo, c.despues)}</span>
+                        </td>
+                        <td style={SEC}>{d.motivo || <span style={{ color: 'var(--ink3)' }}>—</span>}</td>
+                      </tr>
+                    ))
+                  })}
+                </tbody>
+              </table>
+              <p className="muted" style={{ fontSize: 11, marginTop: 10, marginBottom: 0 }}>
+                El historial arranca cuando se empezó a registrar: lo anterior a eso no está aquí.
+              </p>
+            </>
+          )}
+        </section>
+        </div>
+
+        <div>
+          <section className="card">
           <div className="card-head"><span>Venta</span></div>
+          {puedeRecibir && (
+            <div className="card-divider" style={{ marginTop: 0, marginBottom: 12 }}>
+              <button onClick={recibir} disabled={busy}>Recibir unidad (postea inventario)</button>
+            </div>
+          )}
           <dl>
             <dt>Precio lista</dt><dd>{mxn(v.precioLista)}</dd>
             <dt>Precio venta (sin IVA)</dt><dd>{mxn(v.precioVenta)}</dd>
@@ -338,9 +634,9 @@ export default function VehiculoDetalle() {
               </select>
             )}
           </div>
-        </section>
+          </section>
 
-        <section className="card">
+          <section className="card">
           <div className="card-head"><span>Rentabilidad por VIN</span></div>
           {v.rentabilidad ? (
             <dl>
@@ -355,10 +651,16 @@ export default function VehiculoDetalle() {
           ) : (
             <p className="muted">Se calcula al vender. Costos acumulados: {mxn(v.costosTotal)} (interés piso: {mxn(v.interesPiso)}).</p>
           )}
-        </section>
+          </section>
 
-        <section className="card">
-          <div className="card-head"><span>Ficha de la unidad</span></div>
+          <section className="card">
+          <div className="card-head">
+            <span>Ficha de la unidad</span>
+            {/* Los chips de arriba ENSEÑAN lo que la unidad tiene; esta tarjeta
+                es donde se captura y se corrige. Por eso repite los campos: son
+                dos trabajos distintos sobre el mismo dato. */}
+            <span className="muted" style={{ fontWeight: 400 }}>captura y corrección</span>
+          </div>
           <dl>
             <dt>Color</dt>
             <dd>{v.color ?? '—'}<Editar campo="color" label="Color" /></dd>
@@ -390,154 +692,31 @@ export default function VehiculoDetalle() {
               CFDI de origen: «{v.descripcionCfdi.length > 140 ? `${v.descripcionCfdi.slice(0, 140)}…` : v.descripcionCfdi}»
             </div>
           )}
-        </section>
-      </div>
+          </section>
 
-      {(v.expediente?.length ?? 0) > 0 && (
-        <section className="card">
-          <div className="card-head"><span>Expediente CFDI del VIN</span></div>
-          <table>
-            <thead><tr><th>Fecha</th><th>Folio</th><th>Papel</th><th className="num">Total</th><th>CFDI</th></tr></thead>
-            <tbody>
-              {[...v.expediente].sort((a, b) => new Date(a.invoice.fecha) - new Date(b.invoice.fecha)).map((e) => (
-                <tr key={e.id}>
-                  <td style={SEC}>{fecha(e.invoice.fecha)}</td>
-                  <td className="mono">{[e.invoice.serie, e.invoice.folio].filter(Boolean).join('-') || e.invoice.uuid?.slice(0, 8)}</td>
-                  <td>
-                    <span className={`badge ${ROL_BADGE[e.rol] ?? 'badge-danger'}`}>
-                      {ROL_LABEL[e.rol] ?? e.rol.replaceAll('_', ' ')}
-                    </span>
-                    {e.invoice.status === 'CANCELLED' && <span className="badge badge-danger" style={{ marginLeft: 4 }}>Cancelada</span>}
-                  </td>
-                  <td className="num">{mxn(e.invoice.total)}</td>
-                  <td>
-                    <button className="ghost" style={MINI} onClick={() => setCfdiVista(e.invoice.id)}>Ver</button>{' '}
-                    <button className="ghost" style={MINI} onClick={() => descargarCfdi(e.invoice, 'xml')}>XML</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="card-note">Toda factura que menciona este VIN, ligue o no: sustituidas y duplicadas quedan visibles para auditoría.</div>
-        </section>
-      )}
-
-      <section className="card">
-        <div className="card-head"><span>Costos de la unidad</span></div>
-        {v.costos.length === 0 ? (
-          <p className="muted">Sin costos registrados.</p>
-        ) : (
-          <table className="tabla">
-            <thead>
-              <tr>
-                <th>Fecha</th><th>Concepto</th><th>CFDI</th><th>Origen</th>
-                <th style={{ textAlign: 'right' }}>Importe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {v.costos.map((c) => (
-                <tr key={c.id}>
-                  <td style={SEC}>{fecha(c.fecha)}</td>
-                  <td className="celda2">
-                    <b>{c.concepto || (COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' '))}</b>
-                    <span>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')}</span>
-                  </td>
-                  <td>
-                    {c.invoiceId ? (
-                      <>
-                        <button className="ghost" style={MINI} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
-                        <button className="ghost" style={MINI} onClick={() => descargarCfdi({ id: c.invoiceId }, 'xml')}>XML</button>
-                      </>
-                    ) : <span style={{ color: 'var(--neg)' }}>sin CFDI</span>}
-                  </td>
-                  {/* Quién escribió el renglón. Sin esta marca no se puede
-                      volver a derivar una factura sin arriesgarse a borrar un
-                      costo que alguien capturó a mano. */}
-                  <td>
-                    {c.autoCreado
-                      ? <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>
-                      : <span className="badge">Persona</span>}
-                  </td>
-                  <td className="num">{mxn(c.monto)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td className="alcance">{v.costos.length} concepto(s)</td>
-                <td /><td /><td />
-                <td style={{ textAlign: 'right' }}>{mxn(v.costosTotal)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-        {puedeCostos && (
-          <form className="inline-form" onSubmit={agregarCosto}>
-            <select value={costoForm.tipo} onChange={(e) => setCostoForm((f) => ({ ...f, tipo: e.target.value }))}>
-              {COSTO_TIPOS.map((t) => <option key={t} value={t}>{COSTO_LABEL[t] ?? t}</option>)}
-            </select>
-            <input placeholder="Concepto" value={costoForm.concepto}
-              onChange={(e) => setCostoForm((f) => ({ ...f, concepto: e.target.value }))} />
-            <input type="number" step="0.01" min="0.01" placeholder="Monto sin IVA" required value={costoForm.monto}
-              onChange={(e) => setCostoForm((f) => ({ ...f, monto: e.target.value }))} />
-            <button type="submit" className="ghost" disabled={busy}>Agregar costo</button>
-          </form>
-        )}
-      </section>
-
-      {/* ── Bitácora del expediente ─────────────────────────────────────────
-          Quién escribió qué, qué decía antes y qué dice ahora. Es la pregunta
-          que meses después nadie podía contestar: «¿de dónde salió este
-          costo?». Sólo existe desde que se empezó a registrar, y el pie lo
-          dice en vez de fingir un historial completo. */}
-      <section className="card">
-        <div className="card-head"><span>Bitácora del expediente</span></div>
-        {(v.bitacora?.length ?? 0) === 0 ? (
-          <p className="muted">
-            Todavía no hay cambios registrados en esta unidad. La bitácora anota cada campo que se
-            edita —lo que decía antes y lo que dice ahora— desde que se empezó a registrar.
+          {/* ── Lo que el handoff pide y todavía no tiene modelo ──────────────
+            Se enseña en vez de omitirse: un hueco callado se lee como que la
+            pantalla ya está completa. Cada uno dice qué falta y por qué. */}
+          <section className="card">
+          <div className="card-head"><span>IVA sobre margen</span><span className="muted" style={{ fontWeight: 400 }}>Art. 27 RLIVA</span></div>
+          <p className="muted" style={{ margin: 0 }}>
+            Todavía no se calcula. Cuando la unidad se toma a una persona física, el impuesto
+            no va sobre el precio de venta sino sobre el margen, y el beneficio está condicionado
+            a un expediente —contrato, INE del vendedor, factura endosada y comprobante de pago—.
+            Falta el modelo que guarde esos requisitos y diga cuál de ellos está pendiente.
           </p>
-        ) : (
-          <>
-            <table className="tabla">
-              <thead>
-                <tr><th>Cuándo</th><th>Quién</th><th>Campo</th><th>Cambio</th><th>Motivo</th></tr>
-              </thead>
-              <tbody>
-                {v.bitacora.flatMap((e) => {
-                  const d = e.detalle ?? {}
-                  const cambios = Array.isArray(d.cambios) ? d.cambios : []
-                  if (cambios.length === 0) return []
-                  return cambios.map((c, i) => (
-                    <tr key={`${e.id}-${i}`}>
-                      <td style={SEC}>{fechaHora(e.createdAt)}</td>
-                      <td>
-                        {e.actorEmail
-                          ? <span className="badge">{e.actorEmail.split('@')[0]}</span>
-                          : <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>}
-                      </td>
-                      <td style={SEC}>{CAMPO_LABEL[c.campo] ?? c.campo}</td>
-                      <td>
-                        {/* Tachado el valor viejo, en rojo; el nuevo en verde.
-                            Aquí el color SÍ es información: dice qué se fue. */}
-                        <span style={{ color: 'var(--neg)', textDecoration: 'line-through' }}>
-                          {valorLegible(c.campo, c.antes)}
-                        </span>
-                        {' → '}
-                        <span style={{ color: 'var(--pos)' }}>{valorLegible(c.campo, c.despues)}</span>
-                      </td>
-                      <td style={SEC}>{d.motivo || <span style={{ color: 'var(--ink3)' }}>—</span>}</td>
-                    </tr>
-                  ))
-                })}
-              </tbody>
-            </table>
-            <p className="muted" style={{ fontSize: 11, marginTop: 10, marginBottom: 0 }}>
-              El historial arranca cuando se empezó a registrar: lo anterior a eso no está aquí.
-            </p>
-          </>
-        )}
-      </section>
+          </section>
+
+          <section className="card">
+          <div className="card-head"><span>Estado de timbrado de la venta</span></div>
+          <p className="muted" style={{ margin: 0 }}>
+            {v.ventaInvoice
+              ? 'La factura de venta existe y su estatus se ve en el expediente CFDI. Lo que falta es la línea de tiempo de una cancelación: no se guarda cuándo se pidió, así que no se puede contar el plazo de aceptación del receptor.'
+              : 'La unidad no se ha facturado. Cuando se facture, aquí va el recorrido de la factura —emitida, timbrada, y si se cancela, el plazo que corre para que el receptor acepte—. Falta guardar la fecha de solicitud de cancelación.'}
+          </p>
+          </section>
+        </div>
+      </div>
     </div>
   )
 }

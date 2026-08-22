@@ -1046,3 +1046,53 @@ body { font-variant-numeric: tabular-nums; }
 .rail-item.por-construir {
   opacity: .4; cursor: default; pointer-events: none;
 }
+
+/* ─── EXPEDIENTE DE UNIDAD — el encabezado del handoff ─────────────────────
+   El handoff arma la cabecera como UNA tarjeta: fotos a la izquierda y, a la
+   derecha, identidad + especificación + las cuatro cifras. Estaban sueltas
+   por la página; juntas se leen de un vistazo, que es de lo que se trata. */
+.expediente-hero { display: flex; gap: 12px; margin-bottom: 12px; align-items: stretch; }
+.hero-fotos {
+  width: 344px; flex-shrink: 0; border-radius: 12px; display: flex;
+  align-items: center; justify-content: center; text-align: center;
+  padding: 18px; font-size: 11.5px; color: var(--ink3); line-height: 1.5;
+  background: repeating-linear-gradient(45deg, var(--panel2) 0 9px, var(--panel3) 9px 18px);
+}
+.hero-card { flex: 1; min-width: 0; margin: 0; padding: 17px 19px; }
+.hero-ident { display: flex; align-items: flex-start; gap: 12px; }
+.hero-ident h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 6px; }
+.hero-pills { margin-left: auto; display: flex; gap: 7px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Chips de especificación. Se pintan SÓLO los que la unidad tiene: en 11,257
+   unidades el color va al 6% y el kilometraje a cero, así que una fila fija de
+   siete chips —como la del mock— sería una fila de huecos. */
+.chips-unidad { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0; }
+.chip-dato {
+  height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+  border-radius: 7px; background: var(--panel2); border: 1px solid var(--line);
+}
+.chip-dato .k { font-size: 10.5px; color: var(--ink3); }
+.chip-dato .v { font-size: 11.5px; color: var(--ink); }
+.chips-vacio { font-size: 11.5px; color: var(--ink3); margin: 16px 0; }
+
+/* La tira de cuatro, embebida en la tarjeta: celdas separadas por 1px de
+   línea, como el handoff, en vez de flotando sobre el fondo de la página. */
+.kpi-embebido { display: flex; gap: 1px; background: var(--line); border-radius: 10px; overflow: hidden; }
+.kpi-embebido > div { flex: 1; min-width: 0; background: var(--panel2); padding: 12px 14px; }
+.kpi-embebido .kpi-label { font-size: 10.5px; color: var(--ink3); display: block; }
+.kpi-embebido .kpi { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; margin-top: 6px; display: block; }
+.kpi-embebido .kpi-sub { font-size: 10.5px; color: var(--ink3); margin-top: 4px; display: block; }
+
+/* Dos columnas 1.25 / 1, como el handoff. Abajo de 1180 se apilan. */
+.expediente-cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: start; }
+.expediente-cols > div { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.expediente-cols .card { margin: 0; }
+@media (max-width: 1180px) {
+  .expediente-hero { flex-direction: column; }
+  .hero-fotos { width: auto; min-height: 120px; }
+  .expediente-cols { grid-template-columns: 1fr; }
+}
+
+/* Renglón de total dentro de la tabla de costos: el «Costo acumulado» no es
+   un pie de tabla cualquiera, es la cifra que la tira de arriba promete. */
+.tabla tr.fila-total td { font-weight: 600; color: var(--ink); border-top: 1px solid var(--line2); }
