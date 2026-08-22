@@ -105,7 +105,13 @@ function ReportesTaller() {
         </select>
       </div>
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
-      {loading ? <p className="muted">Reconstruyendo el taller desde los CFDIs…</p> : data && (
+      {/* Se exige la FORMA, no sólo que haya respuesta. Esta pestaña es ahora
+          la que abre cuando no hay órdenes capturadas, así que una respuesta
+          incompleta ya no rompe una vista secundaria: rompe la primera que
+          alguien ve. Mismo criterio que el estado de cuenta del cliente. */}
+      {loading ? <p className="muted">Reconstruyendo el taller desde los CFDIs…</p> : !data?.resumen ? (
+        !error && <p className="muted">No se pudo reconstruir el taller de este ejercicio.</p>
+      ) : (
         <>
           <div className="kpi-strip">
             <div className="kpi-item">

@@ -53,6 +53,23 @@ function valorLegible(campo, valor) {
   return String(valor)
 }
 
+
+// Renglón navegable, con teclado. Mismo patrón que el expediente de contacto:
+// si el renglón habla de un documento, el renglón entero lo abre.
+function ligaFila(alDisparar, titulo) {
+  return {
+    className: 'fila-liga',
+    tabIndex: 0,
+    role: 'link',
+    title: titulo,
+    onClick: alDisparar,
+    onKeyDown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alDisparar() }
+    },
+  }
+}
+const soloEsto = (fn) => (e) => { e.stopPropagation(); if (fn) fn(e) }
+
 // ── Especificación de la unidad ──────────────────────────────────────────
 // `version` NO es un nombre de versión: es la ficha de planta tal como viene
 // en el CFDI de compra —«Active, automático, 1.5 lts., Turbo, 4 cil.
@@ -425,12 +442,14 @@ export default function VehiculoDetalle() {
               </tr>
 
               {costosNormales.map((c) => (
-                <tr key={c.id}>
+                // Un costo sin CFDI —capturado a mano— no navega: no hay
+                // documento que abrir, y una liga muerta miente.
+                <tr key={c.id} {...(c.invoiceId ? ligaFila(() => setCfdiVista(c.invoiceId), 'Ver el CFDI de este costo') : {})}>
                   <td className="celda2">
                     <b>{c.concepto || (COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' '))}</b>
                     <span>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')} · {fecha(c.fecha)}</span>
                   </td>
-                  <td>
+                  <td onClick={soloEsto()}>
                     {c.invoiceId ? (
                       <>
                         <button className="ghost" style={MINI} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
@@ -508,7 +527,7 @@ export default function VehiculoDetalle() {
               <thead><tr><th>Fecha</th><th>Folio</th><th>Papel</th><th className="num">Total</th><th>CFDI</th></tr></thead>
               <tbody>
                 {[...v.expediente].sort((a, b) => new Date(a.invoice.fecha) - new Date(b.invoice.fecha)).map((e) => (
-                  <tr key={e.id}>
+                  <tr key={e.id} {...ligaFila(() => setCfdiVista(e.invoice.id), 'Ver este CFDI')}>
                     <td style={SEC}>{fecha(e.invoice.fecha)}</td>
                     <td className="mono">{[e.invoice.serie, e.invoice.folio].filter(Boolean).join('-') || e.invoice.uuid?.slice(0, 8)}</td>
                     <td>
@@ -518,7 +537,7 @@ export default function VehiculoDetalle() {
                       {e.invoice.status === 'CANCELLED' && <span className="badge badge-danger" style={{ marginLeft: 4 }}>Cancelada</span>}
                     </td>
                     <td className="num">{mxn(e.invoice.total)}</td>
-                    <td>
+                    <td onClick={soloEsto()}>
                       <button className="ghost" style={MINI} onClick={() => setCfdiVista(e.invoice.id)}>Ver</button>{' '}
                       <button className="ghost" style={MINI} onClick={() => descargarCfdi(e.invoice, 'xml')}>XML</button>
                     </td>

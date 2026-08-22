@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../config/api'
 import CfdiAcciones from '../components/CfdiAcciones'
 import CfdiVista from '../components/CfdiVista'
@@ -62,7 +62,7 @@ const etiqueta = (e) => {
 // Estado de cuenta documental del cliente: cargos (facturas), abonos (NC,
 // REPs con su FechaPago legal, PUE liquidadas en emisión, cobros conciliados)
 // y saldo corrido — imprimible para mandárselo al cliente.
-function EstadoDeCuenta({ clienteId, completo = false }) {
+function EstadoDeCuenta({ clienteId, completo = false, setCfdi = () => {} }) {
   const [year, setYear] = useState(new Date().getFullYear())
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -138,7 +138,10 @@ function EstadoDeCuenta({ clienteId, completo = false }) {
                 </tr>
               )}
               {(completo ? data.movimientos : data.movimientos.slice(-TOPE)).map((m, i) => (
-                <tr key={i}>
+                // Cada movimiento del mayor nace de un CFDI y lo trae consigo.
+                // Un cobro conciliado en banco puede no traerlo: ese renglón
+                // no navega, en vez de llevar a una pantalla vacía.
+                <tr key={i} {...(m.invoiceId ? ligaFila(() => setCfdi(m.invoiceId), 'Ver el CFDI de este movimiento') : {})}>
                   <td>{fecha(m.fecha)}</td>
                   <td><span className={`badge ${TIPO[m.tipo]?.[1] ?? ''}`}>{TIPO[m.tipo]?.[0] ?? m.tipo}</span></td>
                   <td className="mono">{m.referencia ?? '—'}</td>
@@ -164,12 +167,34 @@ function EstadoDeCuenta({ clienteId, completo = false }) {
 // Pestañas del expediente. `contar` alimenta el badge para saber de un vistazo
 // dónde hay algo; null = sin contador (el estado de cuenta se arma aparte).
 
+
+// Props de un renglón navegable. Se aplica al <tr> completo y deja el teclado
+// funcionando: un renglón que sólo responde al clic es invisible para quien
+// navega con tabulador.
+function ligaFila(alDisparar, titulo) {
+  return {
+    className: 'fila-liga',
+    tabIndex: 0,
+    role: 'link',
+    title: titulo,
+    onClick: alDisparar,
+    onKeyDown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alDisparar() }
+    },
+  }
+}
+
+// Un control dentro de un renglón navegable no debe disparar la navegación
+// del renglón: quien toca «XML» quiere el XML, no irse a otra pantalla.
+const soloEsto = (fn) => (e) => { e.stopPropagation(); if (fn) fn(e) }
+
 // Un renglón de unidad. Vive aparte porque lo pintan dos lugares: la tarjeta
 // del expediente, que enseña las primeras, y la ventana de «Ver todas».
 function FilaUnidad({ v, lado }) {
+  const ir = useNavigate()
   return (
-    <tr>
-      <td className="mono"><Link to={`/vehiculos/${v.id}`}>{v.vin}</Link></td>
+    <tr {...ligaFila(() => ir(`/vehiculos/${v.id}`), `Abrir el expediente de ${v.marca} ${v.modelo} ${v.anio}`)}>
+      <td className="mono">{v.vin}</td>
       <td style={{ fontSize: 13 }}>{v.marca} {v.modelo} {v.anio}</td>
       <td><span className={`badge badge-${v.estado}`}>{etiqueta(v.estado)}</span></td>
       <td className="num">{mxn(lado === 'CLIENTE' ? v.precioVenta : v.costoCompra)}</td>
@@ -186,26 +211,24 @@ function FilaUnidad({ v, lado }) {
 // Un renglón de orden de servicio. Igual que FilaUnidad: lo pintan la tarjeta
 // y la ventana, y tienen que verse idénticos.
 function FilaServicio({ s, onVer }) {
+  const ir = useNavigate()
+  // Sin orden derivada no hay a dónde llevar: el renglón deja de ser navegable
+  // en vez de fingir una liga que no lleva a nada.
+  const destino = s.orden ? () => ir(`/servicio?q=${s.orden.folio}`) : null
   return (
-    <tr>
+    <tr {...(destino ? ligaFila(destino, `Abrir la orden OS-${s.orden.folio}`) : {})}>
       <td style={{ color: 'var(--ink-3)' }}>{fecha(s.fecha)}</td>
       <td style={{ fontSize: 13 }}>{s.concepto ?? '—'}</td>
       <td>
+        {/* La unidad va a OTRO lado que el renglón, así que conserva su liga. */}
         {s.vehiculo
-          ? <Link to={`/vehiculos/${s.vehiculo.id}`}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link>
+          ? <Link to={`/vehiculos/${s.vehiculo.id}`} onClick={soloEsto()}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link>
           : <span className="muted">—</span>}
       </td>
       <td className="num">{mxn(s.total)}</td>
       <td>
-        {s.orden && (
-          <>
-            <Link to={`/servicio?q=${s.orden.folio}`} className="mono" style={{ fontSize: 11 }}
-              title="Abrir la orden de taller completa">
-              OS-{s.orden.folio}
-            </Link>{' '}
-          </>
-        )}
-        <CfdiAcciones invoice={s.invoice} onVer={onVer} />
+        {s.orden && <span className="mono" style={{ fontSize: 11, color: 'var(--acc)' }}>OS-{s.orden.folio}</span>}{' '}
+        <span onClick={soloEsto()}><CfdiAcciones invoice={s.invoice} onVer={onVer} /></span>
       </td>
     </tr>
   )
@@ -301,7 +324,7 @@ export default function ContactoPerfil() {
               <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</th><th className="num">Saldo</th><th className="num">Días</th></tr></thead>
               <tbody>
                 {abiertas.map((f) => (
-                  <tr key={f.id}>
+                  <tr key={f.id} {...ligaFila(() => setCfdiVista(f.id), 'Ver el CFDI de esta factura')}>
                     <td className="mono">{[f.serie, f.folio].filter(Boolean).join('-') || '—'}</td>
                     <td>{fecha(f.fecha)}</td>
                     <td>{f.metodoPago}</td>
@@ -327,7 +350,7 @@ export default function ContactoPerfil() {
             <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</th><th className="num">REP pend.</th><th className="num">Saldo</th><th>CFDI</th></tr></thead>
             <tbody>
               {perfil.facturas.map((f) => (
-                <tr key={f.id}>
+                <tr key={f.id} {...ligaFila(() => setCfdiVista(f.id), 'Ver el CFDI de esta factura')}>
                   <td className="mono">{[f.serie, f.folio].filter(Boolean).join('-') || '—'}</td>
                   <td>{fecha(f.fecha)}</td>
                   <td>{f.metodoPago}</td>
@@ -335,7 +358,7 @@ export default function ContactoPerfil() {
                   <td className="num">{mxn(f.pagado)}</td>
                   <td className="num">{f.repPendiente > 1 ? <span className="neg">{mxn(f.repPendiente)}</span> : '—'}</td>
                   <td className="num">{mxn(f.saldo)}</td>
-                  <td><CfdiAcciones invoice={f} onVer={setCfdiVista} /></td>
+                  <td onClick={soloEsto()}><CfdiAcciones invoice={f} onVer={setCfdiVista} /></td>
                 </tr>
               ))}
             </tbody>
@@ -373,7 +396,7 @@ export default function ContactoPerfil() {
       {ventana === 'estado' && perfil && lado === 'CLIENTE' && (
         <VentanaDetalle titulo="Estado de cuenta" glosa={perfil.contacto.razonSocial} onCerrar={() => setVentana(null)}>
           <div style={{ padding: '16px 22px' }}>
-            <EstadoDeCuenta clienteId={perfil.contacto.id} completo />
+            <EstadoDeCuenta clienteId={perfil.contacto.id} completo setCfdi={setCfdiVista} />
           </div>
         </VentanaDetalle>
       )}
@@ -650,7 +673,7 @@ export default function ContactoPerfil() {
               )}
             </section>
 
-            {lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} />}
+            {lado === 'CLIENTE' && <EstadoDeCuenta clienteId={perfil.contacto.id} setCfdi={setCfdiVista} />}
             </div>
 
             <div>
@@ -722,7 +745,7 @@ export default function ContactoPerfil() {
                     <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">Cobrado</th><th className="num">Saldo</th><th className="num">Días</th></tr></thead>
                     <tbody>
                       {abiertas.slice(0, TOPE).map((f) => (
-                        <tr key={f.id}>
+                        <tr key={f.id} {...ligaFila(() => setCfdiVista(f.id), 'Ver el CFDI de esta factura')}>
                           <td className="mono">{folio(f)}</td>
                           <td>{fecha(f.fecha)}</td>
                           <td style={{ color: 'var(--ink-3)' }}>{f.metodoPago}</td>
@@ -831,7 +854,7 @@ export default function ContactoPerfil() {
                   <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">{lado === 'CLIENTE' ? 'Cobrado' : 'Pagado'}</th><th className="num">REP pendiente</th><th className="num">Saldo</th><th>CFDI</th></tr></thead>
                   <tbody>
                     {perfil.facturas.map((f) => (
-                      <tr key={f.id}>
+                      <tr key={f.id} {...ligaFila(() => setCfdiVista(f.id), 'Ver el CFDI de esta factura')}>
                         <td>
                           <span className="mono">{folio(f)}</span>
                           {perfil.anticipos?.some((a) => a.id === f.id) && (
@@ -844,7 +867,7 @@ export default function ContactoPerfil() {
                         <td className="num">{mxn(f.pagado)}</td>
                         <td className="num">{f.repPendiente > 1 ? <span className="neg">{mxn(f.repPendiente)}</span> : '—'}</td>
                         <td className="num">{mxn(f.saldo)}</td>
-                        <td><CfdiAcciones invoice={f} onVer={setCfdiVista} /></td>
+                        <td onClick={soloEsto()}><CfdiAcciones invoice={f} onVer={setCfdiVista} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -864,7 +887,7 @@ export default function ContactoPerfil() {
                         <td className="mono">{[n.serie, n.folio].filter(Boolean).join('-') || '—'}</td>
                         <td>{fecha(n.fecha)}</td>
                         <td className="num neg">−{mxn(n.total)}</td>
-                        <td><CfdiAcciones invoice={n} onVer={setCfdiVista} /></td>
+                        <td onClick={soloEsto()}><CfdiAcciones invoice={n} onVer={setCfdiVista} /></td>
                       </tr>
                     ))}
                   </tbody>
