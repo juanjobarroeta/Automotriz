@@ -1,89 +1,157 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Sistema de diseño «Automotriz PRO» — monocromo
-   Fuente: Automotriz PRO.dc.html (mockup de 9 pantallas). Ver DESIGN.md.
-   Alta fidelidad: los hex, radios y la escala tipográfica vienen del mockup;
-   no inventar valores nuevos.
+   Sistema de diseño «Automotriz PRO»
+   Fuente: design_handoff_automotriz_pro / «Automotriz PRO v4.dc.html».
+
+   OSCURO por defecto, claro como override en [data-tema="claro"]. Un solo
+   atributo en el documento cambia el tema: sin re-render, sin hoja duplicada.
+
+   Dos reglas del handoff que son INTENCIÓN, no estilo:
+   1. Texto y relleno son tokens distintos. --pos/--neg/--warn están calibrados
+      para leerse como TEXTO; --posFill/--negFill/--warnFill para leerse como
+      GRÁFICO. Usar el de texto en una barra ensucia la gráfica en claro; usar
+      el de relleno en texto reprueba contraste. Van los dos juegos.
+   2. El color significa EXCEPCIÓN. Un valor positivo va en --ink, no en verde.
+      Rojo y ámbar sólo donde algo pide acción (promesa vencida, +90 días, CFDI
+      sin conciliar, REP faltante, proveedor en 69-B). No se colorea cada estado.
+
+   La elevación es una hairline de 1px (--line), no una sombra: sólo el modal
+   lleva sombra. Toda tarjeta lleva su borde en AMBOS temas — quitarlo colapsó
+   el contraste de blanco sobre gris claro a ~1.07:1.
    ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Tinta y texto */
-  --ink: #0A0A0A;
-  --ink-2: #404040;
-  --ink-3: #525252;
-  --muted: #737373;
-  --muted-2: #767676;
-  --faint: #A3A3A3;
-  --faint-2: #C0C0C0;
+  /* ── Superficies (oscuro) ── */
+  --bg: #050505;        /* lienzo de la app */
+  --panel: #111111;     /* tarjeta / superficie de tabla */
+  --panel2: #191919;    /* encabezado y pie de tabla, filas insertadas, hover */
+  --panel3: #242424;    /* avatares, chips, riel de progreso */
+  --line: #242424;      /* hairline, divisores de fila */
+  --line2: #333333;     /* divisores fuertes (head/foot de tabla, modal) */
 
-  /* Superficies */
-  --surface: #FFFFFF;
-  --surface-subtle: #FAFAFA;
-  --surface-soft: #F4F4F4;
-  --surface-row: #F2F2F2;
-  --surface-hover: #EDEDED;
+  /* ── Tinta ── */
+  --ink: #F7F7F7;       /* texto primario, cifras */
+  --ink2: #B8B8B8;      /* texto secundario */
+  --ink3: #8C8C8C;      /* etiquetas, meta, tenue */
+  /* Texto SOBRE un relleno de --ink. Sin esto, el #FFFFFF que estaba escrito a
+     mano quedaba blanco sobre casi-blanco al invertir el tema: invisible. */
+  --inkOn: #050505;
 
-  /* Bordes */
-  --border: #E8E8E8;
-  --border-strong: #DEDEDE;
-  --border-hairline: #F2F2F2;
-  --border-inner: #F0F0F0;
+  /* ── Acento ── */
+  --acc: #5C99FF;       /* ligas, botón primario, nav activa */
+  --accInk: #050505;    /* texto sobre relleno de acento */
+  --accSoft: #14203A;   /* superficie teñida de acento */
+  --accLine: #2C4577;   /* borde teñido de acento */
 
-  /* Estados */
-  --ok: #2E7D46;          --ok-tint: #EDF6EF;
-  --warn: #8A6A1F;        --warn-tint: #FDF6E7;
-  --danger: #B3402E;      --danger-tint: #FCEFEC;
-  --info: #2A4C9B;        --info-tint: #EFF3FB;
+  /* ── Estado: TEXTO ── */
+  --pos: #4BDD8B;       --posBg: #0C2416;
+  --neg: #FF7B7B;       --negBg: #2A1211;
+  --warn: #FFC65C;      --warnBg: #271D06;
 
-  /* Acento de navegación
-     El sistema sigue siendo monocromo: la tinta manda y el color sólo aparece
-     como estado. La excepción es ESTA: un ancla para «dónde estoy» y «esto se
-     puede tocar». Antes el ítem activo del rail y el ítem bajo el mouse eran
-     exactamente el mismo gris (--surface-hover), así que la navegación no
-     decía en qué pantalla estabas — sólo dónde tenías el mouse.
-     No es un color nuevo: es el --info que ya existía, ascendido a ancla, para
-     no meter un tono ajeno a la paleta. */
-  --brand: #2A4C9B;
-  --brand-ink: #23407F;
-  --brand-tint: #EFF3FB;
-  --focus: #2A4C9B;
+  /* ── Estado: RELLENO GRÁFICO (barras, puntos, nodos) ── */
+  --posFill: #4BDD8B;
+  --accFill: #5C99FF;
+  --warnFill: #FFC65C;
+  --negFill: #FF7B7B;
 
-  /* Forma */
-  --radius: 8px;
-  --radius-chip: 4px;
-  --rowpad: 9px;
+  /* ── Forma ── */
+  --radius: 14px;        /* tarjetas */
+  --radius-modal: 16px;
+  --radius-input: 10px;  /* paneles insertados, inputs */
+  --radius-chip: 7px;    /* botones, chips */
+  --radius-pill: 5px;
+  --radius-bar: 3px;
+  --rowpad: 12px;        /* celda de tabla; 8px en modo compacto */
+  --rowpad-compacto: 8px;
 
-  /* Shell */
-  --rail-w: 208px;
+  /* ── Shell ── */
+  --rail-w: 214px;
   --rail-w-mini: 60px;
-  --topbar-h: 56px;
+  --topbar-h: 46px;
 
-  /* Tipografía */
-  --font-ui: 'Instrument Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* ── Tipografía ──
+     Inter Tight para TODO el UI y las cifras de titular. JetBrains Mono
+     restringida a lo que debe alinearse dígito a dígito o dictarse en voz
+     alta: VIN, folios, RFC, moneda en columna, fechas de meta, teléfonos.
+     Nunca en eyebrows, etiquetas ni conteos — eso se probó y se revirtió
+     porque leía como terminal de trading. */
+  --font-ui: 'Inter Tight', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Alias heredados: pantallas viejas que aún referencian los tokens «Nórdico».
-     Se resuelven al sistema nuevo para que nada quede en verde. */
-  --bg-app: var(--surface);
-  --bg-card: var(--surface);
-  --bg-row-selected: var(--surface-row);
-  --bg-row-hairline: var(--border-hairline);
-  --ink-secondary: var(--muted);
-  --ink-muted: var(--muted-2);
-  --ink-muted-dark: var(--faint);
-  --border-input: var(--border);
+  /* ── Alias heredados ──
+     Las pantallas actuales referencian los tokens del sistema anterior. Se
+     resuelven a los nuevos para que el tema funcione en toda la app sin
+     migrarlas de golpe; se irán retirando pantalla por pantalla. */
+  --surface: var(--panel);
+  --surface-subtle: var(--panel);
+  --surface-soft: var(--panel2);
+  --surface-row: var(--panel2);
+  --surface-hover: var(--panel2);
+  --ink-2: var(--ink2);
+  --ink-3: var(--ink3);
+  --muted: var(--ink3);
+  --muted-2: var(--ink3);
+  --faint: var(--ink3);
+  --faint-2: var(--ink3);
+  --border: var(--line);
+  --border-strong: var(--line2);
+  --border-hairline: var(--line);
+  --border-inner: var(--line);
+  --ok: var(--pos);            --ok-tint: var(--posBg);
+  --danger: var(--neg);        --danger-tint: var(--negBg);
+  --warn-tint: var(--warnBg);
+  --info: var(--acc);          --info-tint: var(--accSoft);
+  --brand: var(--acc);
+  --brand-ink: var(--acc);
+  --brand-tint: var(--accSoft);
+  --focus: var(--acc);
+  --bg-app: var(--bg);
+  --bg-card: var(--panel);
+  --bg-row-selected: var(--panel2);
+  --bg-row-hairline: var(--line);
+  --ink-secondary: var(--ink2);
+  --ink-muted: var(--ink3);
+  --ink-muted-dark: var(--ink3);
+  --border-input: var(--line);
   --accent: var(--ink);
-  --accent-tint: var(--ok-tint);
-  --accent-text-dark: var(--ok);
-  --accent-on-dark: #FFFFFF;
+  --accent-tint: var(--posBg);
+  --accent-text-dark: var(--pos);
+  --accent-on-dark: var(--inkOn);
   --warning: var(--warn);
   --warning-text: var(--warn);
-  --warning-tint: var(--warn-tint);
-  --danger-tint-legacy: var(--danger-tint);
-  --danger-border: var(--border);
+  --warning-tint: var(--warnBg);
+  --danger-tint-legacy: var(--negBg);
+  --danger-border: var(--line);
   --radius-card: var(--radius);
-  --radius-pill: var(--radius);
-  --radius-input: var(--radius);
   --shadow-card: none;
+}
+
+/* ── Tema claro ── */
+[data-tema="claro"] {
+  --bg: #EFEFEF;
+  --panel: #FFFFFF;
+  --panel2: #F5F5F5;
+  --panel3: #E7E7E7;
+  --line: #E6E6E6;
+  --line2: #D4D4D4;
+
+  --ink: #131313;
+  --ink2: #565656;
+  --ink3: #6A6A6A;
+  --inkOn: #FFFFFF;
+
+  --acc: #2563EB;
+  --accInk: #FFFFFF;
+  --accSoft: #EBF1FE;
+  --accLine: #C3D6FB;
+
+  --pos: #0E7A46;       --posBg: #E7F4EC;
+  --neg: #C0332B;       --negBg: #FBEAE8;
+  --warn: #8A6410;      --warnBg: #FBF1DC;
+
+  --posFill: #17A55C;
+  --accFill: #3B82F6;
+  --warnFill: #E0A63C;
+  --negFill: #E5544B;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -92,7 +160,7 @@
   outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-chip);
 }
 
-html, body { margin: 0; padding: 0; background: var(--surface); }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
 body {
   font-family: var(--font-ui);
   font-size: 13px;
@@ -361,7 +429,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; text-decoratio
 .topbar-company-btn[aria-expanded="true"] { background: var(--surface-soft); border-color: var(--border-strong); }
 .topbar-company .mark {
   width: 18px; height: 18px; border-radius: var(--radius-chip);
-  background: var(--ink); color: #FFFFFF; flex-shrink: 0;
+  background: var(--ink); color: var(--inkOn); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 600;
 }
@@ -443,7 +511,7 @@ h2 { font-size: 13px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em
 /* ── Controles ──────────────────────────────────────────────────────────── */
 
 button {
-  font-family: var(--font-ui); background: var(--ink); color: #FFFFFF;
+  font-family: var(--font-ui); background: var(--acc); color: var(--accInk);
   border: 1px solid var(--ink); border-radius: var(--radius);
   padding: 8px 13px; cursor: pointer; font-size: 12.5px; font-weight: 600;
 }
@@ -478,8 +546,8 @@ label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
   background: var(--surface); color: var(--ink-3);
 }
 .filtro:hover { background: var(--surface-row); border-color: var(--border); color: var(--ink-3); }
-.filtro.activo { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
-.filtro.activo:hover { background: var(--ink-2); border-color: var(--ink-2); color: #FFFFFF; }
+.filtro.activo { background: var(--ink); color: var(--inkOn); border-color: var(--ink); }
+.filtro.activo:hover { background: var(--ink-2); border-color: var(--ink-2); color: var(--inkOn); }
 
 /* Tabs segmentados */
 .tabs {
@@ -491,8 +559,8 @@ label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
   background: var(--surface); color: var(--ink-3); border: 0; border-radius: 0;
 }
 .tabs > *:hover { background: var(--surface-row); color: var(--ink-3); }
-.tabs > .activo { background: var(--ink); color: #FFFFFF; }
-.tabs > .activo:hover { background: var(--ink); color: #FFFFFF; }
+.tabs > .activo { background: var(--ink); color: var(--inkOn); }
+.tabs > .activo:hover { background: var(--ink); color: var(--inkOn); }
 
 /* Botón compacto de fila (acciones dentro de una tabla) */
 .btn-fila { padding: 3px 9px; font-size: 11.5px; border-radius: 6px; font-weight: 400; }
@@ -568,9 +636,9 @@ tfoot td { border-bottom: 0; font-weight: 600; }
   margin-top: 14px; background: var(--surface-subtle); border: 1px solid var(--border-inner);
   border-radius: 7px; padding: 11px 13px; font-size: 12.5px; color: var(--ink-3); line-height: 1.5;
 }
-.card.dark { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
+.card.dark { background: var(--ink); color: var(--inkOn); border-color: var(--ink); }
 .card.dark .muted, .card.dark dt { color: var(--faint); }
-.card.dark .pos, .card.dark .neg { color: #FFFFFF; }
+.card.dark .pos, .card.dark .neg { color: var(--inkOn); }
 
 .kpi {
   font-size: 29px; font-weight: 600; letter-spacing: -0.03em;
@@ -633,7 +701,7 @@ tfoot td { border-bottom: 0; font-weight: 600; }
   font-size: 11px; font-weight: 400; padding: 2px 7px;
   border-radius: var(--radius-chip); background: var(--surface-row); color: var(--ink-3);
 }
-.pasos li.activo { background: var(--ink); color: #FFFFFF; }
+.pasos li.activo { background: var(--ink); color: var(--inkOn); }
 .pasos li.hecho { background: var(--ok-tint); color: var(--ok); }
 .paso { display: grid; gap: 12px; }
 .paso h2 { margin: 0; }
@@ -783,4 +851,22 @@ tfoot td { border-bottom: 0; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   .paleta-fondo { animation: none; }
   .paleta-cargando { animation: none; }
+}
+
+/* ── Segmentado de tema ──────────────────────────────────────────────────────
+   Tres pastillas no: dos, y la activa se llena. El riel usa --panel2 para
+   separarse de la tarjeta sin pedir un borde propio. */
+.tema-toggle {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--panel2); border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+}
+.tema-toggle > button {
+  font-family: var(--font-ui); font-size: 11.5px; font-weight: 500;
+  padding: 4px 10px; border: 0; border-radius: 5px; cursor: pointer;
+  background: transparent; color: var(--ink3);
+}
+.tema-toggle > button:hover { color: var(--ink2); }
+.tema-toggle > button.activo {
+  background: var(--panel); color: var(--ink); font-weight: 600;
 }

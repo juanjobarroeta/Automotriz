@@ -2,7 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { initSentry } from './sentry'
+import { aplicarTema, temaGuardado } from './lib/tema'
 import './styles.css'
+
+// El tema se aplica ANTES del primer render: si se aplicara dentro de React,
+// la app pintaría un frame con el tema equivocado y se vería el parpadeo.
+aplicarTema(temaGuardado())
 
 // Antes de montar React, para que un error durante el primer render —el caso
 // que deja la pantalla en blanco— también quede reportado.
