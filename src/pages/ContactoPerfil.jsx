@@ -210,7 +210,7 @@ function FilaUnidad({ v, lado }) {
 
 // Un renglón de orden de servicio. Igual que FilaUnidad: lo pintan la tarjeta
 // y la ventana, y tienen que verse idénticos.
-function FilaServicio({ s, onVer }) {
+function FilaServicio({ s, onVer, desglosado = false }) {
   const ir = useNavigate()
   // Sin orden derivada no hay a dónde llevar: el renglón deja de ser navegable
   // en vez de fingir una liga que no lleva a nada.
@@ -225,6 +225,8 @@ function FilaServicio({ s, onVer }) {
           ? <Link to={`/vehiculos/${s.vehiculo.id}`} onClick={soloEsto()}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link>
           : <span className="muted">—</span>}
       </td>
+      {desglosado && <td className="num">{mxn(s.manoObra)}</td>}
+      {desglosado && <td className="num">{mxn(s.refacciones)}</td>}
       <td className="num">{mxn(s.total)}</td>
       <td>
         {s.orden && <span className="mono" style={{ fontSize: 11, color: 'var(--acc)' }}>OS-{s.orden.folio}</span>}{' '}
@@ -411,19 +413,7 @@ export default function ContactoPerfil() {
             <thead><tr><th>Fecha</th><th>Trabajo</th><th>Unidad</th><th className="num">M. de obra</th><th className="num">Refacc.</th><th className="num">Total</th><th>Orden y CFDI</th></tr></thead>
             <tbody>
               {perfil.servicio.ultimas.map((s) => (
-                <tr key={s.id}>
-                  <td style={{ color: 'var(--ink-3)' }}>{fecha(s.fecha)}</td>
-                  <td style={{ fontSize: 13 }}>{s.concepto ?? '—'}</td>
-                  <td>
-                    {s.vehiculo
-                      ? <Link to={`/vehiculos/${s.vehiculo.id}`}>{s.vehiculo.marca} {s.vehiculo.modelo} {s.vehiculo.anio}</Link>
-                      : <span className="muted">—</span>}
-                  </td>
-                  <td className="num">{mxn(s.manoObra)}</td>
-                  <td className="num">{mxn(s.refacciones)}</td>
-                  <td className="num">{mxn(s.total)}</td>
-                  <td><CfdiAcciones invoice={s.invoice} onVer={setCfdiVista} /></td>
-                </tr>
+                <FilaServicio key={s.id} s={s} onVer={setCfdiVista} desglosado />
               ))}
             </tbody>
           </table>
