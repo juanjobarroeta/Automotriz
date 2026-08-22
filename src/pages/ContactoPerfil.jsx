@@ -10,6 +10,45 @@ const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 const NOTA = { marginTop: 12, fontSize: 12, lineHeight: 1.5 }
 // Folio impreso del CFDI: dato duro, siempre en mono.
 const folio = (f) => [f.serie, f.folio].filter(Boolean).join('-') || f.uuid?.slice(0, 8) || '—'
+
+const iniciales = (nombre) =>
+  (nombre ?? '?')
+    .split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '').join('') || '?'
+
+// Etiquetas DERIVADAS de los datos. El handoff las usa para describir la
+// relación de un vistazo («Cliente desde 2019 · Recompra · 3 unidades»), y
+// aquí sólo se dice lo que los datos sostienen — ninguna se inventa.
+function etiquetasDe(perfil, lado) {
+  const t = []
+  const rfc = perfil.contacto.rfc ?? ''
+  if (rfc.length === 13) t.push('Persona física')
+  else if (rfc.length === 12) t.push('Persona moral')
+
+  const fechas = (perfil.facturas ?? []).map((f) => f.fecha).filter(Boolean).sort()
+  if (fechas.length) t.push(`${lado === 'CLIENTE' ? 'Cliente' : 'Proveedor'} desde ${new Date(fechas[0]).getFullYear()}`)
+
+  const nUnidades = (perfil.unidades ?? []).length
+  if (nUnidades > 0) t.push(`${nUnidades} unidad${nUnidades === 1 ? '' : 'es'}`)
+  if (lado === 'CLIENTE' && nUnidades > 1) t.push('Recompra')
+
+  const nServicio = perfil.servicio?.ordenes ?? 0
+  if (nServicio > 0) t.push(`${nServicio} orden${nServicio === 1 ? '' : 'es'} de servicio`)
+
+  if (perfil.resumen?.repPendienteFacturas > 0) {
+    t.push(lado === 'CLIENTE' ? 'REP por emitir' : 'REP por recibir')
+  }
+  return t
+}
+
+// Antigüedad del saldo. Es el mismo patrón de tramos del inventario: la
+// pregunta no es cuánto deben, es desde cuándo.
+const TRAMOS_SALDO = [
+  { etiqueta: 'Por vencer', color: 'var(--posFill)', min: -Infinity, max: 0 },
+  { etiqueta: '1–30 días', color: 'var(--accFill)', min: 1, max: 30 },
+  { etiqueta: '31–60 días', color: 'var(--warnFill)', min: 31, max: 60 },
+  { etiqueta: 'Más de 60', color: 'var(--negFill)', min: 61, max: Infinity },
+]
 // Los chips nunca van en mayúsculas forzadas: EN_TRANSITO → «En transito».
 const etiqueta = (e) => {
   const s = e.replaceAll('_', ' ').toLowerCase()
@@ -148,12 +187,47 @@ export default function ContactoPerfil() {
       {error && <div className="error">{error}</div>}
       {perfil && (
         <>
-          <header className="page-head">
-            <h1>{perfil.contacto.razonSocial}</h1>
-            <span className="glosa">
-              RFC <span className="mono">{perfil.contacto.rfc}</span>
-              {perfil.contacto.email ? ` · ${perfil.contacto.email}` : ''}
-            </span>
+          <header className="page-head" style={{ alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', minWidth: 0 }}>
+              <span className="avatar" style={{ width: 52, height: 52, fontSize: 18, borderRadius: 14, flexShrink: 0 }}>
+                {iniciales(perfil.contacto.razonSocial)}
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ margin: 0 }}>{perfil.contacto.razonSocial}</h1>
+                <span className="glosa" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                  <span className="mono">{perfil.contacto.rfc}</span>
+                  <button
+                    type="button"
+                    className="ghost"
+                    style={{ fontSize: 10.5, padding: '1px 6px' }}
+                    onClick={() => navigator.clipboard?.writeText(perfil.contacto.rfc ?? '')}
+                  >
+                    Copiar RFC
+                  </button>
+                  {perfil.contacto.phone && (
+                    <>
+                      <span className="mono">{perfil.contacto.phone}</span>
+                      <a
+                        href={`https://wa.me/${String(perfil.contacto.phone).replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: 11.5 }}
+                      >
+                        WhatsApp →
+                      </a>
+                    </>
+                  )}
+                  {perfil.contacto.email && <span style={{ color: 'var(--ink3)' }}>{perfil.contacto.email}</span>}
+                </span>
+                {/* Etiquetas: lo que describe la relación, derivado de los
+                    datos — nunca inventado. */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 7 }}>
+                  {etiquetasDe(perfil, lado).map((t) => (
+                    <span key={t} className="badge">{t}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="head-actions">
               <div className="tabs" role="tablist">
                 <button type="button" role="tab" aria-selected={lado === 'CLIENTE'} className={lado === 'CLIENTE' ? 'activo' : ''} onClick={() => setLado('CLIENTE')}>Como cliente</button>
@@ -163,6 +237,88 @@ export default function ContactoPerfil() {
             </div>
           </header>
           {portalMsg && <div className="warn">✓ {portalMsg}</div>}
+
+          {/* ── Pendiente ahora ─────────────────────────────────────────────
+              El handoff abre los dos expedientes con lo ACCIONABLE, antes que
+              con los totales: un saldo abierto o un REP que falta es lo que
+              hace que alguien entre a esta pantalla. */}
+          {(() => {
+            const saldo = perfil.resumen?.saldo ?? 0
+            const rep = perfil.resumen?.repPendienteFacturas ?? 0
+            if (saldo <= 0.01 && rep === 0) return null
+            const esRiesgo = lado === 'PROVEEDOR' && rep > 0
+            return (
+              <div
+                className="card"
+                style={{
+                  marginBottom: 14,
+                  background: esRiesgo ? 'var(--negBg)' : 'var(--warnBg)',
+                  borderColor: esRiesgo ? 'var(--neg)' : 'var(--warn)',
+                }}
+              >
+                <strong style={{ color: esRiesgo ? 'var(--neg)' : 'var(--warn)' }}>Pendiente ahora</strong>{' '}
+                <span style={{ fontSize: 12.5 }}>
+                  {saldo > 0.01 && (
+                    <>Saldo abierto de <b>{mxn(saldo)}</b>{rep > 0 ? '. ' : '.'}</>
+                  )}
+                  {rep > 0 && (lado === 'CLIENTE'
+                    ? <>Faltan <b>{rep}</b> complemento(s) de pago por emitir, por {mxn(perfil.resumen.repPendienteMonto)} — vencen el día 5 del mes siguiente al cobro.</>
+                    : <>El proveedor no ha emitido <b>{rep}</b> complemento(s) por {mxn(perfil.resumen.repPendienteMonto)}: ese IVA no es acreditable hasta que llegue.</>)}
+                </span>
+              </div>
+            )
+          })()}
+
+          {/* ── Antigüedad del saldo ────────────────────────────────────────
+              Cuánto deben importa menos que desde cuándo. Mismo patrón de
+              tramos que el inventario, aplicado al otro lado del libro. */}
+          {(() => {
+            const abiertas = (perfil.facturas ?? []).filter((f) => (f.saldo ?? 0) > 0.01)
+            if (abiertas.length === 0) return null
+            const hoy = Date.now()
+            const tramos = TRAMOS_SALDO.map((r) => {
+              const dentro = abiertas.filter((f) => {
+                const dias = Math.floor((hoy - new Date(f.fecha).getTime()) / 86400000)
+                return dias >= r.min && dias <= r.max
+              })
+              return {
+                ...r,
+                facturas: dentro.length,
+                importe: dentro.reduce((a, f) => a + (f.saldo ?? 0), 0),
+              }
+            }).filter((t) => t.facturas > 0)
+            const total = tramos.reduce((a, t) => a + t.importe, 0) || 1
+            return (
+              <section className="card" style={{ marginBottom: 14 }}>
+                <div className="card-head" style={{ marginBottom: 12 }}>
+                  <span>{lado === 'CLIENTE' ? 'Cartera del cliente' : 'Cuentas por pagar'}</span>
+                  <span className="muted" style={{ fontSize: 11.5 }}>desde cuándo está abierto el saldo</span>
+                </div>
+                <div className="tramos">
+                  {tramos.map((t) => (
+                    <span key={t.etiqueta} title={`${t.etiqueta}: ${mxn(t.importe)}`}
+                      style={{ background: t.color, width: `${(t.importe / total) * 100}%` }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
+                  {tramos.map((t) => (
+                    <div key={t.etiqueta}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink3)' }}>
+                        <span className="tramos-punto" style={{ background: t.color }} />
+                        {t.etiqueta}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, marginTop: 3,
+                        color: t.etiqueta === 'Más de 60' ? 'var(--neg)' : 'var(--ink)' }}>
+                        {mxn(t.importe)}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--ink3)' }}>{t.facturas} factura(s)</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )
+          })()}
+
 
           <div className="kpi-strip">
             <div className="kpi-item">
@@ -207,7 +363,7 @@ export default function ContactoPerfil() {
                 </>
               ) : (
                 <>
-                  <span className="kpi pos">Al día</span>
+                  <span className="kpi">Al día</span>
                   <span className="kpi-sub">sin REP pendiente</span>
                 </>
               )}
