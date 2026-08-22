@@ -6,44 +6,82 @@ import PaletaComandos, { TECLA_PALETA, useAtajoPaleta } from './PaletaComandos'
 import Icons from './Icons'
 import { aplicarTema, temaGuardado } from '../lib/tema'
 
-// Los 14 destinos en cuatro bloques. Una lista plana de 14 no tiene forma: se
-// lee entera cada vez. Agrupada por para-qué-sirve —lo que se mueve, lo que se
-// cobra, lo que se declara, a quién le vendes— se navega por posición.
+// La navegación se organiza por DEPARTAMENTO, no por tarea, porque así está
+// armada una agencia: cada grupo es un escritorio con su responsable. Con seis
+// roles usando el mismo sistema (dueño, contador, gerente de servicio, de
+// refacciones, F&I, vendedores) agrupar por «lo que se lee» y «lo que se
+// mueve» obliga a todos a aprender el árbol de todos.
+//
+// El árbol es IDÉNTICO para cualquiera: predecible y enseñable. Lo que cambia
+// por rol es qué grupos se ven — eso llega con AutomotrizRol.
+//
+// `porConstruir: true` pinta el destino tenue y sin liga, como manda el
+// handoff: la arquitectura se ve completa sin fingir destinos que no existen.
 const NAV = [
   {
-    grupo: 'Operación',
+    grupo: 'Dirección',
     items: [
       { to: '/panel', label: 'Panel', icon: 'panel' },
+      { to: '/rentabilidad', label: 'Rentabilidad', icon: 'rentabilidad' },
+      { to: '/cobertura', label: 'Cobertura', icon: 'cobertura' },
+      { to: '/alertas', label: 'Alertas', icon: 'alertas' },
+    ],
+  },
+  {
+    grupo: 'CRM',
+    items: [
+      { to: '/ventas', label: 'Ventas y CRM', icon: 'ventas' },
+      { to: '/clientes', label: 'Clientes', icon: 'clientes' },
+      { label: 'Prospectos', icon: 'clientes', porConstruir: true },
+    ],
+  },
+  {
+    grupo: 'Nuevos',
+    items: [
       { to: '/', label: 'Inventario', icon: 'inventario' },
-      { to: '/pedidos', label: 'Pedidos', icon: 'pedidos' },
-      { to: '/servicio', label: 'Servicio', icon: 'servicio' },
+      { to: '/pedidos', label: 'Pedidos a planta', icon: 'pedidos' },
+      { label: 'Intercambios', icon: 'inventario', porConstruir: true },
+    ],
+  },
+  {
+    grupo: 'Seminuevos',
+    items: [
+      // Misma pantalla, otra rebanada: el inventario ya tiene su vista guardada.
+      { to: '/?vista=SEMINUEVO', label: 'Inventario', icon: 'inventario' },
+      { label: 'Toma a cuenta', icon: 'inventario', porConstruir: true },
+    ],
+  },
+  {
+    grupo: 'Post venta',
+    items: [
+      { to: '/servicio', label: 'Órdenes de servicio', icon: 'servicio' },
       { to: '/refacciones', label: 'Refacciones', icon: 'refacciones' },
     ],
   },
   {
-    grupo: 'Comercial',
+    grupo: 'F&I',
     items: [
-      { to: '/ventas', label: 'Ventas y CRM', icon: 'ventas' },
-      { to: '/rentabilidad', label: 'Rentabilidad', icon: 'rentabilidad' },
       { to: '/cartera', label: 'Cartera', icon: 'clientes' },
+      { label: 'Contratos', icon: 'contabilidad', porConstruir: true },
+    ],
+  },
+  {
+    grupo: 'Compras',
+    items: [
+      { to: '/proveedores', label: 'Proveedores', icon: 'proveedores' },
+      { label: 'Órdenes de compra', icon: 'pedidos', porConstruir: true },
+      { label: 'Cuentas por pagar', icon: 'contabilidad', porConstruir: true },
     ],
   },
   {
     grupo: 'Contabilidad',
     items: [
+      // Contabilidad (CE) se retira: el estado de resultados son las cuentas
+      // 4–9 de esa balanza y el balance las 1–3. Entre los dos la cubren
+      // entera, y tenerla aparte era una tercera vista de lo mismo.
       { to: '/estado-resultados', label: 'Estado de resultados', icon: 'contabilidad' },
       { to: '/balance', label: 'Balance general', icon: 'contabilidad' },
-      { to: '/contabilidad', label: 'Contabilidad (CE)', icon: 'contabilidad' },
       { to: '/fiscal', label: 'Impuestos', icon: 'impuestos' },
-      { to: '/alertas', label: 'Alertas', icon: 'alertas' },
-      { to: '/cobertura', label: 'Cobertura', icon: 'cobertura' },
-    ],
-  },
-  {
-    grupo: 'Directorio',
-    items: [
-      { to: '/clientes', label: 'Clientes', icon: 'clientes' },
-      { to: '/proveedores', label: 'Proveedores', icon: 'proveedores' },
     ],
   },
 ]
@@ -168,6 +206,21 @@ export default function Layout() {
                 <div className="nav-group-title">{g.grupo}</div>
                 {g.items.map((n) => {
                   const Icon = Icons[n.icon]
+                  // Destino aún no construido: se enseña tenue y sin liga. La
+                  // arquitectura se ve completa sin fingir a dónde se llega.
+                  if (n.porConstruir) {
+                    return (
+                      <span
+                        key={n.label}
+                        className="rail-item por-construir"
+                        title={`${n.label} — todavía no se construye`}
+                        aria-disabled="true"
+                      >
+                        <Icon />
+                        <span className="rail-label">{n.label}</span>
+                      </span>
+                    )
+                  }
                   return (
                     <NavLink
                       key={n.to}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError, EsqueletoTabla, Vacio } from '../components/Estados'
@@ -51,12 +51,42 @@ const RANGOS = [
   { clave: '+90', etiqueta: 'Más de 90', color: 'var(--negFill)', min: 91, max: Infinity },
 ]
 
+// nulos SIEMPRE al final: una unidad sin dato no encabeza ningún orden.
+const cmp = (get, dir = 'desc') => (a, b) => {
+  const x = get(a), y = get(b)
+  if (x == null && y == null) return 0
+  if (x == null) return 1
+  if (y == null) return -1
+  if (typeof x === 'string') return dir === 'asc' ? x.localeCompare(y, 'es') : y.localeCompare(x, 'es')
+  return dir === 'asc' ? x - y : y - x
+}
+
+const utilidadDe = (v) =>
+  v.costoCompra && v.precioVenta ? v.precioVenta - v.costoCompra - (v.costosTotal ?? 0) : null
+
+const ORDENES = [
+  { clave: 'reciente', etiqueta: 'recién ingresadas', cmp: cmp((v) => v.diasEnPiso, 'asc') },
+  { clave: 'antiguedad', etiqueta: 'días en piso', cmp: cmp((v) => v.diasEnPiso, 'desc') },
+  { clave: 'interes', etiqueta: 'interés devengado', cmp: cmp((v) => v.interesPiso || null, 'desc') },
+  { clave: 'costo', etiqueta: 'costo', cmp: cmp((v) => v.costoCompra || null, 'desc') },
+  { clave: 'precio', etiqueta: 'precio', cmp: cmp((v) => v.precioVenta || null, 'desc') },
+  { clave: 'utilidad', etiqueta: 'utilidad proyectada', cmp: cmp(utilidadDe, 'desc') },
+  { clave: 'marca', etiqueta: 'marca y modelo', cmp: cmp((v) => `${v.marca ?? ''} ${v.modelo ?? ''}`.trim(), 'asc') },
+  { clave: 'anio', etiqueta: 'año', cmp: cmp((v) => v.anio, 'desc') },
+]
+
 export default function Inventario() {
   const { activeCompany } = useAuth()
+  const [params] = useSearchParams()
   const [items, setItems] = useState([])
-  const [vista, setVista] = useState('DISPONIBLE')
+  // El menú entra aquí con ?vista= (Seminuevos es esta misma pantalla, otra
+  // rebanada). Sólo manda en el primer render: después el chip es el que manda.
+  const [vista, setVista] = useState(() => {
+    const v = params.get('vista')
+    return v && VISTAS.some((x) => x.clave === v) ? v : 'DISPONIBLE'
+  })
   const [q, setQ] = useState('')
-  const [orden, setOrden] = useState('dias')
+  const [orden, setOrden] = useState('reciente')
   // Tramo de antigüedad elegido desde la barra. null = todos.
   const [tramo, setTramo] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -102,10 +132,8 @@ export default function Inventario() {
       const r = RANGOS.find((x) => x.clave === tramo)
       if (r) out = out.filter((v) => v.diasEnPiso != null && v.diasEnPiso >= r.min && v.diasEnPiso <= r.max)
     }
-    const orden2 = [...out]
-    if (orden === 'dias') orden2.sort((a, b) => (b.diasEnPiso ?? -1) - (a.diasEnPiso ?? -1))
-    else orden2.sort((a, b) => (b.costoCompra ?? 0) - (a.costoCompra ?? 0))
-    return orden2
+    const criterio = ORDENES.find((o) => o.clave === orden) ?? ORDENES[0]
+    return [...out].sort(criterio.cmp)
   }, [items, vista, q, orden, tramo])
 
   // El capital en piso es de lo que SIGUE en piso: contar lo vendido lo infla.
@@ -253,14 +281,18 @@ export default function Inventario() {
                 {RANGOS.find((r) => r.clave === tramo)?.etiqueta} ✕
               </button>
             )}
-            <button
-              type="button"
-              className="ghost"
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5 }}
-              onClick={() => setOrden((o) => (o === 'dias' ? 'costo' : 'dias'))}
-            >
-              Orden: {orden === 'dias' ? 'días en piso' : 'costo'} ↓
-            </button>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink3)' }}>
+              Orden
+              <select
+                value={orden}
+                onChange={(e) => setOrden(e.target.value)}
+                style={{ width: 'auto', height: 29, fontSize: 11.5, padding: '0 8px' }}
+              >
+                {ORDENES.map((o) => (
+                  <option key={o.clave} value={o.clave}>{o.etiqueta} ↓</option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       )}
