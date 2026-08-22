@@ -21,6 +21,22 @@ const TONO = {
   RECIBIDA: 'neutro', EN_PROCESO: 'warn', LISTA: 'pos', ENTREGADA: 'neutro', CANCELADA: 'neutro',
 }
 
+// Una orden DERIVADA se reconstruyó desde el CFDI de la venta de servicio;
+// una CAPTURADA se dio de alta en la app. La distinción no es cosmética: en la
+// derivada, diagnóstico, técnico, asesor, kilometraje y placas están vacíos
+// PORQUE nunca estuvieron en el CFDI —viven en el DMS del taller—, no porque
+// alguien olvidara llenarlos. Sin esta marca, ocho años de histórico se leen
+// como miles de expedientes incompletos.
+const esDerivada = (o) => o.servicioVentaId != null || o.servicioVenta != null
+
+// Un dato que la orden derivada nunca pudo traer. Se dice, en vez de pintar un
+// guion que se confunde con «falta capturarlo».
+function DatoNoRegistrado({ derivada }) {
+  return derivada
+    ? <span className="muted" title="La orden se reconstruyó desde el CFDI y este dato no viaja en el comprobante">no viene en el CFDI</span>
+    : <span className="muted">sin capturar</span>
+}
+
 // Una promesa está vencida si pasó la fecha y la unidad sigue adentro. Se
 // mide contra el ESTADO, no contra entregadaAt: una orden LISTA ya cumplió el
 // trabajo aunque no se haya entregado.
@@ -186,6 +202,7 @@ export default function OrdenesTaller() {
   const vencidasN = (data?.ordenes ?? []).filter(esVencida).length
   const totalEnVista = ordenes.reduce((a, o) => a + presupuestoDe(o), 0)
   const vencidasEnVista = ordenes.filter(esVencida).length
+  const totalHistorico = ESTADOS.reduce((a, e) => a + n(e), 0)
 
   return (
     <div>
@@ -280,7 +297,19 @@ export default function OrdenesTaller() {
           ))}
           {ordenes.length === 0 && (
             <tr><td colSpan={9} className="muted">
-              {filtro === 'TODAS' || filtro === 'ABIERTAS'
+              {/* «Sin órdenes abiertas» y «sin órdenes» no son lo mismo. Con
+                  15,500 entregadas en el histórico, decir que el taller nunca
+                  recibió una unidad sería falso — y quien lo lea va a creer que
+                  el filtro está roto. */}
+              {filtro === 'ABIERTAS' && totalHistorico > 0 ? (
+                <>
+                  Ninguna orden abierta ahora mismo. Las {totalHistorico.toLocaleString('es-MX')} del
+                  histórico ya se entregaron —{' '}
+                  <button type="button" className="ver-todas" style={{ marginLeft: 0 }} onClick={() => setFiltro('TODAS')}>
+                    verlas todas →
+                  </button>
+                </>
+              ) : totalHistorico === 0
                 ? 'Todavía no se ha recibido ninguna unidad en el taller.'
                 : 'Sin órdenes con este filtro.'}
             </td></tr>
@@ -363,6 +392,7 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const cerrada = o.estado === 'ENTREGADA' || o.estado === 'CANCELADA'
+  const derivada = esDerivada(o)
 
   useEffect(() => { if (!empleados.length && !cerrada) cargarCatalogos() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -405,37 +435,78 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
 
       {/* Los datos de recepción, en rejilla. La BAHÍA que pide el handoff no
           va: no hay modelo de bahías y dibujarla inventada sería peor. */}
+      {derivada && (
+        <div className="card-note" style={{ marginTop: 0 }}>
+          Orden <b>reconstruida desde el CFDI</b> de la venta de servicio. Trae folio, cliente, unidad,
+          fecha e importes; lo que no viaja en un comprobante —diagnóstico, técnico, asesor, kilometraje
+          y placas— nunca estuvo aquí: vive en el sistema del taller. No es un expediente incompleto,
+          es el alcance de la fuente.
+        </div>
+      )}
+
       <div className="meta-orden">
         <div><span className="k">Cliente</span><span className="v">{o.cliente?.razonSocial ?? 'Mostrador'}</span></div>
         <div><span className="k">Unidad</span><span className="v">
           {o.vehiculo ? `${o.vehiculo.marca} ${o.vehiculo.modelo} ${o.vehiculo.anio}` : (o.descripcionUnidad ?? '—')}
         </span></div>
-        <div><span className="k">VIN</span><span className="v mono">{o.vin ?? '—'}</span></div>
-        <div><span className="k">Placas</span><span className="v mono">{o.placas ?? '—'}</span></div>
+        <div><span className="k">VIN</span><span className="v mono">{o.vin ?? <DatoNoRegistrado derivada={derivada} />}</span></div>
+        <div><span className="k">Placas</span><span className="v mono">{o.placas ?? <DatoNoRegistrado derivada={derivada} />}</span></div>
         <div><span className="k">Kilometraje</span><span className="v">
-          {o.kilometraje != null ? `${o.kilometraje.toLocaleString('es-MX')} km` : '—'}
+          {o.kilometraje != null
+            ? `${o.kilometraje.toLocaleString('es-MX')} km`
+            : <DatoNoRegistrado derivada={derivada} />}
         </span></div>
-        <div><span className="k">Asesor</span><span className="v">{nombreEmp(o.asesor) ?? '—'}</span></div>
+        <div><span className="k">Asesor</span><span className="v">{nombreEmp(o.asesor) ?? <DatoNoRegistrado derivada={derivada} />}</span></div>
       </div>
 
       {/* Dónde va la orden. Los cuatro sellos existen en el modelo, así que la
           línea se dibuja con horas reales y no con etapas de adorno. */}
-      <div style={{ maxWidth: 520, margin: '4px 0 8px' }}>
-        <LineaProceso pasos={pasosDe(o)} />
-      </div>
+      {derivada ? (
+        <div className="glosa" style={{ margin: '4px 0 12px' }}>
+          Entregada el {fecha(o.entregadaAt ?? o.recibidaAt)} · el recorrido por el taller no se
+          registró paso a paso, sólo el cierre que amparó la factura.
+        </div>
+      ) : (
+        <div style={{ maxWidth: 520, margin: '4px 0 8px' }}>
+          <LineaProceso pasos={pasosDe(o)} />
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 20, alignItems: 'start' }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Falla reportada</div>
           <div style={{ fontSize: 12.5, marginBottom: 14 }}>{o.fallaReportada}</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Diagnóstico del técnico</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
-            <textarea rows={2} placeholder="Diagnóstico del técnico…" value={diagnostico} disabled={cerrada}
-              onChange={(e) => setDiagnostico(e.target.value)} style={{ flex: 1, minWidth: 280, color: 'var(--ink-2)', lineHeight: 1.5 }} />
-            <select value={tecnicoId} disabled={cerrada} onChange={(e) => setTecnicoId(e.target.value)} style={{ minWidth: 170, width: 'auto' }}>
-              <option value="">Técnico…</option>
-              {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
-            </select>
-          </div>
+          {/* En una orden derivada no hay diagnóstico ni técnico que editar:
+              nunca viajaron en el CFDI. Un campo vacío y deshabilitado invita a
+              llenarlo y no se puede — mejor decir por qué no está. */}
+          {derivada ? (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+              Sin diagnóstico ni técnico asignado: no viajan en el comprobante.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Diagnóstico del técnico</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
+                {cerrada ? (
+                  <div style={{ flex: 1, minWidth: 280, fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                    {diagnostico || <span className="muted">Sin diagnóstico capturado.</span>}
+                  </div>
+                ) : (
+                  <textarea rows={2} placeholder="Diagnóstico del técnico…" value={diagnostico}
+                    onChange={(e) => setDiagnostico(e.target.value)} style={{ flex: 1, minWidth: 280, color: 'var(--ink-2)', lineHeight: 1.5 }} />
+                )}
+                {cerrada ? (
+                  <div style={{ minWidth: 170, fontSize: 12.5 }}>
+                    {nombreEmp(o.tecnico) ?? <span className="muted">sin técnico</span>}
+                  </div>
+                ) : (
+                  <select value={tecnicoId} onChange={(e) => setTecnicoId(e.target.value)} style={{ minWidth: 170, width: 'auto' }}>
+                    <option value="">Técnico…</option>
+                    {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
+                  </select>
+                )}
+              </div>
+            </>
+          )}
           <table>
             <thead><tr><th>Tipo</th><th>Descripción</th><th className="num">Cant.</th><th className="num">P. unitario</th><th className="num">Importe</th><th /></tr></thead>
             <tbody>
@@ -451,9 +522,15 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
                         </select>
                       )}
                   </td>
-                  <td><input value={l.descripcion} disabled={cerrada} onChange={(e) => setLinea(i, 'descripcion', e.target.value)} style={{ width: '100%' }} /></td>
-                  <td className="num"><input type="number" min="0" step="0.01" value={l.cantidad} disabled={cerrada} onChange={(e) => setLinea(i, 'cantidad', e.target.value)} style={{ width: 70, textAlign: 'right' }} /></td>
-                  <td className="num"><input type="number" min="0" step="0.01" value={l.precioUnitario} disabled={cerrada} onChange={(e) => setLinea(i, 'precioUnitario', e.target.value)} style={{ width: 110, textAlign: 'right' }} /></td>
+                  <td>{cerrada
+                    ? <span style={{ fontSize: 12.5 }}>{l.descripcion}</span>
+                    : <input value={l.descripcion} onChange={(e) => setLinea(i, 'descripcion', e.target.value)} style={{ width: '100%' }} />}</td>
+                  <td className="num">{cerrada
+                    ? <span className="tnum">{Number(l.cantidad).toLocaleString('es-MX')}</span>
+                    : <input type="number" min="0" step="0.01" value={l.cantidad} onChange={(e) => setLinea(i, 'cantidad', e.target.value)} style={{ width: 70, textAlign: 'right' }} />}</td>
+                  <td className="num">{cerrada
+                    ? <span className="tnum">{mxn(Number(l.precioUnitario))}</span>
+                    : <input type="number" min="0" step="0.01" value={l.precioUnitario} onChange={(e) => setLinea(i, 'precioUnitario', e.target.value)} style={{ width: 110, textAlign: 'right' }} />}</td>
                   <td className="num">{mxn(importe(l))}</td>
                   <td>{!cerrada && <button className="ghost" style={BTN_FILA} onClick={() => setLineas((ls) => ls.filter((_, j) => j !== i))}>✕</button>}</td>
                 </tr>
@@ -474,16 +551,41 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span className="muted">Mano de obra</span><span className="tnum">{mxn(totalMO)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span className="muted">Refacciones</span><span className="tnum">{mxn(totalRef)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--surface-hover)', paddingTop: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Presupuesto</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{derivada ? 'Subtotal' : 'Presupuesto'}</span>
               <span className="tnum" style={{ fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }}>{mxn(total)}</span>
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--muted-2)' }}>sin IVA — el importe fiscal es el del CFDI</div>
+
+            {/* De las líneas al total del CFDI. Las líneas son NETAS —partes y
+                mano de obra sin impuesto, como debe ser una orden de taller— y
+                el comprobante trae IVA encima. Puestos sin el renglón de en
+                medio, la diferencia parecía un descuadre; con él es una
+                factura normal y no hay nada que explicar. */}
+            {o.servicioVenta && (() => {
+              const impuesto = o.servicioVenta.total - total
+              const cuadra = Math.abs(impuesto) > 0.5
+              return (
+                <>
+                  {cuadra && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, paddingTop: 8 }}>
+                      <span className="muted">{impuesto > 0 ? 'IVA e impuestos' : 'Ajuste'}</span>
+                      <span className="tnum">{mxn(impuesto)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--surface-hover)', paddingTop: 10, marginTop: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Total facturado</span>
+                    <span className="tnum" style={{ fontSize: 17, fontWeight: 600 }}>{mxn(o.servicioVenta.total)}</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--muted-2)' }}>
+                    CFDI del {fecha(o.servicioVenta.fecha)} — es el importe fiscal.
+                  </div>
+                </>
+              )
+            })()}
+
+            {!o.servicioVenta && (
+              <div style={{ fontSize: 11.5, color: 'var(--muted-2)' }}>sin IVA — el importe fiscal es el del CFDI</div>
+            )}
           </div>
-          {o.servicioVenta && (
-            <div style={{ marginTop: 12, fontSize: 12.5 }}>
-              Facturada: <b className="tnum">{mxn(o.servicioVenta.total)}</b> el {fecha(o.servicioVenta.fecha)}
-            </div>
-          )}
           <div className="card-note" style={{ marginTop: 12 }}>
             La factura del cierre no se captura: cuando el CFDI se emita, el sync del SAT lo liga solo a esta orden por VIN o cliente. Si no empata, «Ligar CFDI» lo hace a mano.
           </div>

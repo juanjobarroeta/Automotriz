@@ -176,7 +176,17 @@ function FilaServicio({ s, onVer }) {
           : <span className="muted">—</span>}
       </td>
       <td className="num">{mxn(s.total)}</td>
-      <td><CfdiAcciones invoice={s.invoice} onVer={onVer} /></td>
+      <td>
+        {s.orden && (
+          <>
+            <Link to={`/servicio?q=${s.orden.folio}`} className="mono" style={{ fontSize: 11 }}
+              title="Abrir la orden de taller completa">
+              OS-{s.orden.folio}
+            </Link>{' '}
+          </>
+        )}
+        <CfdiAcciones invoice={s.invoice} onVer={onVer} />
+      </td>
     </tr>
   )
 }
@@ -354,7 +364,7 @@ export default function ContactoPerfil() {
           onCerrar={() => setVentana(null)}
         >
           <table className="tabla">
-            <thead><tr><th>Fecha</th><th>Trabajo</th><th>Unidad</th><th className="num">M. de obra</th><th className="num">Refacc.</th><th className="num">Total</th><th>CFDI</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Trabajo</th><th>Unidad</th><th className="num">M. de obra</th><th className="num">Refacc.</th><th className="num">Total</th><th>Orden y CFDI</th></tr></thead>
             <tbody>
               {perfil.servicio.ultimas.map((s) => (
                 <tr key={s.id}>
