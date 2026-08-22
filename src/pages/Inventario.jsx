@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError, EsqueletoTabla, Vacio } from '../components/Estados'
+import { BarraTramos, MicroBarra, Tabla } from '../components/Primitivos'
 
 const ESTADOS = ['', 'EN_TRANSITO', 'DISPONIBLE', 'APARTADO', 'VENDIDO', 'ENTREGADO', 'CANCELADO']
 
@@ -165,6 +166,70 @@ export default function Inventario() {
           </div>
         )
       })()}
+
+      {!loading && items.length > 0 && (() => {
+        // Los tramos se calculan sobre lo que SIGUE en piso: una unidad
+        // vendida ya dejó de devengar y contarla inflaría el costo de hoy.
+        const enPiso = items.filter(
+          (v) => (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO') && (v.uso ?? 'VENTA') === 'VENTA'
+        )
+        const rangos = [
+          { etiqueta: '0–30 días', color: 'var(--posFill)', min: 0, max: 30 },
+          { etiqueta: '31–60 días', color: 'var(--accFill)', min: 31, max: 60 },
+          { etiqueta: '61–90 días', color: 'var(--warnFill)', min: 61, max: 90 },
+          { etiqueta: '+90 días', color: 'var(--negFill)', min: 91, max: Infinity },
+        ]
+        const tramos = rangos.map((r) => {
+          const dentro = enPiso.filter((v) => v.diasEnPiso != null && v.diasEnPiso >= r.min && v.diasEnPiso <= r.max)
+          return {
+            etiqueta: r.etiqueta,
+            color: r.color,
+            unidades: dentro.length,
+            importe: dentro.reduce((a, v) => a + (v.costoCompra ?? 0), 0),
+            nota: dentro.reduce((a, v) => a + (v.interesPiso ?? 0), 0) > 0
+              ? `${mxn(dentro.reduce((a, v) => a + (v.interesPiso ?? 0), 0))} de interés`
+              : null,
+          }
+        })
+        const interesTotal = enPiso.reduce((a, v) => a + (v.interesPiso ?? 0), 0)
+        const viejas = enPiso.filter((v) => (v.diasEnPiso ?? 0) > 90)
+        const interesViejas = viejas.reduce((a, v) => a + (v.interesPiso ?? 0), 0)
+        const sinFecha = enPiso.filter((v) => v.diasEnPiso == null).length
+        if (enPiso.length === 0) return null
+        return (
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'stretch' }}>
+            <section className="card" style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Antigüedad de la unidad</span>
+                <span className="muted" style={{ fontSize: 11.5 }}>
+                  cuánto plan piso se paga por metal parado
+                </span>
+              </div>
+              <BarraTramos tramos={tramos} />
+              {sinFecha > 0 && (
+                <p className="muted" style={{ fontSize: 11, marginTop: 10, marginBottom: 0 }}>
+                  {sinFecha} sin fecha de entrada — no entran al conteo por tramo.
+                </p>
+              )}
+            </section>
+            {interesTotal > 0 && (
+              <section
+                className="card"
+                style={{ width: 260, flexShrink: 0, background: 'var(--negBg)', borderColor: 'var(--neg)' }}
+              >
+                <span className="kpi-label">Interés devengado</span>
+                <div className="kpi neg" style={{ marginTop: 4 }}>{mxn(interesTotal)}</div>
+                {viejas.length > 0 && (
+                  <p className="muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
+                    Las {viejas.length} unidades de más de 90 días son el{' '}
+                    {Math.round((interesViejas / interesTotal) * 100)}% de ese costo.
+                  </p>
+                )}
+              </section>
+            )}
+          </div>
+        )
+      })()}
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading ? (
         <EsqueletoTabla columnas={[2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2]} filas={8} />
@@ -192,42 +257,78 @@ export default function Inventario() {
           />
         )
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>VIN</th><th>Marca</th><th>Modelo</th><th className="num">Año</th>
-              <th>Color</th><th>Tipo</th><th>Estado</th>
-              <th className="num">Costo</th><th className="num">Costos adic.</th>
-              <th className="num">Precio venta</th><th>Cliente</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.map((v) => (
-              <tr key={v.id}>
-                <td className="mono">
-                  <Link to={`/vehiculos/${v.id}`}>{v.vin}</Link>
-                  {v.ciclo > 1 ? <> <span className="badge" title="La unidad ya pasó antes por el piso">{v.ciclo}º ciclo</span></> : null}
-                </td>
-                <td style={{ fontSize: 13 }}>{v.marca}</td>
-                <td style={{ fontSize: 13 }}>
-                  {v.modelo}
-                  {v.version ? <span style={SEC}> {v.version}</span> : null}
-                </td>
-                <td className="num" style={SEC}>{v.anio}</td>
-                <td style={SEC}>{v.color ?? '—'}</td>
-                <td style={SEC}>
-                  {TIPO_LABEL[v.tipo] ?? v.tipo}
-                  {v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{USO_LABEL[v.uso] ?? v.uso}</span></> : null}
-                </td>
-                <td><span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span></td>
-                <td className="num">{mxn(v.costoCompra)}</td>
-                <td className="num" style={SEC}>{mxn(v.costosTotal)}</td>
-                <td className="num">{mxn(v.precioVenta)}</td>
-                <td style={SEC}>{v.cliente ? <Link to={`/contactos/${v.cliente.id}`}>{v.cliente.razonSocial}</Link> : (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}</td>
-              </tr>
-              ))}
-          </tbody>
-        </table>
+        <Tabla
+          columnas={[
+            { clave: 'vin', etiqueta: 'VIN' },
+            { clave: 'unidad', etiqueta: 'Unidad' },
+            { clave: 'estado', etiqueta: 'Estado' },
+            { clave: 'tipo', etiqueta: 'Tipo' },
+            { clave: 'dias', etiqueta: 'Días en piso', num: true },
+            { clave: 'interes', etiqueta: 'Interés devengado', num: true },
+            { clave: 'costo', etiqueta: 'Costo', num: true },
+            { clave: 'precio', etiqueta: 'Precio', num: true },
+            { clave: 'cliente', etiqueta: 'Cliente' },
+          ]}
+          filas={visibles}
+          claveFila={(v) => v.id}
+          // La excepción es el metal parado: +90 días marca el renglón.
+          esExcepcion={(v) => (v.diasEnPiso ?? 0) > 90 && (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO')}
+          render={{
+            vin: (v) => (
+              <span className="mono">
+                <Link to={`/vehiculos/${v.id}`}>{v.vin}</Link>
+                {v.ciclo > 1 ? <> <span className="badge" title="La unidad ya pasó antes por el piso">{v.ciclo}º ciclo</span></> : null}
+              </span>
+            ),
+            unidad: (v) => (
+              <span className="celda2">
+                <b>{v.marca} {v.modelo}{v.version ? ` ${v.version}` : ''}</b>
+                <span>{[v.anio, v.color].filter(Boolean).join(' · ')}</span>
+              </span>
+            ),
+            estado: (v) => (
+              <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
+            ),
+            tipo: (v) => (
+              <span style={SEC}>
+                {TIPO_LABEL[v.tipo] ?? v.tipo}
+                {v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{USO_LABEL[v.uso] ?? v.uso}</span></> : null}
+              </span>
+            ),
+            // Sin fecha de entrada no se pinta un cero: no es que lleve cero
+            // días, es que no sabemos cuándo entró.
+            dias: (v) => (v.diasEnPiso == null
+              ? <span style={{ color: 'var(--ink3)' }}>n/d</span>
+              : <MicroBarra valor={v.diasEnPiso} />),
+            interes: (v) => (v.interesPiso > 0
+              ? <span style={{ color: 'var(--neg)' }}>{mxn(v.interesPiso)}</span>
+              : <span style={{ color: 'var(--ink3)' }}>—</span>),
+            // Costo sin documentar ≠ costo cero (contrato de integridad 2).
+            costo: (v) => (v.costoCompra
+              ? mxn(v.costoCompra)
+              : <span style={{ color: 'var(--neg)' }}>sin documentar</span>),
+            precio: (v) => mxn(v.precioVenta),
+            cliente: (v) => (
+              <span style={SEC}>
+                {v.cliente
+                  ? <Link to={`/contactos/${v.cliente.id}`}>{v.cliente.razonSocial}</Link>
+                  : (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}
+              </span>
+            ),
+          }}
+          pie={{
+            alcance: `${visibles.length} de ${items.length}`,
+            valores: {
+              dias: (() => {
+                const con = visibles.filter((v) => v.diasEnPiso != null)
+                return con.length ? Math.round(con.reduce((a, v) => a + v.diasEnPiso, 0) / con.length) : '—'
+              })(),
+              interes: mxn(visibles.reduce((a, v) => a + (v.interesPiso ?? 0), 0)),
+              costo: mxn(visibles.reduce((a, v) => a + (v.costoCompra ?? 0), 0)),
+              precio: mxn(visibles.reduce((a, v) => a + (v.precioVenta ?? 0), 0)),
+            },
+          }}
+        />
       )}
 
       {showAlta && (
