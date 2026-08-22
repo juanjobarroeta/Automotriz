@@ -870,3 +870,174 @@ tfoot td { border-bottom: 0; font-weight: 600; }
 .tema-toggle > button.activo {
   background: var(--panel); color: var(--ink); font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRIMITIVOS — Fase 0b
+   Los ocho patrones que el handoff pide construir UNA vez y componer en las
+   nueve pantallas. Medidas tomadas del v4, no inventadas.
+
+   El prototipo los escribe con estilos en línea porque es un prototipo; aquí
+   van como clases para que una corrección se haga en un lugar y no en nueve.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Las cifras se alinean dígito a dígito en toda la app. */
+body { font-variant-numeric: tabular-nums; }
+
+@keyframes blip { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+
+/* ── 1. Tabla de datos ─────────────────────────────────────────────────────
+   Encabezado en --panel2, numéricas a la derecha en mono, y SIEMPRE un pie de
+   totales: existe para que nadie exporte a Excel a sumar una columna. */
+.tabla { width: 100%; border-collapse: collapse; }
+.tabla th {
+  height: 30px; padding: 0 16px; text-align: left;
+  font-size: 11px; font-weight: 500; color: var(--ink3);
+  background: var(--panel2); border-bottom: 1px solid var(--line2);
+  white-space: nowrap;
+}
+.tabla td {
+  padding: var(--rowpad) 16px; border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.tabla tbody tr.clicable { cursor: pointer; }
+.tabla tbody tr.clicable:hover { background: var(--panel2); }
+.tabla tbody tr.seleccionada { background: var(--panel2); }
+/* La excepción se marca con una barra roja a la izquierda del renglón. */
+.tabla tbody tr.excepcion > td:first-child { border-left: 2px solid var(--neg); }
+.tabla tbody tr.excepcion { background: var(--negBg); }
+.tabla .num {
+  text-align: right; font-family: var(--font-mono);
+  font-size: 11.5px; white-space: nowrap;
+}
+.tabla .mono { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink2); }
+/* Celda de dos renglones: identificador arriba, su calificador abajo. */
+.celda2 > b { display: block; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.celda2 > span { display: block; font-size: 10.5px; color: var(--ink3); margin-top: 2px; }
+.tabla tfoot td {
+  padding: 13px 16px; border-top: 1px solid var(--line2); border-bottom: 0;
+  background: var(--panel2); font-family: var(--font-mono);
+  font-size: 11px; font-weight: 700;
+}
+/* La celda izquierda del pie dice el alcance («8 de 96»), no una cifra. */
+.tabla tfoot td.alcance {
+  font-family: var(--font-ui); font-size: 11.5px; font-weight: 400; color: var(--ink3);
+}
+
+/* ── 2. Facetas / vistas guardadas ───────────────────────────────────────── */
+.facetas { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.faceta {
+  display: inline-flex; align-items: center; gap: 6px; height: 29px;
+  padding: 0 11px; border: 1px solid var(--line); border-radius: var(--radius-chip);
+  background: transparent; color: var(--ink2);
+  font-family: var(--font-ui); font-size: 11.5px; cursor: pointer;
+}
+.faceta:hover { color: var(--ink); }
+.faceta.activa { background: var(--ink); color: var(--inkOn); border-color: var(--ink); }
+.faceta-conteo { font-family: var(--font-mono); font-size: 10.5px; opacity: .8; }
+.faceta.activa .faceta-conteo { opacity: .9; }
+.faceta-conteo.alerta { color: var(--neg); }
+.faceta.nueva { border-style: dashed; color: var(--ink3); }
+
+/* ── 3. Barra de tramos (antigüedad, cartera, cuentas por pagar) ─────────── */
+.tramos { display: flex; gap: 2px; }
+.tramos > span { height: 9px; border-radius: var(--radius-bar); }
+.tramos-leyenda { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+.tramos-leyenda dt {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--ink3); margin-bottom: 4px;
+}
+.tramos-leyenda dd { margin: 0; font-family: var(--font-mono); font-size: 11.5px; }
+.tramos-punto { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── 4. Micro-barra en renglón ───────────────────────────────────────────── */
+.microbarra { display: inline-flex; align-items: center; gap: 8px; }
+.microbarra-riel {
+  width: 40px; height: 4px; border-radius: 2px;
+  background: var(--panel3); display: inline-block; overflow: hidden;
+}
+.microbarra-riel > span { display: block; height: 100%; }
+.microbarra-valor {
+  font-family: var(--font-mono); font-size: 11.5px;
+  width: 22px; text-align: right;
+}
+
+/* ── 5. Línea de proceso ──────────────────────────────────────────────────
+   El ÚNICO elemento animado de la app: el pulso del nodo en curso. Tres
+   pulsos simultáneos se probaron y se rechazaron. */
+.linea-proceso { display: flex; align-items: flex-start; gap: 0; }
+.linea-nodo { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+.linea-nodo > i {
+  width: 11px; height: 11px; border-radius: 50%; display: block;
+  background: var(--panel3); border: 1px solid var(--line2); z-index: 1;
+}
+.linea-nodo.hecho > i { background: var(--accFill); border-color: var(--accFill); }
+.linea-nodo.actual > i { background: var(--warnFill); border-color: var(--warnFill); animation: blip 2s infinite; }
+.linea-nodo > span { font-size: 10.5px; color: var(--ink3); margin-top: 7px; text-align: center; }
+.linea-nodo.actual > span { font-weight: 600; color: var(--ink); }
+/* El conector va DETRÁS: acento en lo recorrido, hairline en lo que falta. */
+.linea-nodo::before {
+  content: ''; position: absolute; top: 5px; left: -50%; width: 100%;
+  height: 1px; background: var(--line);
+}
+.linea-nodo:first-child::before { display: none; }
+.linea-nodo.hecho::before, .linea-nodo.actual::before { background: var(--accFill); }
+
+/* ── 6. Lista de requisitos ───────────────────────────────────────────────
+   Aquí el verde SÍ se queda: marca lo satisfecho. El renglón NO satisfecho
+   conserva la tinta plena porque es el accionable. */
+.requisitos { margin: 0; }
+.requisito {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.requisito:last-child { border-bottom: 0; }
+.requisito-marca {
+  width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid;
+  font-size: 8.5px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.requisito.ok .requisito-marca { border-color: var(--pos); background: var(--pos); color: var(--panel); }
+.requisito.falta .requisito-marca { border-color: var(--neg); background: transparent; color: var(--neg); }
+.requisito.pendiente .requisito-marca { border-color: var(--warn); background: transparent; color: var(--warn); }
+.requisito > span { font-size: 12px; }
+.requisito.ok > span { color: var(--ink2); }
+.requisito > a { margin-left: auto; font-size: 11.5px; }
+
+/* ── 7. Maestro–detalle ───────────────────────────────────────────────────
+   Lista a la izquierda, registro a la derecha con hairline y encabezado
+   pegado. */
+.maestro-detalle { display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+.maestro-detalle > aside { border-left: 1px solid var(--line); }
+.maestro-detalle > aside > header {
+  position: sticky; top: 0; background: var(--panel);
+  padding: 16px 20px; border-bottom: 1px solid var(--line);
+}
+@media (max-width: 1180px) { .maestro-detalle { grid-template-columns: 1fr; } }
+
+/* ── 8. Modal de registro ─────────────────────────────────────────────────
+   Lo ÚNICO en la app que lleva sombra. */
+.modal-fondo {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, .55); display: flex;
+  justify-content: center; align-items: flex-start; padding: 72px 16px 16px;
+}
+.modal-registro {
+  width: 560px; max-width: 100%; background: var(--panel);
+  border: 1px solid var(--line2); border-radius: var(--radius-modal);
+  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .7);
+  max-height: calc(100vh - 96px); overflow: auto;
+}
+.modal-registro > header {
+  padding: 17px 22px; border-bottom: 1px solid var(--line);
+}
+.modal-campos {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--line); border-top: 1px solid var(--line);
+}
+.modal-campos > div { background: var(--panel); padding: 11px 22px; }
+.modal-campos dt { font-size: 10.5px; color: var(--ink3); margin-bottom: 3px; }
+.modal-campos dd { margin: 0; font-size: 12px; }
+.modal-registro > footer {
+  padding: 13px 22px; border-top: 1px solid var(--line2);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
