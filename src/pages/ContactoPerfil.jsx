@@ -76,7 +76,7 @@ function EstadoDeCuenta({ clienteId }) {
                   <td className="mono">{m.referencia ?? '—'}</td>
                   <td className="num">{m.cargo > 0 ? mxn(m.cargo) : '—'}</td>
                   <td className="num">{m.abono > 0 ? mxn(m.abono) : '—'}</td>
-                  <td className={`num ${m.saldo > 0.01 ? '' : 'pos'}`}>{mxn(m.saldo)}</td>
+                  <td className={'num'}>{mxn(m.saldo)}</td>
                 </tr>
               ))}
               {data.movimientos.length === 0 && <tr><td colSpan={6} className="muted">Sin movimientos en {data.year}.</td></tr>}
@@ -84,7 +84,7 @@ function EstadoDeCuenta({ clienteId }) {
           </table>
           <p className="faint" style={NOTA}>
             {data.resumen.movimientos} movimientos · cargos {mxn(data.resumen.cargos)} · abonos {mxn(data.resumen.abonos)} ·{' '}
-            saldo final <b className={data.resumen.saldoFinal > 0.01 ? 'neg' : 'pos'}>{mxn(data.resumen.saldoFinal)}</b>.
+            saldo final <b className={data.resumen.saldoFinal > 0.01 ? 'neg' : ''}>{mxn(data.resumen.saldoFinal)}</b>.
             Documental: facturas y NC del CFDI, pagos por REP (con su fecha legal), PUE liquidadas en su emisión y cobros conciliados en banco.
           </p>
         </>
@@ -186,7 +186,7 @@ export default function ContactoPerfil() {
             {lado === 'CLIENTE' && perfil.rentabilidad && (
               <div className="kpi-item">
                 <span className="kpi-label">Utilidad generada</span>
-                <span className={`kpi ${perfil.rentabilidad.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(perfil.rentabilidad.utilidad)}</span>
+                <span className={`kpi ${perfil.rentabilidad.utilidad >= 0 ? '' : 'neg'}`}>{mxn(perfil.rentabilidad.utilidad)}</span>
                 <span className="kpi-sub">
                   {perfil.rentabilidad.unidades} unidad(es)
                   {perfil.rentabilidad.margen != null ? ` · margen ${perfil.rentabilidad.margen}%` : ''}

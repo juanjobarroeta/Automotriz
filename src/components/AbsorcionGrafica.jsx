@@ -144,7 +144,7 @@ export default function AbsorcionGrafica({ serie }) {
           <div style={{ fontWeight: 600 }}>{sel.mes} · absorción {Math.round(sel.porcentaje)}%</div>
           <div className="muted">Utilidad taller + refacciones: {mxn(sel.utilidadFixedOps)}</div>
           <div className="muted">Estructura: {mxn(sel.estructura)}</div>
-          <div className={sel.porcentaje >= 100 ? 'pos' : 'neg'}>
+          <div className={sel.porcentaje >= 100 ? '' : 'neg'}>
             {sel.porcentaje >= 100
               ? 'El back end paga solo la estructura.'
               : `Falta ${mxn(sel.estructura - sel.utilidadFixedOps)} que debe salir de vender unidades.`}

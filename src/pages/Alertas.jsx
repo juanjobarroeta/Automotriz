@@ -61,7 +61,7 @@ export default function Alertas() {
       <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
         <div className="kpi-item">
           <span className="kpi-label">Auditor fiscal</span>
-          <span className={`kpi ${criticos > 0 ? 'neg' : data.hallazgos.length === 0 ? 'pos' : ''}`}>{data.hallazgos.length}</span>
+          <span className={`kpi ${criticos > 0 ? 'neg' : ''}`}>{data.hallazgos.length}</span>
           <span className="kpi-sub">
             hallazgos abiertos
             {criticos > 0 && <span style={{ color: 'var(--danger)' }}> · {criticos} críticos</span>}
@@ -69,7 +69,7 @@ export default function Alertas() {
         </div>
         <div className="kpi-item">
           <span className="kpi-label">REP por emitir</span>
-          <span className={`kpi ${data.repPorEmitir.vencidos > 0 ? 'neg' : data.repPorEmitir.totalPendientes === 0 ? 'pos' : ''}`}>
+          <span className={`kpi ${data.repPorEmitir.vencidos > 0 ? 'neg' : ''}`}>
             {mxn(data.repPorEmitir.montoPendiente)}
           </span>
           <span className="kpi-sub">
@@ -81,7 +81,7 @@ export default function Alertas() {
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Inventario detenido</span>
-          <span className={`kpi ${data.inventario.criticas > 0 ? 'neg' : data.inventario.totalEnvejecidas === 0 ? 'pos' : ''}`}>
+          <span className={`kpi ${data.inventario.criticas > 0 ? 'neg' : ''}`}>
             {data.inventario.totalEnvejecidas}
           </span>
           <span className="kpi-sub">

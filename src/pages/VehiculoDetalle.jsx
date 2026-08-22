@@ -256,7 +256,7 @@ export default function VehiculoDetalle() {
               <dt className="muted">   (de los cuales interés piso)</dt><dd className="muted">{mxn(v.rentabilidad.interesPiso)}</dd>
               <dt>− Comisión</dt><dd>{mxn(v.rentabilidad.comision)}</dd>
               <dt><strong>Utilidad</strong></dt>
-              <dd><strong className={v.rentabilidad.utilidad >= 0 ? 'pos' : 'neg'}>{mxn(v.rentabilidad.utilidad)}</strong></dd>
+              <dd><strong className={v.rentabilidad.utilidad >= 0 ? '' : 'neg'}>{mxn(v.rentabilidad.utilidad)}</strong></dd>
             </dl>
           ) : (
             <p className="muted">Se calcula al vender. Costos acumulados: {mxn(v.costosTotal)} (interés piso: {mxn(v.interesPiso)}).</p>
@@ -343,7 +343,7 @@ export default function VehiculoDetalle() {
                   <td style={SEC}>{fecha(c.fecha)}</td>
                   <td>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')}</td>
                   <td style={SEC}>{c.concepto}</td>
-                  <td className={`num ${c.monto < 0 ? 'pos' : ''}`}>{mxn(c.monto)}</td>
+                  <td className={'num'}>{mxn(c.monto)}</td>
                   <td>
                     {c.invoiceId ? (
                       <>

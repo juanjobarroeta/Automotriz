@@ -57,7 +57,7 @@ export default function Cobertura() {
             {[['Ingresos', data.cobertura.ingresos], ['Egresos', data.cobertura.egresos], ['Nómina', data.cobertura.nomina]].map(([titulo, lado]) => (
               <div className="kpi-item" key={titulo}>
                 <span className="kpi-label">{titulo} explicados</span>
-                <span className={`kpi ${lado.pct != null && lado.pct >= 95 ? 'pos' : ''}`}>{pct(lado.pct)}</span>
+                <span className={`kpi ${lado.pct != null && lado.pct < 95 ? 'warn' : ''}`}>{pct(lado.pct)}</span>
                 <span className="kpi-sub">
                   {lado.pendiente !== 0
                     ? <>{mxn(lado.pendiente)} sin clasificar</>

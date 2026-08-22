@@ -56,7 +56,7 @@ export default function Cartera() {
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Complementos pendientes</span>
-              <span className={`kpi ${data.resumen.repPendienteTotal > 0 ? 'neg' : 'pos'}`}>{mxn(data.resumen.repPendienteTotal)}</span>
+              <span className={`kpi ${data.resumen.repPendienteTotal > 0 ? 'neg' : ''}`}>{mxn(data.resumen.repPendienteTotal)}</span>
               <span className="kpi-sub">
                 {lado === 'COBRAR' ? 'cobros PPD sin REP emitido (te toca emitir)' : 'pagos PPD sin REP del proveedor (riesgo de deducción)'}
               </span>

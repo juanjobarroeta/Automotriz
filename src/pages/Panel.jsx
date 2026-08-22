@@ -55,12 +55,12 @@ export default function Panel() {
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Utilidad bruta del mes</span>
-          <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadBruta)}</span>
+          <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? '' : 'neg'}`}>{mxn(mes.utilidadBruta)}</span>
           <span className="kpi-sub">todas las líneas · antes de estructura</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Utilidad neta del mes</span>
-          <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? 'pos' : 'neg'}`}>{mxn(mes.utilidadNeta)}</span>
+          <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? '' : 'neg'}`}>{mxn(mes.utilidadNeta)}</span>
           <span className="kpi-sub">después de {mxn(mes.estructura)} de estructura</span>
         </div>
         <div className="kpi-item">
@@ -104,7 +104,7 @@ export default function Panel() {
       {absorcion && (
         <section className="card" style={{ marginTop: 18 }}>
           <h2>Absorción de servicio</h2>
-          <p className={`kpi ${absorbe ? 'pos' : 'neg'}`}>
+          <p className={`kpi ${absorbe ? '' : 'neg'}`}>
             {absorcion.porcentaje == null ? '—' : `${Math.round(absorcion.porcentaje)}%`}
           </p>
           <p className="muted">
@@ -125,7 +125,7 @@ export default function Panel() {
                     <td>{m.mes}</td>
                     <td className="num">{mxn(m.utilidadFixedOps)}</td>
                     <td className="num">{mxn(m.estructura)}</td>
-                    <td className={`num ${m.porcentaje >= 100 ? 'pos' : 'neg'}`}>
+                    <td className={`num ${m.porcentaje >= 100 ? '' : 'neg'}`}>
                       {m.porcentaje == null ? '—' : `${Math.round(m.porcentaje)}%`}
                     </td>
                   </tr>

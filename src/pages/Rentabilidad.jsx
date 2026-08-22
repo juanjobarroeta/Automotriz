@@ -92,12 +92,12 @@ function PorLinea() {
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Utilidad bruta</span>
-              <span className={`kpi ${data.totales.utilidadBruta >= 0 ? 'pos' : 'neg'}`}>{mxn(data.totales.utilidadBruta)}</span>
+              <span className={`kpi ${data.totales.utilidadBruta >= 0 ? '' : 'neg'}`}>{mxn(data.totales.utilidadBruta)}</span>
               <span className="kpi-sub">margen {pct(data.totales.margenBruto)} · antes de estructura</span>
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Utilidad de operación</span>
-              <span className={`kpi ${data.totales.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(data.totales.utilidad)}</span>
+              <span className={`kpi ${data.totales.utilidad >= 0 ? '' : 'neg'}`}>{mxn(data.totales.utilidad)}</span>
               <span className="kpi-sub">después de la nómina de ventas, refacciones y administración</span>
             </div>
             {data.totales.ingresoSinCosto > 0 && (
@@ -161,7 +161,7 @@ function PorLinea() {
                     ))}
                     <tr>
                       <td><b>Utilidad de operación</b></td>
-                      <td className={`num ${data.totales.utilidad >= 0 ? 'pos' : 'neg'}`}><b>{mxn(data.totales.utilidad)}</b></td>
+                      <td className={`num ${data.totales.utilidad >= 0 ? '' : 'neg'}`}><b>{mxn(data.totales.utilidad)}</b></td>
                     </tr>
                   </tbody>
                 </table>
@@ -405,7 +405,7 @@ function PorUnidad() {
             </div>
             <div className="kpi-item">
               <span className="kpi-label">Utilidad</span>
-              <span className={`kpi ${data.resumen.utilidad >= 0 ? 'pos' : 'neg'}`}>{mxn(data.resumen.utilidad)}</span>
+              <span className={`kpi ${data.resumen.utilidad >= 0 ? '' : 'neg'}`}>{mxn(data.resumen.utilidad)}</span>
               <span className="kpi-sub">
                 margen {pct(data.resumen.margen)}{data.resumen.notasCredito > 0 ? ` · incluye ${mxn(data.resumen.notasCredito)} de notas de crédito` : ''}
               </span>
