@@ -254,8 +254,13 @@ export default function VehiculoDetalle() {
   // así que una unidad de 94 días trae tres. El handoff enseña una sola línea
   // de interés y tiene razón: lo que se decide es cuánto lleva devengado, no
   // en qué mes se devengó. Se juntan en un renglón que dice cuántos meses son.
-  const costosNormales = v.costos.filter((c) => c.tipo !== 'INTERES_PISO')
-  const mesesInteres = v.costos.filter((c) => c.tipo === 'INTERES_PISO')
+  // El hub y el satélite se despliegan por separado. Si un día la respuesta
+  // llega sin `costos`, esto se cae con «filter is not a function» y se lleva
+  // la página entera — el mismo modo de falla que ya arreglamos en el estado
+  // de cuenta y en Reportes de taller.
+  const costos = Array.isArray(v.costos) ? v.costos : []
+  const costosNormales = costos.filter((c) => c.tipo !== 'INTERES_PISO')
+  const mesesInteres = costos.filter((c) => c.tipo === 'INTERES_PISO')
 
   const CfdiLinks = ({ inv }) => inv ? (
     <>
@@ -487,7 +492,7 @@ export default function VehiculoDetalle() {
                 </tr>
               )}
 
-              {v.costoCompra === 0 && v.costos.length === 0 && (
+              {v.costoCompra === 0 && costos.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">
                     Sin costos registrados. Ni la compra tiene importe ni hay conceptos capturados.
