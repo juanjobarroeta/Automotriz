@@ -33,6 +33,29 @@ const SEC = { color: 'var(--ink-3)' }
 // Botón en línea dentro de celda: mismo control ghost en tamaño compacto.
 const MINI = { padding: '2px 10px', fontSize: 12 }
 
+const CAMPO_LABEL = {
+  costoCompra: 'Costo de compra', precioLista: 'Precio de lista', kilometraje: 'Kilometraje',
+  color: 'Color', numeroEconomico: 'Número económico', uso: 'Uso',
+  planPisoTasaAnual: 'Tasa de plan piso', planPisoInicio: 'Inicio de plan piso',
+  notas: 'Notas', marca: 'Marca', modelo: 'Modelo', version: 'Versión', anio: 'Año',
+}
+
+// Un valor vacío se dice «vacío», no se pinta como una celda en blanco: en un
+// diff, la ausencia ES el dato.
+function valorLegible(campo, valor) {
+  if (valor == null || valor === '') return 'vacío'
+  if (campo === 'costoCompra' || campo === 'precioLista') {
+    return Number(valor).toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
+  }
+  if (campo === 'planPisoTasaAnual') return `${(Number(valor) * 100).toFixed(2)}%`
+  if (campo === 'planPisoInicio') return String(valor).slice(0, 10)
+  if (campo === 'kilometraje') return `${Number(valor).toLocaleString('es-MX')} km`
+  return String(valor)
+}
+
+const fechaHora = (d) =>
+  d ? new Date(d).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+
 export default function VehiculoDetalle() {
   const { id } = useParams()
   const [v, setV] = useState(null)
@@ -151,18 +174,89 @@ export default function VehiculoDetalle() {
       {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
       <p style={{ margin: '0 0 10px', fontSize: 12.5 }}><Link to="/" className="muted">← Inventario</Link></p>
       <header className="page-head">
-        <h1>{v.marca} {v.modelo} {v.version ?? ''} {v.anio}</h1>
-        <span className="glosa">
-          VIN <span className="mono">{v.vin}</span>
-          {v.numeroMotor ? <> · motor <span className="mono">{v.numeroMotor}</span></> : null}
-          {v.claveVehicular ? <> · clave <span className="mono">{v.claveVehicular}</span></> : null}
-          {' · '}{v.tipo === 'NUEVO' ? 'Nuevo' : 'Seminuevo'}{v.color ? ` · ${v.color}` : ''}
-          {(v.otrosCiclos?.length ?? 0) > 0 ? <> · ciclo {v.ciclo} de {v.otrosCiclos.length + 1}</> : null}
+        <h1>{v.marca} {v.modelo} {v.anio}</h1>
+        <span className="glosa" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span className="mono" style={{ fontSize: 12.5 }}>
+            <span style={{ color: 'var(--ink3)' }}>{(v.vin ?? '').slice(0, -6)}</span>
+            <b style={{ color: 'var(--ink)', fontWeight: 700 }}>{(v.vin ?? '').slice(-6)}</b>
+          </span>
+          <button
+            type="button"
+            className="ghost"
+            style={{ ...MINI }}
+            onClick={() => navigator.clipboard?.writeText(v.vin ?? '')}
+            title="Copiar el VIN completo"
+          >
+            Copiar
+          </button>
+          <span className="muted" style={{ fontSize: 11 }}>
+            los últimos 6 son los que dicta la gente por teléfono
+          </span>
         </span>
+        {v.version && (
+          <span className="glosa" style={{ display: 'block', marginTop: 2 }}>{v.version}</span>
+        )}
         <div className="head-actions">
           <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
+          {v.diasEnPiso != null && (
+            <span
+              className="badge"
+              style={v.diasEnPiso > 90
+                ? { background: 'var(--negBg)', color: 'var(--neg)' }
+                : { background: 'var(--panel3)', color: 'var(--ink2)' }}
+            >
+              {v.diasEnPiso} días en piso
+            </span>
+          )}
+          {(v.otrosCiclos?.length ?? 0) > 0 && (
+            <span className="badge" title="La unidad ya pasó antes por el piso">
+              ciclo {v.ciclo} de {v.otrosCiclos.length + 1}
+            </span>
+          )}
         </div>
       </header>
+
+      {/* La tira de cuatro: precio, lo que lleva costado, lo que devenga y lo
+          que quedaría. Un número no se enseña sin el que lo contradice. */}
+      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
+        <div className="kpi-item">
+          <span className="kpi-label">Precio de lista</span>
+          <span className="kpi">{v.precioLista ? mxn(v.precioLista) : <span style={{ color: 'var(--ink3)' }}>n/d</span>}</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Costo acumulado</span>
+          <span className="kpi">
+            {v.costoCompra
+              ? mxn(v.costoCompra + (v.costosTotal ?? 0))
+              : <span style={{ color: 'var(--neg)' }}>sin documentar</span>}
+          </span>
+          <span className="kpi-sub">compra {mxn(v.costoCompra)} + costos {mxn(v.costosTotal)}</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Interés devengado</span>
+          <span className="kpi" style={v.interesPiso > 0 ? { color: 'var(--neg)' } : undefined}>
+            {mxn(v.interesPiso)}
+          </span>
+          {v.planPisoTasaAnual != null && (
+            <span className="kpi-sub">{(v.planPisoTasaAnual * 100).toFixed(2)}% anual devengado a diario</span>
+          )}
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Utilidad proyectada</span>
+          <span className="kpi" style={(() => {
+            const u = v.costoCompra && v.precioLista
+              ? v.precioLista - v.costoCompra - (v.costosTotal ?? 0) : null
+            return u != null && u < 0 ? { color: 'var(--neg)' } : undefined
+          })()}>
+            {v.costoCompra && v.precioLista
+              ? mxn(v.precioLista - v.costoCompra - (v.costosTotal ?? 0))
+              : <span style={{ color: 'var(--ink3)' }}>n/d</span>}
+          </span>
+          {!(v.costoCompra && v.precioLista) && (
+            <span className="kpi-sub">falta {!v.costoCompra ? 'el costo' : 'el precio de lista'}</span>
+          )}
+        </div>
+      </div>
 
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {advertencias.map((a, i) => <div className="warn" key={i}>{a}</div>)}
@@ -333,28 +427,48 @@ export default function VehiculoDetalle() {
         {v.costos.length === 0 ? (
           <p className="muted">Sin costos registrados.</p>
         ) : (
-          <table>
+          <table className="tabla">
             <thead>
-              <tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th className="num">Monto</th><th>CFDI origen</th></tr>
+              <tr>
+                <th>Fecha</th><th>Concepto</th><th>CFDI</th><th>Origen</th>
+                <th style={{ textAlign: 'right' }}>Importe</th>
+              </tr>
             </thead>
             <tbody>
               {v.costos.map((c) => (
                 <tr key={c.id}>
                   <td style={SEC}>{fecha(c.fecha)}</td>
-                  <td>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')}</td>
-                  <td style={SEC}>{c.concepto}</td>
-                  <td className={'num'}>{mxn(c.monto)}</td>
+                  <td className="celda2">
+                    <b>{c.concepto || (COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' '))}</b>
+                    <span>{COSTO_LABEL[c.tipo] ?? c.tipo.replaceAll('_', ' ')}</span>
+                  </td>
                   <td>
                     {c.invoiceId ? (
                       <>
                         <button className="ghost" style={MINI} onClick={() => setCfdiVista(c.invoiceId)}>Ver</button>{' '}
                         <button className="ghost" style={MINI} onClick={() => descargarCfdi({ id: c.invoiceId }, 'xml')}>XML</button>
                       </>
-                    ) : <span className="muted">manual</span>}
+                    ) : <span style={{ color: 'var(--neg)' }}>sin CFDI</span>}
                   </td>
+                  {/* Quién escribió el renglón. Sin esta marca no se puede
+                      volver a derivar una factura sin arriesgarse a borrar un
+                      costo que alguien capturó a mano. */}
+                  <td>
+                    {c.autoCreado
+                      ? <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>
+                      : <span className="badge">Persona</span>}
+                  </td>
+                  <td className="num">{mxn(c.monto)}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td className="alcance">{v.costos.length} concepto(s)</td>
+                <td /><td /><td />
+                <td style={{ textAlign: 'right' }}>{mxn(v.costosTotal)}</td>
+              </tr>
+            </tfoot>
           </table>
         )}
         {puedeCostos && (
@@ -368,6 +482,60 @@ export default function VehiculoDetalle() {
               onChange={(e) => setCostoForm((f) => ({ ...f, monto: e.target.value }))} />
             <button type="submit" className="ghost" disabled={busy}>Agregar costo</button>
           </form>
+        )}
+      </section>
+
+      {/* ── Bitácora del expediente ─────────────────────────────────────────
+          Quién escribió qué, qué decía antes y qué dice ahora. Es la pregunta
+          que meses después nadie podía contestar: «¿de dónde salió este
+          costo?». Sólo existe desde que se empezó a registrar, y el pie lo
+          dice en vez de fingir un historial completo. */}
+      <section className="card">
+        <div className="card-head"><span>Bitácora del expediente</span></div>
+        {(v.bitacora?.length ?? 0) === 0 ? (
+          <p className="muted">
+            Todavía no hay cambios registrados en esta unidad. La bitácora anota cada campo que se
+            edita —lo que decía antes y lo que dice ahora— desde que se empezó a registrar.
+          </p>
+        ) : (
+          <>
+            <table className="tabla">
+              <thead>
+                <tr><th>Cuándo</th><th>Quién</th><th>Campo</th><th>Cambio</th><th>Motivo</th></tr>
+              </thead>
+              <tbody>
+                {v.bitacora.flatMap((e) => {
+                  const d = e.detalle ?? {}
+                  const cambios = Array.isArray(d.cambios) ? d.cambios : []
+                  if (cambios.length === 0) return []
+                  return cambios.map((c, i) => (
+                    <tr key={`${e.id}-${i}`}>
+                      <td style={SEC}>{fechaHora(e.createdAt)}</td>
+                      <td>
+                        {e.actorEmail
+                          ? <span className="badge">{e.actorEmail.split('@')[0]}</span>
+                          : <span className="badge" style={{ background: 'var(--accSoft)', color: 'var(--acc)' }}>Derivador</span>}
+                      </td>
+                      <td style={SEC}>{CAMPO_LABEL[c.campo] ?? c.campo}</td>
+                      <td>
+                        {/* Tachado el valor viejo, en rojo; el nuevo en verde.
+                            Aquí el color SÍ es información: dice qué se fue. */}
+                        <span style={{ color: 'var(--neg)', textDecoration: 'line-through' }}>
+                          {valorLegible(c.campo, c.antes)}
+                        </span>
+                        {' → '}
+                        <span style={{ color: 'var(--pos)' }}>{valorLegible(c.campo, c.despues)}</span>
+                      </td>
+                      <td style={SEC}>{d.motivo || <span style={{ color: 'var(--ink3)' }}>—</span>}</td>
+                    </tr>
+                  ))
+                })}
+              </tbody>
+            </table>
+            <p className="muted" style={{ fontSize: 11, marginTop: 10, marginBottom: 0 }}>
+              El historial arranca cuando se empezó a registrar: lo anterior a eso no está aquí.
+            </p>
+          </>
         )}
       </section>
     </div>
