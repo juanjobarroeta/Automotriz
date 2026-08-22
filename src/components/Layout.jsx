@@ -95,6 +95,28 @@ export function BrandLockup({ tagline = false }) {
   )
 }
 
+// Segmentado Oscuro / Claro. El handoff lo pone en el header, a la derecha.
+// Cambia UN atributo del documento: los tokens hacen el resto.
+function TemaToggle() {
+  const [tema, setTema] = useState(() => temaGuardado())
+  const elegir = (t) => setTema(aplicarTema(t))
+  return (
+    <div className="tema-toggle" role="group" aria-label="Tema">
+      {['oscuro', 'claro'].map((t) => (
+        <button
+          key={t}
+          type="button"
+          className={tema === t ? 'activo' : undefined}
+          aria-pressed={tema === t}
+          onClick={() => elegir(t)}
+        >
+          {t === 'oscuro' ? 'Oscuro' : 'Claro'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function Layout() {
   const { user, logout } = useAuth()
   const [mini, setMini] = useState(() => {
