@@ -44,12 +44,21 @@ const VISTAS = [
   { clave: 'SIN_COSTO', etiqueta: 'Sin documentar', filtro: (v) => !v.costoCompra, alerta: true },
 ]
 
+const RANGOS = [
+  { clave: '0-30', etiqueta: '0–30 días', color: 'var(--posFill)', min: 0, max: 30 },
+  { clave: '31-60', etiqueta: '31–60 días', color: 'var(--accFill)', min: 31, max: 60 },
+  { clave: '61-90', etiqueta: '61–90 días', color: 'var(--warnFill)', min: 61, max: 90 },
+  { clave: '+90', etiqueta: 'Más de 90', color: 'var(--negFill)', min: 91, max: Infinity },
+]
+
 export default function Inventario() {
   const { activeCompany } = useAuth()
   const [items, setItems] = useState([])
   const [vista, setVista] = useState('DISPONIBLE')
   const [q, setQ] = useState('')
   const [orden, setOrden] = useState('dias')
+  // Tramo de antigüedad elegido desde la barra. null = todos.
+  const [tramo, setTramo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAlta, setShowAlta] = useState(false)
@@ -89,11 +98,15 @@ export default function Inventario() {
         return t.split(/\s+/).filter(Boolean).every((p) => texto.includes(p))
       })
     }
+    if (tramo) {
+      const r = RANGOS.find((x) => x.clave === tramo)
+      if (r) out = out.filter((v) => v.diasEnPiso != null && v.diasEnPiso >= r.min && v.diasEnPiso <= r.max)
+    }
     const orden2 = [...out]
     if (orden === 'dias') orden2.sort((a, b) => (b.diasEnPiso ?? -1) - (a.diasEnPiso ?? -1))
     else orden2.sort((a, b) => (b.costoCompra ?? 0) - (a.costoCompra ?? 0))
     return orden2
-  }, [items, vista, q, orden])
+  }, [items, vista, q, orden, tramo])
 
   // El capital en piso es de lo que SIGUE en piso: contar lo vendido lo infla.
   const enPiso = useMemo(
@@ -124,16 +137,14 @@ export default function Inventario() {
       </header>
 
       {!loading && enPiso.length > 0 && (() => {
-        const rangos = [
-          { etiqueta: '0–30 días', color: 'var(--posFill)', min: 0, max: 30 },
-          { etiqueta: '31–60 días', color: 'var(--accFill)', min: 31, max: 60 },
-          { etiqueta: '61–90 días', color: 'var(--warnFill)', min: 61, max: 90 },
-          { etiqueta: 'Más de 90', color: 'var(--negFill)', min: 91, max: Infinity },
-        ]
-        const tramos = rangos.map((r) => {
+        const elegirTramo = (clave) => {
+          setTramo((t) => (t === clave ? null : clave))
+          if (!['DISPONIBLE', 'EN_TRANSITO', 'APARTADO', 'NUEVO', 'SEMINUEVO', 'DEMO'].includes(vista)) setVista('DISPONIBLE')
+        }
+        const tramos = RANGOS.map((r) => {
           const dentro = enPiso.filter((v) => v.diasEnPiso != null && v.diasEnPiso >= r.min && v.diasEnPiso <= r.max)
           return {
-            etiqueta: r.etiqueta, color: r.color, unidades: dentro.length,
+            clave: r.clave, etiqueta: r.etiqueta, color: r.color, unidades: dentro.length,
             importe: dentro.reduce((a, v) => a + (v.costoCompra ?? 0), 0),
             interes: dentro.reduce((a, v) => a + (v.interesPiso ?? 0), 0),
           }
@@ -151,15 +162,37 @@ export default function Inventario() {
               </div>
               <div className="tramos">
                 {tramos.map((t) => (
-                  <span key={t.etiqueta} title={`${t.etiqueta}: ${t.unidades}`}
-                    style={{ background: t.color, width: `${(t.unidades / (enPiso.length || 1)) * 100}%` }} />
+                  <button
+                    key={t.clave}
+                    type="button"
+                    title={`${t.etiqueta}: ${t.unidades} — clic para ver sólo éstas`}
+                    aria-pressed={tramo === t.clave}
+                    onClick={() => elegirTramo(t.clave)}
+                    style={{
+                      background: t.color,
+                      width: `${(t.unidades / (enPiso.length || 1)) * 100}%`,
+                      border: 0, padding: 0, cursor: 'pointer',
+                      opacity: tramo && tramo !== t.clave ? 0.35 : 1,
+                    }}
+                  />
                 ))}
               </div>
               {/* La leyenda del handoff: etiqueta, la cifra grande, y debajo
                   las unidades con su interés. Cuatro columnas, no una rejilla. */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 14 }}>
                 {tramos.map((t) => (
-                  <div key={t.etiqueta}>
+                  <button
+                    key={t.clave}
+                    type="button"
+                    onClick={() => elegirTramo(t.clave)}
+                    aria-pressed={tramo === t.clave}
+                    style={{
+                      background: tramo === t.clave ? 'var(--panel2)' : 'transparent',
+                      border: '1px solid', borderColor: tramo === t.clave ? 'var(--line2)' : 'transparent',
+                      borderRadius: 'var(--radius-chip)', padding: '6px 8px', margin: '-6px -8px',
+                      textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink3)' }}>
                       <span className="tramos-punto" style={{ background: t.color }} />
                       {t.etiqueta}
@@ -171,7 +204,7 @@ export default function Inventario() {
                     <div style={{ fontSize: 10.5, color: 'var(--ink3)', marginTop: 2 }}>
                       {t.unidades} u · interés {mxn(t.interes)}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
               {sinFecha > 0 && (
@@ -207,14 +240,28 @@ export default function Inventario() {
             valor={vista}
             onCambio={setVista}
           />
-          <button
-            type="button"
-            className="ghost"
-            style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 11.5 }}
-            onClick={() => setOrden((o) => (o === 'dias' ? 'costo' : 'dias'))}
-          >
-            Orden: {orden === 'dias' ? 'días en piso' : 'costo'} ↓
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {/* Un filtro que no se ve es un filtro que le echan la culpa a los
+                datos: el tramo activo se anuncia y se puede quitar de un clic. */}
+            {tramo && (
+              <button
+                type="button"
+                className="faceta activa"
+                onClick={() => setTramo(null)}
+                title="Quitar el filtro de antigüedad"
+              >
+                {RANGOS.find((r) => r.clave === tramo)?.etiqueta} ✕
+              </button>
+            )}
+            <button
+              type="button"
+              className="ghost"
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5 }}
+              onClick={() => setOrden((o) => (o === 'dias' ? 'costo' : 'dias'))}
+            >
+              Orden: {orden === 'dias' ? 'días en piso' : 'costo'} ↓
+            </button>
+          </div>
         </div>
       )}
 
@@ -226,8 +273,8 @@ export default function Inventario() {
           <Vacio
             icono="filtro"
             titulo="Ninguna unidad en esta vista"
-            detalle={`Hay ${items.length.toLocaleString('es-MX')} unidades en el padrón; ${q.trim() ? 'la búsqueda' : 'esta vista'} las deja todas fuera.`}
-            accion={<button type="button" className="ghost" onClick={() => { setVista('DISPONIBLE'); setQ('') }}>Ver lo disponible</button>}
+            detalle={`Hay ${items.length.toLocaleString('es-MX')} unidades en el padrón; ${tramo ? 'el tramo de antigüedad' : q.trim() ? 'la búsqueda' : 'esta vista'} las deja todas fuera.`}
+            accion={<button type="button" className="ghost" onClick={() => { setVista('DISPONIBLE'); setQ(''); setTramo(null) }}>Ver lo disponible</button>}
           />
         ) : (
           <Vacio
