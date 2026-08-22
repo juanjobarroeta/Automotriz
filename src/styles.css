@@ -1041,3 +1041,8 @@ body { font-variant-numeric: tabular-nums; }
   padding: 13px 22px; border-top: 1px solid var(--line2);
   display: flex; gap: 8px; justify-content: flex-end;
 }
+
+/* Destino de la arquitectura que todavía no existe: se ve, no se toca. */
+.rail-item.por-construir {
+  opacity: .4; cursor: default; pointer-events: none;
+}
