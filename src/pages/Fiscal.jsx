@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const pct = (n) => (n == null ? '—' : `${(n * 100).toFixed(n * 100 % 1 ? 2 : 0)}%`)
+const VISTAS = [['resumen', 'Resumen'], ['papeles', 'Papeles de trabajo'], ['revision', 'Revisión']]
+const PAPELES = [['iva', 'IVA'], ['isr', 'ISR provisional'], ['isan', 'ISAN'], ['retenciones', 'Retenciones']]
+
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 // Estado del checklist → badge del sistema (mismos tintes que el inventario).
@@ -26,6 +30,124 @@ function Fila({ label, valor, fuerte, tenue }) {
   )
 }
 
+
+// ── Papel de trabajo del ISAN ───────────────────────────────────────────────
+// El impuesto propio de una distribuidora: lo causa al enajenar automóviles
+// NUEVOS (Art. 1 LFISAN) y lo entera el día 17, igual que el IVA y el ISR.
+//
+// La pregunta que contesta la tabla no es «cuánto sale» —eso ya está en el
+// resumen— sino CUÁL unidad lo causa y por qué. El Art. 8-II exenta por
+// completo debajo de un umbral y a la mitad entre umbrales, así que en una
+// misma lista conviven unidades que pagan todo, la mitad y nada. Sin la
+// columna de tratamiento, los ceros se leen como un error de captura.
+function PapelIsan({ isan }) {
+  if (!isan) {
+    return <p className="muted">El periodo no trae cálculo de ISAN.</p>
+  }
+  const { unidades = [] } = isan
+  const trato = (u) =>
+    u.exencion === 'TOTAL' ? 'Exenta' : u.exencion === 'PARCIAL' ? 'Exenta al 50%' : 'Grava completo'
+
+  return (
+    <>
+      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginBottom: 16 }}>
+        <div className="kpi-item">
+          <span className="kpi-label">ISAN del mes</span>
+          <span className="kpi">{mxn(isan.total)}</span>
+          <span className="kpi-sub">sobre {mxn(isan.baseTotal)} de base gravable</span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Unidades nuevas vendidas</span>
+          <span className="kpi">{unidades.length.toLocaleString('es-MX')}</span>
+          <span className="kpi-sub">
+            {isan.seminuevosVendidos > 0
+              ? `${isan.seminuevosVendidos.toLocaleString('es-MX')} seminuevo(s) aparte: no causan ISAN`
+              : 'los seminuevos no causan ISAN (Art. 1)'}
+          </span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Exentas</span>
+          <span className="kpi">{(isan.exentasTotal + isan.exentasParcial).toLocaleString('es-MX')}</span>
+          <span className="kpi-sub">
+            {isan.exentasTotal.toLocaleString('es-MX')} totales y {isan.exentasParcial.toLocaleString('es-MX')} al 50% (Art. 8-II)
+          </span>
+        </div>
+        <div className="kpi-item">
+          <span className="kpi-label">Registrado en las unidades</span>
+          <span className="kpi" style={isan.total - isan.totalRegistrado > 0.5 ? { color: 'var(--neg)' } : undefined}>
+            {mxn(isan.totalRegistrado)}
+          </span>
+          <span className="kpi-sub">
+            {isan.total - isan.totalRegistrado > 0.5
+              ? `faltan ${mxn(isan.total - isan.totalRegistrado)} por registrar`
+              : 'coincide con lo calculado'}
+          </span>
+        </div>
+      </div>
+
+      <section className="card">
+        <div className="card-head">
+          <span>Unidades nuevas enajenadas</span>
+          <span className="muted" style={{ fontWeight: 400 }}>base Art. 2 · tarifa Art. 3-I · exenciones Art. 8-II</span>
+        </div>
+        {unidades.length === 0 ? (
+          <p className="muted">No se vendieron unidades nuevas en el periodo.</p>
+        ) : (
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Unidad</th><th>VIN</th><th>Tratamiento</th>
+                <th className="num">Base</th><th className="num">Tarifa</th><th className="num">ISAN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {unidades.map((u) => (
+                <tr key={u.vehiculoId}>
+                  <td style={{ color: 'var(--ink-3)' }}>{u.fechaVenta}</td>
+                  <td style={{ fontSize: 13 }}>
+                    <Link to={`/vehiculos/${u.vehiculoId}`}>{u.descripcion}</Link>
+                  </td>
+                  <td className="mono" style={{ fontSize: 11 }}>
+                    <span style={{ color: 'var(--ink3)' }}>{(u.vin ?? '').slice(0, -6)}</span>
+                    <b>{(u.vin ?? '').slice(-6)}</b>
+                  </td>
+                  {/* El tratamiento explica el cero. Sin él, una exenta y una
+                      unidad sin precio capturado se ven idénticas. */}
+                  <td style={{ fontSize: 11.5, color: u.exencion ? 'var(--ink-3)' : 'var(--ink)' }}>
+                    {trato(u)}
+                    {u.reduccionLujo > 0 && (
+                      <span className="muted" style={{ display: 'block', fontSize: 10.5 }}>
+                        menos {mxn(u.reduccionLujo)} de reducción
+                      </span>
+                    )}
+                  </td>
+                  <td className="num">{mxn(u.base)}</td>
+                  <td className="num" style={{ color: 'var(--ink-3)' }}>{mxn(u.impuestoTarifa)}</td>
+                  <td className="num" style={u.isan === 0 ? { color: 'var(--ink3)' } : undefined}>{mxn(u.isan)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className="alcance">{unidades.length} unidad(es)</td>
+                <td /><td /><td />
+                <td className="num">{mxn(isan.baseTotal)}</td>
+                <td />
+                <td className="num" style={{ fontWeight: 700 }}>{mxn(isan.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+        <div className="card-note">
+          La base es el precio de enajenación sin IVA y <b>sin disminuir descuentos, rebajas ni
+          bonificaciones</b> (Art. 2). Si el precio de venta capturado ya viene neto de descuento, la
+          base queda por debajo de la legal y el impuesto sale corto.
+        </div>
+      </section>
+    </>
+  )
+}
+
 // Periodo por defecto: el MES ANTERIOR — el que está por declararse.
 function periodoDefault() {
   const hoy = new Date()
@@ -38,6 +160,10 @@ function periodoDefault() {
 export default function Fiscal() {
   const { activeCompany } = useAuth()
   const [periodo, setPeriodo] = useState(periodoDefault())
+  // El handoff parte la pantalla en tres trabajos distintos: leer la cifra
+  // (Resumen), defenderla (Papeles) y saber si se puede presentar (Revisión).
+  const [vista, setVista] = useState('resumen')
+  const [papel, setPapel] = useState('iva')
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -54,12 +180,13 @@ export default function Fiscal() {
   useEffect(() => { cargar() }, [cargar])
 
   const ivaCargo = data ? data.iva.pagar > 0 : false
+  const atencionN = data?.checklist?.resumen?.atencion ?? 0
   const isrPagar = data?.isr?.isrPagar
 
   return (
     <div>
       <header className="page-head">
-        <h1>Impuestos del mes</h1>
+        <h1>Impuestos</h1>
         {data && (
           <span className="glosa">
             Declaración de {MESES[data.month - 1]} {data.year} — vence el{' '}
@@ -74,6 +201,20 @@ export default function Fiscal() {
         </div>
       </header>
 
+      <div className="tabs" role="tablist" style={{ marginBottom: 18 }}>
+        {VISTAS.map(([k, etiqueta]) => (
+          <button type="button" key={k} role="tab" aria-selected={vista === k}
+            className={vista === k ? 'activo' : ''} onClick={() => setVista(k)}>
+            {etiqueta}
+            {k === 'revision' && atencionN > 0 && (
+              <span className="badge" style={{ marginLeft: 6, background: 'var(--negBg)', color: 'var(--neg)' }}>
+                {atencionN}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading && <p className="muted">Calculando la posición fiscal…</p>}
 
@@ -85,7 +226,8 @@ export default function Fiscal() {
             </div>
           )}
 
-          <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+          {vista === 'resumen' && (<>
+          <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
             <div className="kpi-item">
               <span className="kpi-label">IVA del periodo</span>
               <span className="kpi" style={{ color: ivaCargo ? 'var(--danger)' : 'var(--ok)' }}>
@@ -111,12 +253,21 @@ export default function Fiscal() {
               </span>
             </div>
             <div className="kpi-item">
-              <span className="kpi-label">Total al SAT</span>
-              <span className="kpi">{mxn(data.totalSat)}</span>
-              <span className="kpi-sub">IVA + ISR provisional + retenciones</span>
+              <span className="kpi-label">ISAN</span>
+              <span className="kpi">{mxn(data.isan?.total ?? 0)}</span>
+              <span className="kpi-sub">
+                {(data.isan?.unidades?.length ?? 0) === 0
+                  ? 'sin unidades nuevas vendidas'
+                  : `${data.isan.gravadasCompleto + data.isan.exentasParcial} de ${data.isan.unidades.length} unidades nuevas lo causan`}
+              </span>
             </div>
             <div className="kpi-item">
-              <span className="kpi-label">Checklist para declarar</span>
+              <span className="kpi-label">Total al SAT</span>
+              <span className="kpi">{mxn(data.totalSat)}</span>
+              <span className="kpi-sub">IVA + ISR provisional + ISAN + retenciones</span>
+            </div>
+            <div className="kpi-item">
+              <span className="kpi-label">Revisión</span>
               <span className="kpi">
                 {data.checklist.resumen.listos}/{data.checklist.resumen.listos + data.checklist.resumen.pendientes + data.checklist.resumen.atencion}
               </span>
@@ -138,6 +289,33 @@ export default function Fiscal() {
             </div>
           )}
 
+          <section className="card" style={{ marginBottom: 16 }}>
+            <div className="card-head">Lo que sale del banco</div>
+            <Fila label="IVA a pagar" valor={mxn(Math.max(data.iva.pagar, 0))} />
+            <Fila label="ISR provisional" valor={mxn(Math.max(isrPagar ?? 0, 0))} />
+            <Fila label="ISAN" valor={mxn(Math.max(data.isan?.total ?? 0, 0))} />
+            <Fila label="Retenciones enteradas" valor={mxn(data.retenciones?.aEnterar ?? 0)} />
+            <Fila fuerte label="Total al SAT" valor={mxn(data.totalSat)} />
+            <div className="card-note">
+              El ISAN entra aquí porque se entera el mismo día 17 que el IVA y el ISR (Art. 4 LFISAN).
+              Un saldo a favor de IVA no se resta: se arrastra al mes siguiente, no reduce el ISR ni las
+              retenciones. IMSS, INFONAVIT e ISN se pagan por separado y no entran en esta suma.
+            </div>
+          </section>
+          </>)}
+
+          {vista === 'papeles' && (<>
+          <div className="facetas" style={{ marginBottom: 16 }}>
+            {PAPELES.map(([k, etiqueta]) => (
+              <button type="button" key={k}
+                className={`faceta${papel === k ? ' activa' : ''}`}
+                onClick={() => setPapel(k)}>
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {papel === 'iva' && (
           <div className="cards">
             <section className="card">
               <div className="card-head">Desglose de IVA (flujo de efectivo)</div>
@@ -158,6 +336,11 @@ export default function Fiscal() {
                 <Fila tenue label="IVA retenido a proveedores (se entera aparte)" valor={mxn(data.iva.retenidoAProveedores)} />
               )}
             </section>
+          </div>
+          )}
+
+          {papel === 'isr' && (
+          <div className="cards">
             <section className="card">
               <div className="card-head">Desglose de ISR provisional</div>
               <Fila label="Ingresos del mes" valor={mxn(data.isr.ingresosDelMes)} />
@@ -172,8 +355,11 @@ export default function Fiscal() {
               )}
             </section>
           </div>
+          )}
 
-          {data.retenciones && (
+          {papel === 'isan' && <PapelIsan isan={data.isan} />}
+
+          {papel === 'retenciones' && data.retenciones && (
             <section className="card" style={{ marginBottom: 16 }}>
               <div className="card-head">Retenciones del periodo</div>
               <p className="muted" style={{ margin: '0 0 8px' }}>
@@ -211,19 +397,10 @@ export default function Fiscal() {
             </section>
           )}
 
-          <section className="card" style={{ marginBottom: 16 }}>
-            <div className="card-head">Lo que sale del banco</div>
-            <Fila label="IVA a pagar" valor={mxn(Math.max(data.iva.pagar, 0))} />
-            <Fila label="ISR provisional" valor={mxn(Math.max(isrPagar ?? 0, 0))} />
-            <Fila label="Retenciones enteradas" valor={mxn(data.retenciones?.aEnterar ?? 0)} />
-            <Fila fuerte label="Total al SAT" valor={mxn(data.totalSat)} />
-            <div className="card-note">
-              Un saldo a favor de IVA no se resta aquí: se arrastra al mes siguiente, no reduce el ISR ni las
-              retenciones. IMSS, INFONAVIT e ISN se pagan por separado y no entran en esta suma.
-            </div>
-          </section>
+          </>)}
 
-          <div className="urgent-list" style={{ marginTop: 16 }}>
+          {vista === 'revision' && (
+          <div className="urgent-list">
             <div className="urgent-head">¿Qué falta para declarar?</div>
             {data.checklist.items.map((it) => (
               <div key={it.clave} className="urgent-row" style={{ cursor: 'default' }}>
@@ -235,6 +412,7 @@ export default function Fiscal() {
               </div>
             ))}
           </div>
+          )}
         </>
       )}
     </div>
