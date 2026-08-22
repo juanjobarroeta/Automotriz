@@ -1,50 +1,72 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError, EsqueletoTabla, Vacio } from '../components/Estados'
-import { BarraTramos, MicroBarra, Tabla } from '../components/Primitivos'
+import { BarraTramos, Facetas, MicroBarra, Tabla } from '../components/Primitivos'
 
-const ESTADOS = ['', 'EN_TRANSITO', 'DISPONIBLE', 'APARTADO', 'VENDIDO', 'ENTREGADO', 'CANCELADO']
-
-// Los chips nunca van en mayúsculas forzadas (DESIGN §6): el enum se rotula.
 const ESTADO_LABEL = {
   EN_TRANSITO: 'En tránsito', DISPONIBLE: 'Disponible', APARTADO: 'Apartado',
   VENDIDO: 'Vendido', ENTREGADO: 'Entregado', CANCELADO: 'Cancelado',
 }
 const USO_LABEL = { VENTA: 'Venta', DEMO: 'Demo', CORTESIA: 'Cortesía' }
 const TIPO_LABEL = { NUEVO: 'Nuevo', SEMINUEVO: 'Seminuevo' }
-
-// Columnas secundarias de la tabla: 12.5px --ink-3 (DESIGN §6 «Tabla»).
-const SEC = { color: 'var(--ink-3)' }
+const SEC = { color: 'var(--ink3)' }
 
 const mxn = (n) =>
-  n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+  n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
+
+// El VIN se dicta por teléfono por sus ÚLTIMOS SEIS: se resaltan y el resto se
+// deja tenue. Es el handoff §3 y es como la gente lo usa de verdad.
+function Vin({ vin }) {
+  if (!vin) return <span style={SEC}>—</span>
+  return (
+    <>
+      <span style={{ color: 'var(--ink3)' }}>{vin.slice(0, -6)}</span>
+      <b style={{ color: 'var(--ink)', fontWeight: 700 }}>{vin.slice(-6)}</b>
+    </>
+  )
+}
+
+// Vistas guardadas: cada una es una rebanada del padrón, no un filtro que se
+// acumula. El default es lo que está en piso — entrar a inventario es preguntar
+// «qué tengo para vender», no «qué ha pasado por aquí».
+const VISTAS = [
+  { clave: 'DISPONIBLE', etiqueta: 'Disponible', filtro: (v) => v.estado === 'DISPONIBLE' },
+  { clave: 'EN_TRANSITO', etiqueta: 'En tránsito', filtro: (v) => v.estado === 'EN_TRANSITO' },
+  { clave: 'APARTADO', etiqueta: 'Apartado', filtro: (v) => v.estado === 'APARTADO' },
+  { clave: 'VENDIDO', etiqueta: 'Vendido', filtro: (v) => v.estado === 'VENDIDO' || v.estado === 'ENTREGADO' },
+  { clave: 'NUEVO', etiqueta: 'Nuevo', filtro: (v) => v.tipo === 'NUEVO' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO' },
+  { clave: 'SEMINUEVO', etiqueta: 'Seminuevo', filtro: (v) => v.tipo === 'SEMINUEVO' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO' },
+  { clave: 'DEMO', etiqueta: 'Demo', filtro: (v) => v.uso && v.uso !== 'VENTA' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO' },
+  // Ésta no está en el handoff: es NUESTRA excepción real. 238 unidades
+  // vendidas sin CFDI de compra son 238 utilidades que no se pueden calcular.
+  { clave: 'SIN_COSTO', etiqueta: 'Sin documentar', filtro: (v) => !v.costoCompra, alerta: true },
+]
+
+const RANGOS = [
+  { clave: '0-30', etiqueta: '0–30 días', color: 'var(--posFill)', min: 0, max: 30 },
+  { clave: '31-60', etiqueta: '31–60 días', color: 'var(--accFill)', min: 31, max: 60 },
+  { clave: '61-90', etiqueta: '61–90 días', color: 'var(--warnFill)', min: 61, max: 90 },
+  { clave: '+90', etiqueta: 'Más de 90', color: 'var(--negFill)', min: 91, max: Infinity },
+]
 
 export default function Inventario() {
   const { activeCompany } = useAuth()
   const [items, setItems] = useState([])
-  // Por default sólo lo que está en piso: entrar a inventario es preguntar
-  // «qué tengo para vender», no «qué ha pasado por aquí».
-  const [estado, setEstado] = useState('DISPONIBLE')
-  const [soloUso, setSoloUso] = useState('')
+  const [vista, setVista] = useState('DISPONIBLE')
   const [q, setQ] = useState('')
-  const [marca, setMarca] = useState('')
-  const [modelo, setModelo] = useState('')
-  const [color, setColor] = useState('')
-  const [anio, setAnio] = useState('')
+  const [orden, setOrden] = useState('dias')
+  // Tramo de antigüedad elegido desde la barra. null = todos.
+  const [tramo, setTramo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAlta, setShowAlta] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!activeCompany?.id) return
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
-      // Se pide el padrón completo y el estado se filtra del lado del cliente:
-      // así las cifras de arriba (en piso, vendidas, demos) siguen contando
-      // sobre todo el inventario aunque la tabla enseñe una rebanada.
       const qs = new URLSearchParams({ companyId: activeCompany.id })
       const data = await apiFetch(`/api/automotriz/vehiculos?${qs}`)
       setItems(Array.isArray(data) ? data : [])
@@ -57,170 +79,148 @@ export default function Inventario() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  // Los filtros de cliente, en un solo lugar: los usa la tabla Y el estado
-  // vacío, que es lo que antes no cuadraba.
-  const visibles = items
-    .filter((v) => !estado || v.estado === estado)
-    .filter((v) => !soloUso || v.uso === soloUso)
-    .filter((v) => !marca || v.marca === marca)
-    .filter((v) => !modelo || v.modelo === modelo)
-    .filter((v) => !color || v.color === color)
-    .filter((v) => !anio || String(v.anio) === String(anio))
-    .filter((v) => {
-      if (!q.trim()) return true
-      const texto = `${v.vin} ${v.marca} ${v.modelo} ${v.version ?? ''} ${v.anio} ${v.color ?? ''} ${v.numeroMotor ?? ''} ${v.numeroEconomico ?? ''} ${v.cliente?.razonSocial ?? ''} ${v.supplier?.razonSocial ?? ''}`.toLowerCase()
-      // Cada palabra de la búsqueda debe aparecer (VIN parcial cuenta).
-      return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => texto.includes(t))
-    })
+  // Los conteos de las vistas se calculan sobre TODO el padrón, no sobre lo
+  // que la vista activa deja ver: un chip que cambia de número al hacer clic
+  // en otro no sirve para decidir a dónde ir.
+  const conteos = useMemo(() => {
+    const m = {}
+    for (const v of VISTAS) m[v.clave] = items.filter(v.filtro).length
+    return m
+  }, [items])
 
-  // Filtrado a cero ≠ padrón vacío. Son dos mensajes distintos porque son dos
-  // problemas distintos: uno se arregla dando de alta una unidad, el otro
-  // quitando un filtro.
-  const hayFiltros = Boolean(estado || soloUso || marca || modelo || color || anio || q.trim())
-  const limpiarFiltros = () => {
-    setEstado(''); setSoloUso(''); setMarca(''); setModelo(''); setColor(''); setAnio(''); setQ('')
-  }
+  const visibles = useMemo(() => {
+    const def = VISTAS.find((v) => v.clave === vista)
+    let out = def ? items.filter(def.filtro) : items
+    const t = q.trim().toLowerCase()
+    if (t) {
+      out = out.filter((v) => {
+        const texto = `${v.vin} ${v.marca} ${v.modelo} ${v.version ?? ''} ${v.anio} ${v.color ?? ''} ${v.numeroEconomico ?? ''} ${v.cliente?.razonSocial ?? ''}`.toLowerCase()
+        return t.split(/\s+/).filter(Boolean).every((p) => texto.includes(p))
+      })
+    }
+    if (tramo) {
+      const r = RANGOS.find((x) => x.clave === tramo)
+      if (r) out = out.filter((v) => v.diasEnPiso != null && v.diasEnPiso >= r.min && v.diasEnPiso <= r.max)
+    }
+    const orden2 = [...out]
+    if (orden === 'dias') orden2.sort((a, b) => (b.diasEnPiso ?? -1) - (a.diasEnPiso ?? -1))
+    else orden2.sort((a, b) => (b.costoCompra ?? 0) - (a.costoCompra ?? 0))
+    return orden2
+  }, [items, vista, q, orden, tramo])
+
+  // El capital en piso es de lo que SIGUE en piso: contar lo vendido lo infla.
+  const enPiso = useMemo(
+    () => items.filter((v) => (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO') && (v.uso ?? 'VENTA') === 'VENTA'),
+    [items]
+  )
+  const capital = enPiso.reduce((a, v) => a + (v.costoCompra ?? 0), 0)
 
   return (
     <div>
       <header className="page-head">
-        <h1>Inventario de unidades</h1>
+        <h1>Inventario</h1>
         {!loading && items.length > 0 && (
-          <span className="glosa">{items.length} unidades en el padrón</span>
+          <span className="glosa">
+            {enPiso.length.toLocaleString('es-MX')} unidades en piso ·{' '}
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{mxn(capital)}</span> de capital
+          </span>
         )}
         <div className="head-actions">
           <input
-            placeholder="Buscar VIN, marca, modelo, motor, cliente…"
+            placeholder="Buscar VIN, marca, modelo…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 260, width: 'auto' }}
+            style={{ minWidth: 220, width: 'auto' }}
           />
-          <select value={estado} onChange={(e) => setEstado(e.target.value)} style={{ width: 'auto' }}>
-            {ESTADOS.map((e) => (
-              <option key={e} value={e}>{e ? ESTADO_LABEL[e] : 'Todos los estados'}</option>
-            ))}
-          </select>
-          <select value={soloUso} onChange={(e) => setSoloUso(e.target.value)} style={{ width: 'auto' }}>
-            <option value="">Todos los usos</option>
-            <option value="VENTA">Venta</option>
-            <option value="DEMO">Demo</option>
-            <option value="CORTESIA">Cortesía</option>
-          </select>
-          <select value={marca} onChange={(e) => { setMarca(e.target.value); setModelo('') }} style={{ width: 'auto' }}>
-            <option value="">Todas las marcas</option>
-            {[...new Set(items.map((v) => v.marca))].sort().map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={modelo} onChange={(e) => setModelo(e.target.value)} style={{ width: 'auto' }}>
-            <option value="">Todos los modelos</option>
-            {[...new Set(items.filter((v) => !marca || v.marca === marca).map((v) => v.modelo).filter(Boolean))]
-              .sort().map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 'auto' }}>
-            <option value="">Todos los colores</option>
-            {[...new Set(items.map((v) => v.color).filter(Boolean))].sort().map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select value={anio} onChange={(e) => setAnio(e.target.value)} style={{ width: 'auto' }}>
-            <option value="">Año</option>
-            {[...new Set(items.map((v) => v.anio))].sort((a, b) => b - a).map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <button onClick={() => setShowAlta(true)}>+ Alta de unidad</button>
+          <button onClick={() => setShowAlta(true)}>Alta de unidad</button>
         </div>
       </header>
 
-      {!loading && items.length > 0 && (() => {
-        const enPiso = items.filter((v) => (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO') && (v.uso ?? 'VENTA') === 'VENTA')
-        const vendidas = items.filter((v) => v.estado === 'VENDIDO' || v.estado === 'ENTREGADO')
-        const sinCosto = vendidas.filter((v) => !v.costoCompra)
-        const demos = items.filter((v) => v.uso && v.uso !== 'VENTA' && v.estado !== 'VENDIDO' && v.estado !== 'ENTREGADO')
-        // Inventario es pantalla de catálogo: la cifra va a 27px (DESIGN §6).
-        const cols = sinCosto.length > 0 ? 5 : 4
-        return (
-          <div className="kpi-strip densa" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, paddingBottom: 20, marginBottom: 20 }}>
-            <div className="kpi-item">
-              <span className="kpi-label">En piso</span>
-              <span className="kpi">{enPiso.length}</span>
-              <span className="kpi-sub">{mxn(enPiso.reduce((s, v) => s + v.costoCompra, 0))} en inventario</span>
-            </div>
-            <div className="kpi-item">
-              <span className="kpi-label">Apartadas</span>
-              <span className="kpi">{items.filter((v) => v.estado === 'APARTADO').length}</span>
-              <span className="kpi-sub">comprometidas con cliente</span>
-            </div>
-            <div className="kpi-item">
-              <span className="kpi-label">Vendidas</span>
-              <span className="kpi">{vendidas.length}</span>
-              <span className="kpi-sub">facturadas y entregadas</span>
-            </div>
-            <div className="kpi-item">
-              <span className="kpi-label">Demos / cortesía</span>
-              <span className="kpi">{demos.length}</span>
-              <span className="kpi-sub">fuera del piso de venta</span>
-            </div>
-            {sinCosto.length > 0 && (
-              <div className="kpi-item">
-                <span className="kpi-label">Sin costo (pre-2021)</span>
-                <span className="kpi neg">{sinCosto.length}</span>
-                <span className="kpi-sub">captúralos en el detalle</span>
-              </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {!loading && items.length > 0 && (() => {
-        // Los tramos se calculan sobre lo que SIGUE en piso: una unidad
-        // vendida ya dejó de devengar y contarla inflaría el costo de hoy.
-        const enPiso = items.filter(
-          (v) => (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO') && (v.uso ?? 'VENTA') === 'VENTA'
-        )
-        const rangos = [
-          { etiqueta: '0–30 días', color: 'var(--posFill)', min: 0, max: 30 },
-          { etiqueta: '31–60 días', color: 'var(--accFill)', min: 31, max: 60 },
-          { etiqueta: '61–90 días', color: 'var(--warnFill)', min: 61, max: 90 },
-          { etiqueta: '+90 días', color: 'var(--negFill)', min: 91, max: Infinity },
-        ]
-        const tramos = rangos.map((r) => {
+      {!loading && enPiso.length > 0 && (() => {
+        const elegirTramo = (clave) => {
+          setTramo((t) => (t === clave ? null : clave))
+          if (!['DISPONIBLE', 'EN_TRANSITO', 'APARTADO', 'NUEVO', 'SEMINUEVO', 'DEMO'].includes(vista)) setVista('DISPONIBLE')
+        }
+        const tramos = RANGOS.map((r) => {
           const dentro = enPiso.filter((v) => v.diasEnPiso != null && v.diasEnPiso >= r.min && v.diasEnPiso <= r.max)
           return {
-            etiqueta: r.etiqueta,
-            color: r.color,
-            unidades: dentro.length,
+            clave: r.clave, etiqueta: r.etiqueta, color: r.color, unidades: dentro.length,
             importe: dentro.reduce((a, v) => a + (v.costoCompra ?? 0), 0),
-            nota: dentro.reduce((a, v) => a + (v.interesPiso ?? 0), 0) > 0
-              ? `${mxn(dentro.reduce((a, v) => a + (v.interesPiso ?? 0), 0))} de interés`
-              : null,
+            interes: dentro.reduce((a, v) => a + (v.interesPiso ?? 0), 0),
           }
         })
         const interesTotal = enPiso.reduce((a, v) => a + (v.interesPiso ?? 0), 0)
         const viejas = enPiso.filter((v) => (v.diasEnPiso ?? 0) > 90)
         const interesViejas = viejas.reduce((a, v) => a + (v.interesPiso ?? 0), 0)
         const sinFecha = enPiso.filter((v) => v.diasEnPiso == null).length
-        if (enPiso.length === 0) return null
         return (
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'stretch' }}>
             <section className="card" style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>Antigüedad de la unidad</span>
-                <span className="muted" style={{ fontSize: 11.5 }}>
-                  cuánto plan piso se paga por metal parado
-                </span>
+                <span className="muted" style={{ fontSize: 11.5 }}>cuánto plan piso se paga por metal parado</span>
               </div>
-              <BarraTramos tramos={tramos} />
+              <div className="tramos">
+                {tramos.map((t) => (
+                  <button
+                    key={t.clave}
+                    type="button"
+                    title={`${t.etiqueta}: ${t.unidades} — clic para ver sólo éstas`}
+                    aria-pressed={tramo === t.clave}
+                    onClick={() => elegirTramo(t.clave)}
+                    style={{
+                      background: t.color,
+                      width: `${(t.unidades / (enPiso.length || 1)) * 100}%`,
+                      border: 0, padding: 0, cursor: 'pointer',
+                      opacity: tramo && tramo !== t.clave ? 0.35 : 1,
+                    }}
+                  />
+                ))}
+              </div>
+              {/* La leyenda del handoff: etiqueta, la cifra grande, y debajo
+                  las unidades con su interés. Cuatro columnas, no una rejilla. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 14 }}>
+                {tramos.map((t) => (
+                  <button
+                    key={t.clave}
+                    type="button"
+                    onClick={() => elegirTramo(t.clave)}
+                    aria-pressed={tramo === t.clave}
+                    style={{
+                      background: tramo === t.clave ? 'var(--panel2)' : 'transparent',
+                      border: '1px solid', borderColor: tramo === t.clave ? 'var(--line2)' : 'transparent',
+                      borderRadius: 'var(--radius-chip)', padding: '6px 8px', margin: '-6px -8px',
+                      textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink3)' }}>
+                      <span className="tramos-punto" style={{ background: t.color }} />
+                      {t.etiqueta}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 600, marginTop: 4,
+                      color: t.etiqueta === 'Más de 90' ? 'var(--neg)' : 'var(--ink)' }}>
+                      {mxn(t.importe)}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--ink3)', marginTop: 2 }}>
+                      {t.unidades} u · interés {mxn(t.interes)}
+                    </div>
+                  </button>
+                ))}
+              </div>
               {sinFecha > 0 && (
-                <p className="muted" style={{ fontSize: 11, marginTop: 10, marginBottom: 0 }}>
+                <p className="muted" style={{ fontSize: 11, marginTop: 12, marginBottom: 0 }}>
                   {sinFecha} sin fecha de entrada — no entran al conteo por tramo.
                 </p>
               )}
             </section>
             {interesTotal > 0 && (
-              <section
-                className="card"
-                style={{ width: 260, flexShrink: 0, background: 'var(--negBg)', borderColor: 'var(--neg)' }}
-              >
+              <section className="card" style={{ width: 250, flexShrink: 0, background: 'var(--negBg)', borderColor: 'var(--neg)' }}>
                 <span className="kpi-label">Interés devengado</span>
-                <div className="kpi neg" style={{ marginTop: 4 }}>{mxn(interesTotal)}</div>
-                {viejas.length > 0 && (
-                  <p className="muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 700, color: 'var(--neg)', margin: '6px 0 8px' }}>
+                  {mxn(interesTotal)}
+                </div>
+                {viejas.length > 0 && interesTotal > 0 && (
+                  <p className="muted" style={{ fontSize: 11, margin: 0 }}>
                     Las {viejas.length} unidades de más de 90 días son el{' '}
                     {Math.round((interesViejas / interesTotal) * 100)}% de ese costo.
                   </p>
@@ -230,94 +230,118 @@ export default function Inventario() {
           </div>
         )
       })()}
+
+      {!loading && items.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+          <Facetas
+            opciones={VISTAS.map((v) => ({
+              clave: v.clave, etiqueta: v.etiqueta, conteo: conteos[v.clave], alerta: v.alerta,
+            }))}
+            valor={vista}
+            onCambio={setVista}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {/* Un filtro que no se ve es un filtro que le echan la culpa a los
+                datos: el tramo activo se anuncia y se puede quitar de un clic. */}
+            {tramo && (
+              <button
+                type="button"
+                className="faceta activa"
+                onClick={() => setTramo(null)}
+                title="Quitar el filtro de antigüedad"
+              >
+                {RANGOS.find((r) => r.clave === tramo)?.etiqueta} ✕
+              </button>
+            )}
+            <button
+              type="button"
+              className="ghost"
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5 }}
+              onClick={() => setOrden((o) => (o === 'dias' ? 'costo' : 'dias'))}
+            >
+              Orden: {orden === 'dias' ? 'días en piso' : 'costo'} ↓
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading ? (
-        <EsqueletoTabla columnas={[2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2]} filas={8} />
+        <EsqueletoTabla columnas={[2, 1, 2, 1, 1, 1, 1, 1, 1, 1]} filas={8} />
       ) : visibles.length === 0 ? (
-        // Con error NO se pinta el vacío: si la consulta falló, el padrón no
-        // está vacío — no lo pudimos leer. Decirle «da de alta la primera
-        // unidad» a quien tiene 42 y se le cayó el hub es mentirle, y el aviso
-        // de arriba ya explica qué pasó.
-        error ? null : hayFiltros ? (
+        error ? null : items.length > 0 ? (
           <Vacio
             icono="filtro"
-            titulo="Ninguna unidad coincide con estos filtros"
-            detalle={
-              items.length > 0
-                ? `Hay ${items.length} ${items.length === 1 ? 'unidad' : 'unidades'} en el padrón, pero los filtros activos las dejan todas fuera.`
-                : 'Prueba con otros filtros.'
-            }
-            accion={<button type="button" className="ghost" onClick={limpiarFiltros}>Quitar los filtros</button>}
+            titulo="Ninguna unidad en esta vista"
+            detalle={`Hay ${items.length.toLocaleString('es-MX')} unidades en el padrón; ${tramo ? 'el tramo de antigüedad' : q.trim() ? 'la búsqueda' : 'esta vista'} las deja todas fuera.`}
+            accion={<button type="button" className="ghost" onClick={() => { setVista('DISPONIBLE'); setQ(''); setTramo(null) }}>Ver lo disponible</button>}
           />
         ) : (
           <Vacio
             titulo="Todavía no hay unidades en el padrón"
             detalle="Cada unidad que des de alta aparece aquí con su VIN, su costo y su estado en el piso."
-            accion={<button type="button" onClick={() => setShowAlta(true)}>+ Alta de unidad</button>}
+            accion={<button type="button" onClick={() => setShowAlta(true)}>Alta de unidad</button>}
           />
         )
       ) : (
         <Tabla
           columnas={[
             { clave: 'vin', etiqueta: 'VIN' },
-            { clave: 'unidad', etiqueta: 'Unidad' },
+            { clave: 'marca', etiqueta: 'Marca' },
+            { clave: 'modelo', etiqueta: 'Modelo' },
+            { clave: 'anio', etiqueta: 'Año', num: true },
+            { clave: 'color', etiqueta: 'Color' },
             { clave: 'estado', etiqueta: 'Estado' },
             { clave: 'tipo', etiqueta: 'Tipo' },
             { clave: 'dias', etiqueta: 'Días en piso', num: true },
             { clave: 'interes', etiqueta: 'Interés devengado', num: true },
             { clave: 'costo', etiqueta: 'Costo', num: true },
             { clave: 'precio', etiqueta: 'Precio', num: true },
-            { clave: 'cliente', etiqueta: 'Cliente' },
+            { clave: 'utilidad', etiqueta: 'Utilidad proy.', num: true },
           ]}
-          filas={visibles}
+          filas={visibles.slice(0, 200)}
           claveFila={(v) => v.id}
-          // La excepción es el metal parado: +90 días marca el renglón.
           esExcepcion={(v) => (v.diasEnPiso ?? 0) > 90 && (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO')}
           render={{
             vin: (v) => (
               <span className="mono">
-                <Link to={`/vehiculos/${v.id}`}>{v.vin}</Link>
+                <Link to={`/vehiculos/${v.id}`}><Vin vin={v.vin} /></Link>
                 {v.ciclo > 1 ? <> <span className="badge" title="La unidad ya pasó antes por el piso">{v.ciclo}º ciclo</span></> : null}
               </span>
             ),
-            unidad: (v) => (
-              <span className="celda2">
-                <b>{v.marca} {v.modelo}{v.version ? ` ${v.version}` : ''}</b>
-                <span>{[v.anio, v.color].filter(Boolean).join(' · ')}</span>
-              </span>
-            ),
-            estado: (v) => (
-              <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
-            ),
+            marca: (v) => v.marca,
+            // La versión es la ficha técnica completa de la planta («Active,
+            // automático, 1.5 lts., Turbo, 4 cil., CVT»). En una lista no cabe
+            // y no ayuda a distinguir: vive en el title y en el expediente.
+            modelo: (v) => <span title={v.version || undefined}>{v.modelo}</span>,
+            anio: (v) => <span style={SEC}>{v.anio}</span>,
+            color: (v) => (v.color ? <span style={SEC}>{v.color}</span> : <span style={{ color: 'var(--ink3)' }}>—</span>),
+            estado: (v) => <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>,
             tipo: (v) => (
               <span style={SEC}>
                 {TIPO_LABEL[v.tipo] ?? v.tipo}
                 {v.uso && v.uso !== 'VENTA' ? <> <span className="badge">{USO_LABEL[v.uso] ?? v.uso}</span></> : null}
               </span>
             ),
-            // Sin fecha de entrada no se pinta un cero: no es que lleve cero
-            // días, es que no sabemos cuándo entró.
             dias: (v) => (v.diasEnPiso == null
               ? <span style={{ color: 'var(--ink3)' }}>n/d</span>
               : <MicroBarra valor={v.diasEnPiso} />),
             interes: (v) => (v.interesPiso > 0
               ? <span style={{ color: 'var(--neg)' }}>{mxn(v.interesPiso)}</span>
               : <span style={{ color: 'var(--ink3)' }}>—</span>),
-            // Costo sin documentar ≠ costo cero (contrato de integridad 2).
             costo: (v) => (v.costoCompra
               ? mxn(v.costoCompra)
               : <span style={{ color: 'var(--neg)' }}>sin documentar</span>),
             precio: (v) => mxn(v.precioVenta),
-            cliente: (v) => (
-              <span style={SEC}>
-                {v.cliente
-                  ? <Link to={`/contactos/${v.cliente.id}`}>{v.cliente.razonSocial}</Link>
-                  : (v.ventaInvoiceId ? <span className="muted">Público en general</span> : '—')}
-              </span>
-            ),
+            // Sin costo no hay utilidad que proyectar: n/d, nunca un cero.
+            utilidad: (v) => {
+              if (!v.costoCompra || !v.precioVenta) return <span style={{ color: 'var(--ink3)' }}>n/d</span>
+              const u = v.precioVenta - v.costoCompra - (v.costosTotal ?? 0)
+              return <span style={u < 0 ? { color: 'var(--neg)' } : undefined}>{mxn(u)}</span>
+            },
           }}
           pie={{
-            alcance: `${visibles.length} de ${items.length}`,
+            alcance: `${Math.min(visibles.length, 200).toLocaleString('es-MX')} de ${visibles.length.toLocaleString('es-MX')}`,
             valores: {
               dias: (() => {
                 const con = visibles.filter((v) => v.diasEnPiso != null)
