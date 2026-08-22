@@ -18,7 +18,35 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 const TABS = [['ORDENES', 'Órdenes'], ['REPORTES', 'Reportes']]
 
 export default function Servicio() {
-  const [tab, setTab] = useState('ORDENES')
+  const { activeCompany } = useAuth()
+  // Manda la pestaña que TIENE datos. Hoy el pipeline de órdenes está en cero
+  // —nunca se ha capturado una recepción— mientras la historia facturada trae
+  // decenas de miles de servicios. Abrir en un tablero vacío hace ver muerto
+  // un taller que factura; abrir en la historia enseña el taller que sí hay,
+  // sin esconder el flujo que falta por adoptar. Cuando entre la primera
+  // orden, «Órdenes» pasa al frente sola.
+  const [tab, setTab] = useState(null)
+  const [hayOrdenes, setHayOrdenes] = useState(null)
+
+  useEffect(() => {
+    if (!activeCompany?.id) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await apiFetch(`/api/automotriz/ordenes?companyId=${activeCompany.id}&abiertas=1`)
+        const total = Object.values(r?.porEstado ?? {}).reduce((a, b) => a + b, 0)
+        if (vivo) { setHayOrdenes(total > 0); setTab(total > 0 ? 'ORDENES' : 'REPORTES') }
+      } catch {
+        // Si la cuenta falla no se bloquea la pantalla: se abre en órdenes,
+        // que es el default de siempre.
+        if (vivo) { setHayOrdenes(null); setTab('ORDENES') }
+      }
+    })()
+    return () => { vivo = false }
+  }, [activeCompany?.id])
+
+  if (!tab) return <p className="muted">Cargando…</p>
+
   return (
     <div>
       <header className="page-head">
@@ -36,6 +64,14 @@ export default function Servicio() {
           </div>
         </div>
       </header>
+      {hayOrdenes === false && tab === 'ORDENES' && (
+        <div className="warn" style={{ marginBottom: 16 }}>
+          <b>Todavía no se ha capturado ninguna orden de servicio.</b> El taller factura —esa historia
+          está en «Reportes», reconstruida desde los CFDI— pero el flujo de recepción
+          (recibir → diagnosticar → entregar) no se ha usado. Este tablero se llena con la primera
+          recepción que se capture.
+        </div>
+      )}
       {tab === 'ORDENES' ? <OrdenesTaller /> : <ReportesTaller />}
     </div>
   )

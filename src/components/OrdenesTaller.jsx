@@ -4,11 +4,50 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from './CfdiVista'
+import { LineaProceso } from './Primitivos'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const fecha = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
 
+const fechaHora = (d) => (d
+  ? new Date(d).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  : '—')
+
 const ESTADOS = ['RECIBIDA', 'EN_PROCESO', 'LISTA', 'ENTREGADA', 'CANCELADA']
+
+// El color marca lo que pide acción y nada más (DESIGN §2): en proceso avisa,
+// entregada y cancelada no dicen nada porque ya no hay nada que hacer.
+const TONO = {
+  RECIBIDA: 'neutro', EN_PROCESO: 'warn', LISTA: 'pos', ENTREGADA: 'neutro', CANCELADA: 'neutro',
+}
+
+// Una promesa está vencida si pasó la fecha y la unidad sigue adentro. Se
+// mide contra el ESTADO, no contra entregadaAt: una orden LISTA ya cumplió el
+// trabajo aunque no se haya entregado.
+// Los cuatro sellos de la orden. `actual` es la etapa en la que está parada;
+// lo anterior queda «hecho» y lo que sigue «pendiente». Cancelada no avanza.
+function pasosDe(o) {
+  const orden = ['RECIBIDA', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
+  const sellos = [o.recibidaAt, o.enProcesoAt, o.listaAt, o.entregadaAt]
+  const etiquetas = ['Recibida', 'En proceso', 'Lista', 'Entregada']
+  const aqui = o.estado === 'CANCELADA' ? -1 : orden.indexOf(o.estado)
+  return etiquetas.map((etiqueta, i) => ({
+    etiqueta,
+    estado: aqui === -1 ? 'pendiente' : i < aqui ? 'hecho' : i === aqui ? 'actual' : 'pendiente',
+    nota: sellos[i] ? fechaHora(sellos[i]) : '—',
+  }))
+}
+
+function presupuestoDe(o) {
+  return (o.lineas ?? []).reduce((a, l) => a + (Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0), 0)
+}
+
+function esVencida(o) {
+  return Boolean(
+    o.prometidaAt && new Date(o.prometidaAt) < new Date() &&
+    (o.estado === 'RECIBIDA' || o.estado === 'EN_PROCESO')
+  )
+}
 const BADGE = {
   RECIBIDA: 'badge-EN_TRANSITO',
   EN_PROCESO: 'badge-APARTADO',
@@ -82,8 +121,12 @@ export default function OrdenesTaller() {
         apiFetch(`/api/automotriz/contactos?companyId=${activeCompany.id}`),
         apiFetch(`/api/automotriz/empleados?companyId=${activeCompany.id}`),
       ])
-      setClientes(cs.filter((c) => c.esCliente || !c.esProveedor))
-      setEmpleados(es)
+      // El satélite y el hub se despliegan por separado: si un día el catálogo
+      // deja de venir como arreglo, esto se cae con «filter is not a function»
+      // en la cara del usuario. Con la guarda queda una lista vacía, que es lo
+      // que el formulario ya sabe manejar.
+      setClientes(Array.isArray(cs) ? cs.filter((c) => c.esCliente || !c.esProveedor) : [])
+      setEmpleados(Array.isArray(es) ? es : [])
     } catch (err) { setError(err.message) }
   }
 
@@ -136,18 +179,61 @@ export default function OrdenesTaller() {
   const ordenes = data?.ordenes ?? []
   const n = (e) => data?.porEstado?.[e] ?? 0
   const abiertasN = n('RECIBIDA') + n('EN_PROCESO') + n('LISTA')
+  // El importe por estado lo suma el hub sobre TODAS las órdenes; no se puede
+  // derivar de `ordenes`, que viene filtrada y cortada a 200.
+  const montoDe = (estados) => estados.reduce((a, e) => a + (data?.montoPorEstado?.[e] ?? 0), 0)
+  // Promesa vencida: prometida en el pasado y la unidad todavía no sale.
+  const vencidasN = (data?.ordenes ?? []).filter(esVencida).length
+  const totalEnVista = ordenes.reduce((a, o) => a + presupuestoDe(o), 0)
+  const vencidasEnVista = ordenes.filter(esVencida).length
 
   return (
     <div>
       {cfdiVista && <CfdiVista invoiceId={cfdiVista} onCerrar={() => setCfdiVista(null)} />}
-      <div className="head-actions" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 6 }}>
-        <Filtro activo={filtro === 'ABIERTAS'} onClick={() => setFiltro('ABIERTAS')}>Abiertas · {abiertasN}</Filtro>
+      {/* Renglón de situación: lo que un jefe de taller pregunta al llegar.
+          Las bahías NO van —no hay modelo de bahías, y ponerlas inventadas
+          sería peor que no ponerlas—. */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div className="glosa">
+          {abiertasN} {abiertasN === 1 ? 'orden abierta' : 'órdenes abiertas'}
+          {vencidasN > 0 && (
+            <> · <span style={{ color: 'var(--neg)' }}>
+              {vencidasN} {vencidasN === 1 ? 'promesa vencida' : 'promesas vencidas'}
+            </span></>
+          )}
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <input placeholder="Folio, VIN, placas, cliente…" value={q} onChange={(e) => setQ(e.target.value)} style={{ minWidth: 220 }} />
+          <button onClick={() => (creando ? setCreando(false) : abrirCrear())}>{creando ? 'Cerrar' : 'Nueva recepción'}</button>
+        </div>
+      </div>
+
+      {/* Tira de estados: cuántas órdenes y cuánto dinero detiene cada una.
+          Son filtros —se tocan—. «Abiertas» es la suma de las tres primeras. */}
+      <div className="tira-estados">
+        <button type="button"
+          className={`estado-tarjeta${filtro === 'ABIERTAS' ? ' activo' : ''}`}
+          onClick={() => setFiltro('ABIERTAS')}>
+          <span className="fila"><span className="punto" /><span className="rotulo">Abiertas</span></span>
+          <span className="cuenta">{abiertasN}</span>
+          <span className="monto">{mxn(montoDe(['RECIBIDA', 'EN_PROCESO', 'LISTA']))}</span>
+        </button>
         {ESTADOS.map((e) => (
-          <Filtro key={e} activo={filtro === e} onClick={() => setFiltro(e)}>{titulo(e)} · {n(e)}</Filtro>
+          <button type="button" key={e}
+            className={`estado-tarjeta tono-${TONO[e]}${filtro === e ? ' activo' : ''}`}
+            onClick={() => setFiltro(e)}>
+            <span className="fila"><span className="punto" /><span className="rotulo">{titulo(e)}</span></span>
+            <span className="cuenta">{n(e)}</span>
+            <span className="monto">{mxn(montoDe([e]))}</span>
+          </button>
         ))}
-        <Filtro activo={filtro === 'TODAS'} onClick={() => setFiltro('TODAS')}>Todas</Filtro>
-        <input placeholder="Folio, VIN, placas, cliente…" value={q} onChange={(e) => setQ(e.target.value)} style={{ minWidth: 220, marginLeft: 'auto' }} />
-        <button onClick={() => (creando ? setCreando(false) : abrirCrear())}>{creando ? 'Cerrar' : 'Nueva orden'}</button>
+        <button type="button"
+          className={`estado-tarjeta${filtro === 'TODAS' ? ' activo' : ''}`}
+          onClick={() => setFiltro('TODAS')}>
+          <span className="fila"><span className="punto" /><span className="rotulo">Todas</span></span>
+          <span className="cuenta">{ESTADOS.reduce((a, e) => a + n(e), 0)}</span>
+          <span className="monto">del ejercicio</span>
+        </button>
       </div>
       {error && <div className="error">{error}</div>}
 
@@ -181,26 +267,51 @@ export default function OrdenesTaller() {
         </section>
       )}
 
-      <table>
-        <thead><tr><th>#</th><th>Unidad</th><th>Cliente</th><th>Falla / trabajo</th><th>Técnico</th><th>Estado</th><th>Promesa</th><th className="num">Factura</th><th>Acciones</th></tr></thead>
+      <table className="tabla">
+        <thead><tr>
+          <th>Folio</th><th>Unidad</th><th>Cliente</th><th>Trabajo</th><th>Técnico</th>
+          <th>Estado</th><th>Promesa</th><th className="num">Presupuesto</th><th>Acciones</th>
+        </tr></thead>
         <tbody>
           {ordenes.map((o) => (
             <OrdenRow key={o.id} o={o} busy={busy} accion={accion}
               abierta={abierta === o.id} onToggle={() => setAbierta(abierta === o.id ? null : o.id)}
               onVerCfdi={setCfdiVista} onRefrescar={cargar} empleados={empleados} cargarCatalogos={cargarCatalogos} />
           ))}
-          {ordenes.length === 0 && <tr><td colSpan={9} className="muted">Sin órdenes{filtro !== 'TODAS' ? ' con este filtro' : ' aún — recibe la primera unidad'}.</td></tr>}
+          {ordenes.length === 0 && (
+            <tr><td colSpan={9} className="muted">
+              {filtro === 'TODAS' || filtro === 'ABIERTAS'
+                ? 'Todavía no se ha recibido ninguna unidad en el taller.'
+                : 'Sin órdenes con este filtro.'}
+            </td></tr>
+          )}
         </tbody>
+        {ordenes.length > 0 && (
+          <tfoot>
+            <tr>
+              <td className="alcance">
+                {ordenes.length} orden{ordenes.length === 1 ? '' : 'es'}
+                {ordenes.length === 200 ? ' (tope de la vista)' : ''}
+              </td>
+              <td /><td /><td /><td /><td />
+              <td style={{ color: vencidasEnVista > 0 ? 'var(--neg)' : undefined }}>
+                {vencidasEnVista > 0 ? `${vencidasEnVista} vencida${vencidasEnVista === 1 ? '' : 's'}` : ''}
+              </td>
+              <td className="num" style={{ fontWeight: 700 }}>{mxn(totalEnVista)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   )
 }
 
 function OrdenRow({ o, busy, accion, abierta, onToggle, onVerCfdi, onRefrescar, empleados, cargarCatalogos }) {
-  const vencida = o.prometidaAt && !o.entregadaAt && new Date(o.prometidaAt) < new Date() && (o.estado === 'RECIBIDA' || o.estado === 'EN_PROCESO')
+  const vencida = esVencida(o)
   return (
     <>
-      <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
+      <tr onClick={onToggle} style={{ cursor: 'pointer' }} className={vencida ? 'vencida' : undefined}>
         <td className="mono">{o.folio}</td>
         <td>
           {o.vehiculo
@@ -213,10 +324,18 @@ function OrdenRow({ o, busy, accion, abierta, onToggle, onVerCfdi, onRefrescar, 
         <td style={{ color: 'var(--ink-3)' }}>{nombreEmp(o.tecnico) ?? <span className="muted">—</span>}</td>
         <td><span className={`badge ${BADGE[o.estado]}`} style={{ whiteSpace: 'nowrap' }}>{o.estado.replace('_', ' ')}</span></td>
         <td className={vencida ? 'neg' : ''} style={{ whiteSpace: 'nowrap' }}>{fecha(o.prometidaAt)}</td>
+        {/* Cuando el CFDI existe manda él: es lo que de verdad se cobró.
+            Hasta entonces vale el presupuesto de las líneas. Nunca los dos,
+            porque puestos juntos se leen como dos cargos. */}
         <td className="num">
           {o.servicioVenta
-            ? <button className="ghost" style={BTN_FILA} onClick={(e) => { e.stopPropagation(); onVerCfdi(o.servicioVenta.invoiceId) }}>{mxn(o.servicioVenta.total)}</button>
-            : <span className="muted">—</span>}
+            ? <button className="ghost" style={BTN_FILA} title="Total facturado — abre el CFDI"
+                onClick={(e) => { e.stopPropagation(); onVerCfdi(o.servicioVenta.invoiceId) }}>
+                {mxn(o.servicioVenta.total)}
+              </button>
+            : presupuestoDe(o) > 0
+              ? mxn(presupuestoDe(o))
+              : <span className="muted">sin presupuesto</span>}
         </td>
         <td onClick={(e) => e.stopPropagation()}>
           <div style={{ display: 'flex', gap: 5 }}>
@@ -276,9 +395,33 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em' }}>Orden <span className="mono" style={{ fontSize: 16 }}>{o.folio}</span></span>
         <span className={`badge ${BADGE[o.estado]}`}>{o.estado.replace('_', ' ')}</span>
-        <span className="muted" style={{ fontSize: 12 }}>
-          Recibida {fecha(o.recibidaAt)}{o.asesor ? ` · asesor ${nombreEmp(o.asesor)}` : ''}{o.kilometraje ? ` · ${o.kilometraje.toLocaleString('es-MX')} km` : ''}{o.prometidaAt ? ` · promesa ${fecha(o.prometidaAt)}` : ''}
-        </span>
+        <span className="muted" style={{ fontSize: 12 }}>recibida {fechaHora(o.recibidaAt)}</span>
+        {o.prometidaAt && (
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: esVencida(o) ? 'var(--neg)' : 'var(--ink2)' }}>
+            promesa {fecha(o.prometidaAt)}
+          </span>
+        )}
+      </div>
+
+      {/* Los datos de recepción, en rejilla. La BAHÍA que pide el handoff no
+          va: no hay modelo de bahías y dibujarla inventada sería peor. */}
+      <div className="meta-orden">
+        <div><span className="k">Cliente</span><span className="v">{o.cliente?.razonSocial ?? 'Mostrador'}</span></div>
+        <div><span className="k">Unidad</span><span className="v">
+          {o.vehiculo ? `${o.vehiculo.marca} ${o.vehiculo.modelo} ${o.vehiculo.anio}` : (o.descripcionUnidad ?? '—')}
+        </span></div>
+        <div><span className="k">VIN</span><span className="v mono">{o.vin ?? '—'}</span></div>
+        <div><span className="k">Placas</span><span className="v mono">{o.placas ?? '—'}</span></div>
+        <div><span className="k">Kilometraje</span><span className="v">
+          {o.kilometraje != null ? `${o.kilometraje.toLocaleString('es-MX')} km` : '—'}
+        </span></div>
+        <div><span className="k">Asesor</span><span className="v">{nombreEmp(o.asesor) ?? '—'}</span></div>
+      </div>
+
+      {/* Dónde va la orden. Los cuatro sellos existen en el modelo, así que la
+          línea se dibuja con horas reales y no con etapas de adorno. */}
+      <div style={{ maxWidth: 520, margin: '4px 0 8px' }}>
+        <LineaProceso pasos={pasosDe(o)} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 20, alignItems: 'start' }}>
         <div>
@@ -343,6 +486,22 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
           )}
           <div className="card-note" style={{ marginTop: 12 }}>
             La factura del cierre no se captura: cuando el CFDI se emita, el sync del SAT lo liga solo a esta orden por VIN o cliente. Si no empata, «Ligar CFDI» lo hace a mano.
+          </div>
+
+          {/* ── Lo que el tablero todavía no puede contestar ─────────────────
+              El handoff dibuja cuatro cosas más en esta pantalla y ninguna
+              tiene dónde vivir. Se enumeran en vez de dibujarlas con datos
+              falsos: así se sabe qué pedirle al modelo, y no parece que el
+              tablero ya lo cubra todo. */}
+          <div className="card-note" style={{ marginTop: 12, lineHeight: 1.55 }}>
+            <b style={{ color: 'var(--ink)' }}>Lo que este tablero todavía no contesta.</b>{' '}
+            <b>Surtido de cada refacción</b> — la línea sabe qué pieza es, no si ya se entregó al
+            técnico; sin eso no hay estado «espera refacción», que en el handoff es un bucket propio.{' '}
+            <b>Autorización del cliente</b> — no se guarda si autorizó ni cuándo, y es lo que
+            legítimamente detiene una orden.{' '}
+            <b>Productividad del técnico</b> — la línea de mano de obra no trae horas vendidas, así
+            que no hay contra qué comparar las trabajadas.{' '}
+            <b>Bahías</b> — no existen como modelo, por eso el encabezado no dice «9 de 12».
           </div>
         </div>
       </div>
