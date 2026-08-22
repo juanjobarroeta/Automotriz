@@ -241,3 +241,27 @@ export function ModalRegistro({ encabezado, campos, children, acciones, onCerrar
     </div>
   )
 }
+
+// ── 9. Ventana de detalle ───────────────────────────────────────────────────
+// La tarjeta del expediente enseña los primeros renglones; «Ver todas» abre
+// esto con la lista completa. Se separa de ModalRegistro porque el contenido
+// es otro: aquella es una ficha de campos, ésta es una tabla que hay que poder
+// recorrer sin que la ventana se haga infinita.
+export function VentanaDetalle({ titulo, glosa, children, acciones, onCerrar }) {
+  return (
+    <div className="modal-fondo" onClick={onCerrar} role="presentation">
+      <div className="modal-ancho" role="dialog" aria-modal="true" aria-label={titulo}
+        onClick={(e) => e.stopPropagation()}>
+        <header>
+          <span className="titulo">{titulo}</span>
+          {glosa && <span className="glosa">{glosa}</span>}
+        </header>
+        <div className="cuerpo">{children}</div>
+        <footer>
+          {acciones}
+          <button type="button" className="ghost" onClick={onCerrar}>Cerrar</button>
+        </footer>
+      </div>
+    </div>
+  )
+}

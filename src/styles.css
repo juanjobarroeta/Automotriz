@@ -1155,3 +1155,51 @@ body { font-variant-numeric: tabular-nums; }
 .meta-orden { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; margin: 18px 0; }
 .meta-orden .k { font-size: 10.5px; color: var(--ink3); display: block; }
 .meta-orden .v { font-size: 12.5px; margin-top: 3px; display: block; }
+
+/* ─── Ventana de detalle ───────────────────────────────────────────────────
+   Las tarjetas del expediente enseñan lo de arriba —los últimos servicios,
+   las facturas abiertas— y el resto vive detrás de «Ver todas». Es más ancha
+   que el modal de registro porque adentro va una TABLA completa, no una ficha
+   de dos columnas. */
+.modal-ancho {
+  width: 1040px; max-width: calc(100vw - 48px); background: var(--panel);
+  border: 1px solid var(--line2); border-radius: var(--radius-modal);
+  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .7);
+  max-height: calc(100vh - 96px); display: flex; flex-direction: column;
+}
+.modal-ancho > header {
+  padding: 17px 22px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: baseline; gap: 10px; flex-shrink: 0;
+}
+.modal-ancho > header .titulo { font-size: 15px; font-weight: 600; }
+.modal-ancho > header .glosa { font-size: 11.5px; color: var(--ink3); }
+.modal-ancho > .cuerpo { overflow: auto; padding: 0; flex: 1; min-height: 0; }
+.modal-ancho > footer {
+  padding: 13px 22px; border-top: 1px solid var(--line); background: var(--panel2);
+  display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
+}
+
+/* «Ver todas →»: liga discreta en la cabecera de la tarjeta, a la derecha. */
+.ver-todas {
+  margin-left: auto; font-size: 11.5px; color: var(--acc);
+  background: none; border: 0; cursor: pointer; padding: 0; font-weight: 400;
+}
+.ver-todas:hover { text-decoration: underline; }
+
+/* Bloque plegable del detalle fiscal, abajo del expediente. */
+.detalle-extra { margin-top: 20px; }
+.detalle-extra > summary {
+  cursor: pointer; font-size: 12.5px; color: var(--ink2); padding: 10px 0;
+  border-top: 1px solid var(--line); list-style: none;
+}
+.detalle-extra > summary::-webkit-details-marker { display: none; }
+.detalle-extra > summary::before { content: '▸ '; color: var(--ink3); }
+.detalle-extra[open] > summary::before { content: '▾ '; }
+.detalle-extra > summary:hover { color: var(--ink); }
+
+/* En la columna angosta del expediente una tabla ancha se sale de la tarjeta y
+   se pierde la última columna sin avisar. Que ruede ella, no la página. */
+.expediente-cols .card table { display: block; overflow-x: auto; white-space: nowrap; }
+.expediente-cols .card table thead,
+.expediente-cols .card table tbody,
+.expediente-cols .card table tfoot { display: table; width: 100%; }
