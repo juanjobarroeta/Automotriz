@@ -38,7 +38,18 @@ export function Tabla({ columnas, filas, pie, render = {}, onFila, esExcepcion, 
               seleccion === id ? 'seleccionada' : '',
             ].filter(Boolean).join(' ')
             return (
-              <tr key={id} className={clases || undefined} onClick={onFila ? () => onFila(f) : undefined}>
+              <tr
+                key={id}
+                className={clases || undefined}
+                onClick={onFila ? () => onFila(f) : undefined}
+                // Un renglón que sólo responde al ratón no existe para quien
+                // navega con tabulador.
+                tabIndex={onFila ? 0 : undefined}
+                role={onFila ? 'link' : undefined}
+                onKeyDown={onFila ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFila(f) }
+                } : undefined}
+              >
                 {columnas.map((c) => (
                   <td key={c.clave} className={c.num ? 'num' : undefined}>
                     {render[c.clave] ? render[c.clave](f) : f[c.clave]}

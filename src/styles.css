@@ -1203,3 +1203,16 @@ body { font-variant-numeric: tabular-nums; }
 .expediente-cols .card table thead,
 .expediente-cols .card table tbody,
 .expediente-cols .card table tfoot { display: table; width: 100%; }
+
+/* ─── Renglón que lleva a algún lado ──────────────────────────────────────
+   Si el renglón habla de una unidad, una orden o una factura, el renglón
+   ENTERO abre esa cosa — no sólo el folio en azul. Buscar el pedacito
+   clickeable es trabajo que la pantalla le está pasando al usuario.
+   Los controles de adentro (Ver, XML, ligas propias) paran la propagación. */
+.fila-liga { cursor: pointer; }
+.fila-liga:focus-visible {
+  outline: 2px solid var(--acc); outline-offset: -2px;
+}
+/* Señal de que el renglón es navegable, sin gritar: la primera celda gana una
+   guía fina al pasar por encima. */
+.fila-liga:hover td:first-child { box-shadow: inset 2px 0 0 var(--acc); }

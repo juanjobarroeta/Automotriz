@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError, EsqueletoTabla, Vacio } from '../components/Estados'
@@ -77,6 +77,7 @@ const ORDENES = [
 
 export default function Inventario() {
   const { activeCompany } = useAuth()
+  const navegar = useNavigate()
   const [params] = useSearchParams()
   const [items, setItems] = useState([])
   // El menú entra aquí con ?vista= (Seminuevos es esta misma pantalla, otra
@@ -334,6 +335,11 @@ export default function Inventario() {
           filas={visibles.slice(0, 200)}
           claveFila={(v) => v.id}
           esExcepcion={(v) => (v.diasEnPiso ?? 0) > 90 && (v.estado === 'DISPONIBLE' || v.estado === 'APARTADO')}
+          // El renglón entero abre el expediente. El VIN conserva su liga para
+          // quien quiera abrirlo en otra pestaña, pero ya no es el único punto
+          // vivo de la fila: cazar el pedacito clickeable era trabajo que la
+          // pantalla le pasaba al usuario.
+          onFila={(v) => navegar(`/vehiculos/${v.id}`)}
           render={{
             vin: (v) => (
               <span className="mono">
