@@ -62,7 +62,7 @@ const etiqueta = (e) => {
 // Estado de cuenta documental del cliente: cargos (facturas), abonos (NC,
 // REPs con su FechaPago legal, PUE liquidadas en emisión, cobros conciliados)
 // y saldo corrido — imprimible para mandárselo al cliente.
-function EstadoDeCuenta({ clienteId }) {
+function EstadoDeCuenta({ clienteId, completo = false }) {
   const [year, setYear] = useState(new Date().getFullYear())
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -90,8 +90,13 @@ function EstadoDeCuenta({ clienteId }) {
 
   return (
     <section>
-      <div className="card-head" style={{ marginBottom: 10 }}>
+      <div className="card-head" style={{ marginBottom: 10, gap: 10 }}>
         <h2 style={{ margin: 0 }}>Estado de cuenta</h2>
+        {!completo && data?.movimientos?.length > TOPE && (
+          <span className="muted" style={{ fontWeight: 400 }}>
+            últimos {TOPE} de {data.movimientos.length}
+          </span>
+        )}
         <div className="head-actions">
           <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 'auto' }} className="no-print">
             {anios.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -117,7 +122,22 @@ function EstadoDeCuenta({ clienteId }) {
                 <td colSpan={5} className="muted">Saldo anterior al {data.year}</td>
                 <td className="num">{mxn(data.saldoAnterior)}</td>
               </tr>
-              {data.movimientos.map((m, i) => (
+              {/* Un mayor se lee en orden y con saldo corrido, así que no se
+                  puede cortar por arriba sin más: el saldo del primer renglón
+                  mostrado ya viene de arrastre. Se enseña el tramo RECIENTE
+                  —que es lo que se consulta— y el renglón de arriba dice de
+                  dónde venía el saldo. El año completo, en «Ver todas». */}
+              {!completo && data.movimientos.length > TOPE && (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    {data.movimientos.length - TOPE} movimiento(s) anteriores no se muestran
+                  </td>
+                  <td className="num muted">
+                    {mxn(data.movimientos[data.movimientos.length - TOPE - 1].saldo)}
+                  </td>
+                </tr>
+              )}
+              {(completo ? data.movimientos : data.movimientos.slice(-TOPE)).map((m, i) => (
                 <tr key={i}>
                   <td>{fecha(m.fecha)}</td>
                   <td><span className={`badge ${TIPO[m.tipo]?.[1] ?? ''}`}>{TIPO[m.tipo]?.[0] ?? m.tipo}</span></td>
@@ -193,7 +213,7 @@ function FilaServicio({ s, onVer }) {
 
 // Cuántos renglones caben en la tarjeta antes de que el expediente deje de
 // leerse de un vistazo. El resto vive en la ventana de detalle.
-const TOPE = 5
+const TOPE = 20
 
 const SECCIONES = [
   { clave: 'unidades', titulo: 'Unidades', lados: ['CLIENTE', 'PROVEEDOR'], contar: (p) => p.unidades.length },
@@ -218,6 +238,7 @@ export default function ContactoPerfil() {
   const [portalMsg, setPortalMsg] = useState(null)
   // Qué lista está abierta a pantalla completa (null = ninguna).
   const [ventana, setVentana] = useState(null)
+  const [extraAbierto, setExtraAbierto] = useState(false)
   const [cfdiVista, setCfdiVista] = useState(null)
   const crearPortal = async () => {
     const email = window.prompt('Correo del cliente para su portal:', perfil?.contacto?.email ?? '')
@@ -352,7 +373,7 @@ export default function ContactoPerfil() {
       {ventana === 'estado' && perfil && lado === 'CLIENTE' && (
         <VentanaDetalle titulo="Estado de cuenta" glosa={perfil.contacto.razonSocial} onCerrar={() => setVentana(null)}>
           <div style={{ padding: '16px 22px' }}>
-            <EstadoDeCuenta clienteId={perfil.contacto.id} />
+            <EstadoDeCuenta clienteId={perfil.contacto.id} completo />
           </div>
         </VentanaDetalle>
       )}
@@ -700,7 +721,7 @@ export default function ContactoPerfil() {
                   <table>
                     <thead><tr><th>Folio</th><th>Fecha</th><th>Método</th><th className="num">Total</th><th className="num">Cobrado</th><th className="num">Saldo</th><th className="num">Días</th></tr></thead>
                     <tbody>
-                      {abiertas.map((f) => (
+                      {abiertas.slice(0, TOPE).map((f) => (
                         <tr key={f.id}>
                           <td className="mono">{folio(f)}</td>
                           <td>{fecha(f.fecha)}</td>
@@ -712,6 +733,13 @@ export default function ContactoPerfil() {
                         </tr>
                       ))}
                     </tbody>
+                    {abiertas.length > TOPE && (
+                      <tfoot><tr>
+                        <td className="alcance" colSpan={5}>{TOPE} de {abiertas.length}</td>
+                        <td className="num neg">{mxn(total)}</td>
+                        <td />
+                      </tr></tfoot>
+                    )}
                   </table>
                   <p className="faint" style={NOTA}>
                     PUE se considera cobrada en su emisión; PPD por la mejor evidencia (REP o conciliación bancaria).
@@ -792,8 +820,9 @@ export default function ContactoPerfil() {
 
           {/* Detalle fiscal: se consulta, no se vigila. Va abajo y plegado
               para no competir con lo que sí pide acción. */}
-          <details className="detalle-extra">
+          <details className="detalle-extra" onToggle={(e) => setExtraAbierto(e.currentTarget.open)}>
             <summary>Facturas y refacciones</summary>
+            {extraAbierto && (<>
             {(
             <section>
               <h2 style={{ marginBottom: 10 }}>Facturas</h2>
@@ -876,6 +905,7 @@ export default function ContactoPerfil() {
                 </table>
               </section>
             )}
+            </>)}
           </details>
         </>
       )}
