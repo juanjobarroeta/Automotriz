@@ -153,7 +153,7 @@ export function MicroBarra({ valor, max = 120, umbralAlto = 90, umbralMedio = 55
 }
 
 // ── 5. Línea de proceso ─────────────────────────────────────────────────────
-// pasos: [{ etiqueta, estado: 'hecho' | 'actual' | 'pendiente' }]
+// pasos: [{ etiqueta, estado: 'hecho' | 'actual' | 'pendiente', nota? }]
 export function LineaProceso({ pasos }) {
   return (
     <div className="linea-proceso">
@@ -161,6 +161,9 @@ export function LineaProceso({ pasos }) {
         <div key={p.etiqueta} className={`linea-nodo ${p.estado}`}>
           <i />
           <span>{p.etiqueta}</span>
+          {/* La hora bajo el nodo: en un taller «lista desde las 10:48» decide
+              más que «lista». Opcional — sin ella el nodo se ve igual. */}
+          {p.nota && <em>{p.nota}</em>}
         </div>
       ))}
     </div>
