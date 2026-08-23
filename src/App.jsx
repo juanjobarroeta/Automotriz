@@ -8,6 +8,7 @@ import Panel from './pages/Panel'
 import Cartera from './pages/Cartera'
 import ContabilidadCE from './pages/ContabilidadCE'
 import EstadoResultados from './pages/EstadoResultados'
+import Nomina from './pages/Nomina'
 import BalanceGeneral from './pages/BalanceGeneral'
 import Inventario from './pages/Inventario'
 import Contactos from './pages/Contactos'
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/contabilidad" element={<ContabilidadCE />} />
             <Route path="/estado-resultados" element={<EstadoResultados />} />
+            <Route path="/nomina" element={<Nomina />} />
             <Route path="/balance" element={<BalanceGeneral />} />
             <Route path="/fiscal" element={<Fiscal />} />
             <Route path="/alertas" element={<Alertas />} />
