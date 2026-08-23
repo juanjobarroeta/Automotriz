@@ -81,6 +81,7 @@ const NAV = [
       // entera, y tenerla aparte era una tercera vista de lo mismo.
       { to: '/estado-resultados', label: 'Estado de resultados', icon: 'contabilidad' },
       { to: '/balance', label: 'Balance general', icon: 'contabilidad' },
+      { to: '/nomina', label: 'Nómina', icon: 'impuestos' },
       { to: '/fiscal', label: 'Impuestos', icon: 'impuestos' },
     ],
   },
