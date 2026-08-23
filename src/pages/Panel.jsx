@@ -9,6 +9,72 @@ const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto'
 
 // Panel de la agencia («Automotriz PRO»): franja de KPIs sin caja sobre
 // hairline inferior + feed de urgentes con filas accionables (liga a unidad).
+
+// Renglón etiqueta/importe, como el desglose de Impuestos.
+function Fila({ label, valor, fuerte }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', gap: 12,
+      padding: '7px 0', borderBottom: '1px solid var(--line)',
+    }}>
+      <span style={{ fontSize: 12.5, color: fuerte ? 'var(--ink)' : 'var(--ink-3)', fontWeight: fuerte ? 600 : 400 }}>{label}</span>
+      <span style={{ fontSize: 12.5, fontWeight: fuerte ? 600 : 400 }}>{valor}</span>
+    </div>
+  )
+}
+
+// Una cifra del panel con su comparativo debajo. El handoff nunca enseña el
+// número solo: la lectura es «cuánto» Y «contra qué».
+function Cifra({ k, v, comp = [], alerta = false }) {
+  return (
+    <div className="panel-kpi">
+      <span className="k">{k}</span>
+      <span className={`v${alerta ? ' alerta' : ''}`}>{v}</span>
+      <div className="panel-comp">
+        {comp.map(([ck, cv]) => (
+          <div key={ck}>
+            <span className="ck">{ck}</span>
+            <span className="cv">{cv}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Caja de un estado de timbrado. Sin datos del bucket se enseña en cero, que
+// es distinto de «no se puede saber» —eso lo dicen las cajas sin-modelo—.
+function CajaTimbrado({ rotulo, b, nota, tono }) {
+  return (
+    <div className={`timbrado-caja${tono ? ' ' + tono : ''}`}>
+      <div className="fila"><span className="punto" /><span className="rot">{rotulo}</span></div>
+      <span className="n">{b?.n ?? 0}</span>
+      <span className="mt">{mxn(b?.monto ?? 0)}</span>
+      <span className="nota">{nota}</span>
+    </div>
+  )
+}
+
+// Renglón del feed de alertas: qué pasa, cuánto cuesta y a dónde se va a
+// arreglar. Sin el importe es una queja; con él es una decisión.
+function Alerta({ grave, titulo, detalle, monto, a, accion }) {
+  const cuerpo = (
+    <>
+      <span className={`barra${grave ? '' : ''}`} />
+      <div className="cuerpo">
+        <div className="tit">{titulo}</div>
+        <div className="det">{detalle}</div>
+      </div>
+      {monto != null && <span className={`monto${grave ? ' grave' : ''}`}>{monto}</span>}
+      {accion && <span style={{ fontSize: 11.5, color: 'var(--acc)', flexShrink: 0 }}>{accion} →</span>}
+    </>
+  )
+  const clase = `alerta-fila${grave ? ' grave' : ''}`
+  return a
+    ? <Link to={a} className={clase} style={{ textDecoration: 'none', color: 'inherit' }}>{cuerpo}</Link>
+    : <div className={clase}>{cuerpo}</div>
+}
+
 export default function Panel() {
   const { activeCompany } = useAuth()
   const [data, setData] = useState(null)
@@ -27,190 +93,314 @@ export default function Panel() {
   if (error) return <div className="error">{error}</div>
   if (!data) return <p className="muted">Cargando…</p>
 
-  const { piso, mes, urgentes, periodo, taller, crm, servicio, refacciones, absorcion, impuestos } = data
+  const { piso, mes, urgentes, periodo, taller, crm, servicio, refacciones, absorcion, impuestos, timbrado, comparativo, señales } = data
   const fechaCorta = (d) => (d ? new Date(d).toLocaleDateString('es-MX') : '—')
   const absorbe = absorcion?.porcentaje != null && absorcion.porcentaje >= 100
+
+  // El feed de alertas se arma de señales que el panel YA tiene. Cada una
+  // lleva su costo: sin el importe, «12 unidades pasan de 90 días» es una
+  // observación; con los $52,020 que devengan, es una decisión.
+  const alertas = [
+    (señales?.sinCfdiCompra ?? 0) > 0 && {
+      grave: true,
+      titulo: `${señales.sinCfdiCompra} unidad(es) en piso sin CFDI de compra`,
+      detalle: 'El costo no está documentado: no entra a la utilidad ni es deducible.',
+      a: '/?vista=SIN_DOCUMENTAR', accion: 'Revisar',
+    },
+    piso.masDe90 > 0 && {
+      grave: false,
+      titulo: `${piso.masDe90} unidad(es) pasan de 90 días en piso`,
+      detalle: `Devengan interés de plan piso mes con mes — ${mxn(comparativo?.interesMes ?? 0)} este mes en total.`,
+      a: '/', accion: 'Ver el piso',
+    },
+    (taller?.promesasVencidas?.length ?? 0) > 0 && {
+      grave: true,
+      titulo: `${taller.promesasVencidas.length} promesa(s) de taller vencida(s)`,
+      detalle: 'La unidad sigue adentro y la fecha prometida ya pasó.',
+      a: '/servicio', accion: 'Abrir taller',
+    },
+    (crm?.vencidos ?? 0) > 0 && {
+      grave: false,
+      titulo: `${crm.vencidos} seguimiento(s) de prospecto vencido(s)`,
+      detalle: 'Un prospecto sin llamada a tiempo se enfría solo.',
+      a: '/ventas', accion: 'Ver prospectos',
+    },
+    impuestos?.ivaSaldoAFavor > 0 && {
+      grave: false,
+      titulo: `${mxn(impuestos.ivaSaldoAFavor)} de saldo a favor de IVA`,
+      detalle: 'Se arrastra al mes siguiente; no reduce el ISR ni las retenciones.',
+      a: '/fiscal', accion: 'Ver impuestos',
+    },
+  ].filter(Boolean).sort((a, b) => Number(b.grave) - Number(a.grave))
 
   return (
     <div>
       <header className="page-head">
         <h1>Panel</h1>
-        <span className="glosa">{MESES[periodo.month - 1]} {periodo.year} · {activeCompany?.razonSocial}</span>
+        <span className="glosa">
+          {MESES[periodo.month - 1]} {periodo.year} · lo que requiere atención hoy
+        </span>
+        <div className="head-actions">
+          <span className="muted" style={{ fontSize: 11 }}>actual · mes anterior</span>
+        </div>
       </header>
 
-      {/* Cinco ítems ⇒ franja densa: la cifra baja a 27px (DESIGN §6). */}
-      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-        <div className="kpi-item">
-          <span className="kpi-label">Valor en piso</span>
-          <span className="kpi">{mxn(piso.valorPiso)}</span>
-          <span className="kpi-sub">{piso.unidades} unidades · {piso.diasPromedio} días prom.</span>
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">Vendidas este mes</span>
-          <span className="kpi">{mes.vendidas}</span>
-          <span className="kpi-sub">
-            {mxn(mes.ingresos)}
-            {mes.nuevas ? ` · ${mes.nuevas.unidades} nuevas, ${mes.seminuevas.unidades} seminuevos` : ''}
-          </span>
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">Utilidad bruta del mes</span>
-          <span className={`kpi ${(mes.utilidadBruta ?? 0) >= 0 ? '' : 'neg'}`}>{mxn(mes.utilidadBruta)}</span>
-          <span className="kpi-sub">todas las líneas · antes de estructura</span>
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">Utilidad neta del mes</span>
-          <span className={`kpi ${(mes.utilidadNeta ?? 0) >= 0 ? '' : 'neg'}`}>{mxn(mes.utilidadNeta)}</span>
-          <span className="kpi-sub">después de {mxn(mes.estructura)} de estructura</span>
-        </div>
-        <div className="kpi-item">
-          <span className="kpi-label">+90 días en piso</span>
-          <span className={`kpi ${piso.masDe90 > 0 ? 'neg' : ''}`}>{piso.masDe90}</span>
-          <span className="kpi-sub">{piso.masDe90 > 0 ? 'requieren acción de precio' : 'inventario sano'}</span>
-        </div>
+      {/* Las cuatro cifras del handoff, cada una contra el mes pasado. Un
+          número solo no dice si está bien: $85,240 de interés de piso se juzga
+          contra los $71,600 del mes anterior, no contra nada. */}
+      <div className="panel-kpis">
+        <Cifra
+          k="Capital en piso"
+          v={mxn(piso.valorPiso)}
+          comp={[['unidades', piso.unidades], ['+90 días', piso.masDe90], ['días prom.', piso.diasPromedio]]}
+        />
+        <Cifra
+          k="Unidades vendidas"
+          v={mes.vendidas}
+          comp={[['actual', mes.vendidas], ['anterior', comparativo?.vendidasPrevio ?? '—'],
+                 ['nuevas / semi', `${mes.nuevas} / ${mes.seminuevas}`]]}
+        />
+        <Cifra
+          k="Utilidad del mes"
+          v={mxn(mes.utilidadNeta)}
+          alerta={mes.utilidadNeta < 0}
+          comp={[['actual', mxn(mes.utilidadNeta)], ['anterior', comparativo ? mxn(comparativo.utilidadPrevio) : '—'],
+                 ['bruta', mxn(mes.utilidadBruta)]]}
+        />
+        <Cifra
+          k="Interés de plan piso"
+          v={mxn(comparativo?.interesMes ?? 0)}
+          /* El interés SIEMPRE es malo: es dinero que se va por tener la unidad
+             parada. Se pinta en rojo cuando además creció contra el mes pasado. */
+          alerta={(comparativo?.interesMes ?? 0) > (comparativo?.interesPrevio ?? 0)}
+          comp={[['actual', mxn(comparativo?.interesMes ?? 0)],
+                 ['anterior', mxn(comparativo?.interesPrevio ?? 0)],
+                 ['+90 días', `${piso.masDe90} unidades`]]}
+        />
       </div>
 
-      <div className="cards" style={{ marginTop: 18 }}>
-        <section className="card">
-          <h2>Inventario en piso</h2>
-          <p className="kpi">{piso.unidades}</p>
-          <p className="muted">
-            {piso.nuevas ?? 0} nuevas · {piso.seminuevas ?? 0} seminuevos
-            {piso.demos > 0 ? ` · ${piso.demos} demo/cortesía` : ''} — {mxn(piso.valorPiso)} invertidos,{' '}
-            {piso.diasPromedio} días prom.
-          </p>
-        </section>
-        <section className="card">
-          <h2>Seminuevos del mes</h2>
-          <p className="kpi">{mes.seminuevas?.unidades ?? 0}</p>
-          <p className="muted">{mxn(mes.seminuevas?.monto)} facturados · nuevas: {mes.nuevas?.unidades ?? 0} por {mxn(mes.nuevas?.monto)}</p>
-        </section>
-        <section className="card">
-          <h2>Órdenes de servicio facturadas</h2>
-          <p className="kpi">{servicio?.ordenesFacturadas ?? 0}</p>
-          <p className="muted">
-            {mxn(servicio?.monto)} · mano de obra {mxn(servicio?.manoObra)} + refacciones {mxn(servicio?.refacciones)}
-          </p>
-        </section>
-        <section className="card">
-          <h2>Refacciones de mostrador</h2>
-          <p className="kpi">{refacciones?.facturas ?? 0}</p>
-          <p className="muted">
-            {mxn(refacciones?.monto)} en {(refacciones?.piezas ?? 0).toLocaleString('es-MX')} piezas · fuera de órdenes de taller
-          </p>
-        </section>
-      </div>
-
-      {absorcion && (
-        <section className="card" style={{ marginTop: 18 }}>
-          <h2>Absorción de servicio</h2>
-          <p className={`kpi ${absorbe ? '' : 'neg'}`}>
-            {absorcion.porcentaje == null ? '—' : `${Math.round(absorcion.porcentaje)}%`}
-          </p>
-          <p className="muted">
-            {absorcion.porcentaje == null
-              ? 'sin estructura registrada en el mes'
-              : absorbe
-                ? 'El taller y refacciones pagan solos toda la estructura: cada unidad vendida es utilidad.'
-                : `El back end cubre ${Math.round(absorcion.porcentaje)}% de la estructura; el resto tiene que salir de vender unidades.`}
-          </p>
-          <AbsorcionGrafica serie={absorcion.serie} />
-          <details style={{ marginTop: 10 }}>
-            <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>Ver los números del mes a mes</summary>
-            <table style={{ marginTop: 8 }}>
-              <thead><tr><th>Mes</th><th className="num">Utilidad taller + refacciones</th><th className="num">Estructura</th><th className="num">Absorción</th></tr></thead>
-              <tbody>
-                {(absorcion.serie ?? []).map((m) => (
-                  <tr key={m.mes}>
-                    <td>{m.mes}</td>
-                    <td className="num">{mxn(m.utilidadFixedOps)}</td>
-                    <td className="num">{mxn(m.estructura)}</td>
-                    <td className={`num ${m.porcentaje >= 100 ? '' : 'neg'}`}>
-                      {m.porcentaje == null ? '—' : `${Math.round(m.porcentaje)}%`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </details>
-        </section>
-      )}
-
-      {impuestos && (
-        <section className="card" style={{ marginTop: 18 }}>
-          <h2>Impuestos proyectados del mes</h2>
-          <p className="kpi">{mxn(impuestos.total)}</p>
-          <p className="muted">
-            IVA {mxn(impuestos.iva)} · ISR provisional {mxn(impuestos.isr)} · retenciones {mxn(impuestos.retenciones)}
-            {impuestos.ivaSaldoAFavor > 0 ? ` · saldo a favor de IVA ${mxn(impuestos.ivaSaldoAFavor)}` : ''}
-          </p>
-          <div className="card-note">
-            Proyección con lo facturado hasta hoy — el mes no ha cerrado. La declaración se arma en{' '}
-            <Link to="/fiscal">Impuestos</Link>.
+      {/* ── Estado de timbrado ────────────────────────────────────────────── */}
+      {timbrado && (
+        <section className="card" style={{ marginBottom: 20 }}>
+          <div className="card-head" style={{ gap: 10 }}>
+            <span>Estado de timbrado · {MESES[periodo.month - 1]}</span>
+            <span className="muted" style={{ fontWeight: 400 }}>{timbrado.emitidos} CFDI emitidos</span>
+          </div>
+          <div className="panel-timbrado">
+            <CajaTimbrado tono="ok" rotulo="Timbrada" b={timbrado.buckets.STAMPED} nota="sin pendientes" />
+            <CajaTimbrado rotulo="Por timbrar" b={timbrado.buckets.DRAFT} nota="borradores sin sellar" />
+            <CajaTimbrado tono="mal" rotulo="Cancelada" b={timbrado.buckets.CANCELLED} nota="aceptadas por el receptor" />
+            {/* El handoff dibuja dos estados más. No se inventan: el modelo no
+                guarda cuándo se pidió una cancelación ni si el receptor la
+                rechazó, así que no hay con qué contarlos. */}
+            <div className="timbrado-caja sin-modelo" title="Sin modelo: no se guarda la solicitud de cancelación">
+              <div className="fila"><span className="punto" /><span className="rot">Cancelación en proceso</span></div>
+              <span className="n">—</span>
+              <span className="nota">no se guarda cuándo se pidió</span>
+            </div>
+            <div className="timbrado-caja sin-modelo" title="Sin modelo: no se guarda el rechazo del receptor">
+              <div className="fila"><span className="punto" /><span className="rot">Rechazada</span></div>
+              <span className="n">—</span>
+              <span className="nota">no se guarda el rechazo</span>
+            </div>
           </div>
         </section>
       )}
 
-      {(taller || crm) && (
-        <div className="cards" style={{ marginTop: 18 }}>
-          {taller && (
+      <div className="panel-cols">
+        <div>
+            {/* ── Alertas del módulo ──────────────────────────────────────
+                Cada renglón trae su costo al lado. Sin el importe es una
+                queja; con él es una decisión que alguien puede tomar hoy. */}
             <section className="card">
-              <div className="card-head">
-                <span>Taller hoy</span>
-                <Link to="/servicio">ver órdenes</Link>
+              <div className="card-head" style={{ gap: 10 }}>
+                <span>Alertas del módulo</span>
+                <span className="muted" style={{ fontWeight: 400 }}>
+                  {alertas.length === 0 ? 'nada pendiente' : `${alertas.filter((a) => a.grave).length} graves · ${alertas.filter((a) => !a.grave).length} avisos`}
+                </span>
               </div>
-              <p className="kpi">{taller.abiertas}</p>
-              <p className="muted">
-                órdenes abiertas · {taller.porEstado.RECIBIDA ?? 0} recibidas, {taller.porEstado.EN_PROCESO ?? 0} en
-                proceso, {taller.porEstado.LISTA ?? 0} listas
-              </p>
-              {taller.promesasVencidas.length > 0 && (
-                <div className="card-divider" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {taller.promesasVencidas.map((o) => (
-                    <div key={o.id} style={{ fontSize: 12, color: 'var(--danger)' }}>
-                      #<span className="mono">{o.folio}</span> {o.unidad ?? ''} — prometida {fechaCorta(o.prometidaAt)}
-                    </div>
+              {alertas.length === 0 ? (
+                <p className="muted">No hay nada que atender hoy en el módulo.</p>
+              ) : alertas.map((al) => <Alerta key={al.titulo} {...al} />)}
+            </section>
+
+      {absorcion && (
+          <section className="card" style={{ marginTop: 18 }}>
+            <h2>Absorción de servicio</h2>
+            <p className={`kpi ${absorbe ? '' : 'neg'}`}>
+              {absorcion.porcentaje == null ? '—' : `${Math.round(absorcion.porcentaje)}%`}
+            </p>
+            <p className="muted">
+              {absorcion.porcentaje == null
+                ? 'sin estructura registrada en el mes'
+                : absorbe
+                  ? 'El taller y refacciones pagan solos toda la estructura: cada unidad vendida es utilidad.'
+                  : `El back end cubre ${Math.round(absorcion.porcentaje)}% de la estructura; el resto tiene que salir de vender unidades.`}
+            </p>
+            <AbsorcionGrafica serie={absorcion.serie} />
+            <details style={{ marginTop: 10 }}>
+              <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>Ver los números del mes a mes</summary>
+              <table style={{ marginTop: 8 }}>
+                <thead><tr><th>Mes</th><th className="num">Utilidad taller + refacciones</th><th className="num">Estructura</th><th className="num">Absorción</th></tr></thead>
+                <tbody>
+                  {(absorcion.serie ?? []).map((m) => (
+                    <tr key={m.mes}>
+                      <td>{m.mes}</td>
+                      <td className="num">{mxn(m.utilidadFixedOps)}</td>
+                      <td className="num">{mxn(m.estructura)}</td>
+                      <td className={`num ${m.porcentaje >= 100 ? '' : 'neg'}`}>
+                        {m.porcentaje == null ? '—' : `${Math.round(m.porcentaje)}%`}
+                      </td>
+                    </tr>
                   ))}
+                </tbody>
+              </table>
+            </details>
+          </section>
+        )}
+  
+        {(taller || crm) && (
+          <div className="cards" style={{ marginTop: 18 }}>
+            {taller && (
+              <section className="card">
+                <div className="card-head">
+                  <span>Taller hoy</span>
+                  <Link to="/servicio">ver órdenes</Link>
+                </div>
+                <p className="kpi">{taller.abiertas}</p>
+                <p className="muted">
+                  órdenes abiertas · {taller.porEstado.RECIBIDA ?? 0} recibidas, {taller.porEstado.EN_PROCESO ?? 0} en
+                  proceso, {taller.porEstado.LISTA ?? 0} listas
+                </p>
+                {taller.promesasVencidas.length > 0 && (
+                  <div className="card-divider" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {taller.promesasVencidas.map((o) => (
+                      <div key={o.id} style={{ fontSize: 12, color: 'var(--danger)' }}>
+                        #<span className="mono">{o.folio}</span> {o.unidad ?? ''} — prometida {fechaCorta(o.prometidaAt)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+            {crm && (
+              <section className="card">
+                <div className="card-head">
+                  <span>Piso de ventas</span>
+                  <Link to="/ventas">abrir la cola de WhatsApp</Link>
+                </div>
+                <p className="kpi">{crm.abiertos}</p>
+                <p className="muted">
+                  prospectos abiertos ·{' '}
+                  {crm.vencidos > 0
+                    ? <span className="neg">{crm.vencidos} seguimientos vencidos</span>
+                    : 'seguimientos al día'}
+                </p>
+              </section>
+            )}
+          </div>
+        )}
+  
+        <div className="urgent-list" style={{ marginTop: 18 }}>
+          <div className="urgent-head">Requiere tu atención</div>
+          {urgentes.length === 0 ? (
+            <div className="urgent-row" style={{ cursor: 'default' }}>
+              <span className="muted">Nada urgente por ahora.</span>
+            </div>
+          ) : (
+            urgentes.map((u) => (
+              <Link key={`${u.tipo}-${u.vehiculoId}`} to={`/vehiculos/${u.vehiculoId}`} className="urgent-row">
+                <span className={`badge ${u.tipo === 'PISO_90' ? 'badge-danger' : 'badge-warn'}`} style={{ flexShrink: 0 }}>
+                  {u.tipo === 'PISO_90' ? '+90 días' : 'Apartada'}
+                </span>
+                <span className="urgent-title">{u.titulo}</span>
+                <span className="muted">{u.detalle}</span>
+                <span className="chevron">›</span>
+              </Link>
+            ))
+          )}
+        </div>
+        </div>
+
+        <div>
+            {/* ── Lo que se le debe al SAT ────────────────────────────────
+                Los tres impuestos que salen el día 17, juntos. El ISAN estaba
+                fuera del panel y es el propio de una distribuidora. */}
+            <section className="card">
+              <div className="card-head" style={{ gap: 10 }}>
+                <span>Impuestos del mes</span>
+                <span className="muted" style={{ fontWeight: 400 }}>proyectado · vence el 17</span>
+              </div>
+              <Fila label="IVA" valor={mxn(impuestos.iva)} />
+              <Fila
+                label={`ISAN${impuestos.isanUnidades ? ` · ${impuestos.isanUnidades} unidad(es) nueva(s)` : ''}`}
+                valor={mxn(impuestos.isan ?? 0)}
+              />
+              <Fila label="ISR provisional" valor={mxn(impuestos.isr)} />
+              <Fila label="Retenciones a enterar" valor={mxn(impuestos.retenciones)} />
+              <Fila fuerte label="Total al SAT" valor={mxn(impuestos.total)} />
+              <div className="card-note">
+                Proyectado con lo facturado hasta hoy, no es la declaración: ésa se arma con el mes
+                cerrado en <Link to="/fiscal">Impuestos</Link>.
+                {impuestos.ivaSaldoAFavor > 0 && ` Hay ${mxn(impuestos.ivaSaldoAFavor)} de saldo a favor de IVA que se arrastra.`}
+              </div>
+              {(impuestos.isanAvisos ?? []).length > 0 && (
+                <div className="warn" style={{ marginTop: 10, fontSize: 11.5 }}>
+                  {impuestos.isanAvisos[0]}
                 </div>
               )}
             </section>
-          )}
-          {crm && (
+
+            {/* ── Acciones de venta ──────────────────────────────────────── */}
             <section className="card">
-              <div className="card-head">
-                <span>Piso de ventas</span>
-                <Link to="/ventas">abrir la cola de WhatsApp</Link>
+              <div className="card-head" style={{ gap: 10 }}>
+                <span>Acciones de venta urgentes</span>
+                <span className="muted" style={{ fontWeight: 400 }}>seguimiento de prospectos</span>
               </div>
-              <p className="kpi">{crm.abiertos}</p>
-              <p className="muted">
-                prospectos abiertos ·{' '}
-                {crm.vencidos > 0
-                  ? <span className="neg">{crm.vencidos} seguimientos vencidos</span>
-                  : 'seguimientos al día'}
+              {(crm?.vencidos ?? 0) > 0 ? (
+                <>
+                  <p className="kpi neg" style={{ margin: '4px 0' }}>{crm.vencidos}</p>
+                  <p className="muted" style={{ margin: 0 }}>
+                    seguimiento(s) con fecha vencida, de {crm.abiertos} prospecto(s) abierto(s).
+                    Un prospecto sin llamada a tiempo se enfría solo.
+                  </p>
+                </>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>
+                  {(crm?.abiertos ?? 0) > 0
+                    ? `${crm.abiertos} prospecto(s) abierto(s), ninguno con seguimiento vencido.`
+                    : 'Todavía no se capturan prospectos. El embudo llega con la pasada de CRM.'}
+                </p>
+              )}
+            </section>
+
+            {/* ── Por cablear ─────────────────────────────────────────────
+                Se enseñan a propósito: un hueco callado se lee como que el
+                tablero ya cubre todo. Cada uno dice qué le falta. */}
+            <section className="card">
+              <div className="card-head" style={{ gap: 10 }}>
+                <span>Clientes con RPC urgente</span>
+                <span className="muted" style={{ fontWeight: 400 }}>por cablear</span>
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.55 }}>
+                No hay dónde levantar un reporte de problema de cliente: falta el modelo con folio,
+                severidad, área y compromiso de respuesta. Cuando exista, aquí van los abiertos que
+                pasan de 5 días hábiles — que es cuando escalan a planta.
               </p>
             </section>
-          )}
-        </div>
-      )}
 
-      <div className="urgent-list" style={{ marginTop: 18 }}>
-        <div className="urgent-head">Requiere tu atención</div>
-        {urgentes.length === 0 ? (
-          <div className="urgent-row" style={{ cursor: 'default' }}>
-            <span className="muted">Nada urgente por ahora.</span>
-          </div>
-        ) : (
-          urgentes.map((u) => (
-            <Link key={`${u.tipo}-${u.vehiculoId}`} to={`/vehiculos/${u.vehiculoId}`} className="urgent-row">
-              <span className={`badge ${u.tipo === 'PISO_90' ? 'badge-danger' : 'badge-warn'}`} style={{ flexShrink: 0 }}>
-                {u.tipo === 'PISO_90' ? '+90 días' : 'Apartada'}
-              </span>
-              <span className="urgent-title">{u.titulo}</span>
-              <span className="muted">{u.detalle}</span>
-              <span className="chevron">›</span>
-            </Link>
-          ))
-        )}
+            <section className="card">
+              <div className="card-head" style={{ gap: 10 }}>
+                <span>Tareas y mensajes</span>
+                <span className="muted" style={{ fontWeight: 400 }}>por cablear</span>
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.55 }}>
+                No se asignan tareas ni se guardan mensajes entre el personal. Los mensajes de
+                WhatsApp que ya existen son del asistente hablando con la agencia, no de una
+                persona con otra. Necesita modelo propio y llega con la pasada de CRM.
+              </p>
+            </section>
+        </div>
       </div>
     </div>
   )
