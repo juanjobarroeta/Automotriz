@@ -39,7 +39,11 @@ export default function EstadoResultados() {
   const [er, setEr] = useState(null)
   const [rubrosAbiertos, setRubrosAbiertos] = useState(() => new Set(['ingresos']))
   const [cuentas, setCuentas] = useState({})       // numCta → { cargando, data }
-  const [verCfdi, setVerCfdi] = useState(null) // { id, uuid } del comprobante en ventana
+  const [verCfdi, setVerCfdi] = useState(null)
+  // Comparar contra los dos meses previos. El handoff enseña tres columnas
+  // porque un estado de resultados de un solo mes no dice si el mes fue bueno.
+  const [comparar, setComparar] = useState(true)
+  const [previos, setPrevios] = useState([]) // { id, uuid } del comprobante en ventana
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -61,12 +65,22 @@ export default function EstadoResultados() {
     if (!activeCompany?.id || !sel) return
     setLoading(true); setError(null)
     setCuentas({}); setVerCfdi(null)
+    const url = (p) =>
+      `/api/contabilidad/ce-estado-resultados?companyId=${activeCompany.id}&anio=${p.anio}&mes=${p.mes}${ytd ? '&ytd=1' : ''}`
     try {
-      setEr(await apiFetch(
-        `/api/contabilidad/ce-estado-resultados?companyId=${activeCompany.id}&anio=${sel.anio}&mes=${sel.mes}${ytd ? '&ytd=1' : ''}`,
-      ))
+      const actual = await apiFetch(url(sel))
+      setEr(actual)
+      // Los dos meses previos, para la comparación. Van APARTE y después: si
+      // alguno falla o la empresa no tiene esa CE, el estado del mes se enseña
+      // igual — la comparación es un lujo, la cifra del mes no.
+      if (!comparar) { setPrevios([]); return }
+      const antes = mesesAntes(sel, 2).filter((p) => periodos.some((q) => q.anio === p.anio && q.mes === p.mes))
+      const datos = await Promise.all(
+        antes.map((p) => apiFetch(url(p)).then((d) => ({ p, d })).catch(() => null))
+      )
+      setPrevios(datos.filter(Boolean))
     } catch (err) { setError(err.message); setEr(null) } finally { setLoading(false) }
-  }, [activeCompany?.id, sel, ytd])
+  }, [activeCompany?.id, sel, ytd, comparar, periodos])
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -97,8 +111,19 @@ export default function EstadoResultados() {
     }
   }
 
+  // Índices para la comparación: clave de rubro → cifra, numCta → cifra, por
+  // cada mes previo. Se arma una vez y no en cada renglón.
+  const serie = useMemo(() => previos.map(({ p, d }) => ({
+    p,
+    rubro: new Map((d.rubros ?? []).map((r) => [r.clave, d.presentado ? r.declarado : r.derivado])),
+    cuenta: new Map((d.rubros ?? []).flatMap((r) => (r.cuentas ?? []).map((c) => [c.numCta, d.presentado ? c.declarado : c.derivado]))),
+    bruta: d.presentado ? d.utilidadBruta?.declarado : d.utilidadBruta?.derivado,
+    resultado: d.presentado ? d.resultado?.declarado : d.resultado?.derivado,
+  })), [previos])
+  const comparando = comparar && serie.length > 0
+
   const presentado = er?.presentado ?? false
-  const cols = presentado ? 4 : 2
+  const cols = (presentado ? 4 : 2) + (comparando ? serie.length : 0)
   const cifra = (r) => (presentado ? r.declarado : r.derivado)
 
   const kpis = useMemo(() => {
@@ -135,6 +160,14 @@ export default function EstadoResultados() {
               style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, marginLeft: -1 }}
             >Año</button>
           </div>
+          <button
+            type="button"
+            className={comparando ? undefined : 'ghost'}
+            onClick={() => setComparar((v) => !v)}
+            title="Enseñar los dos meses anteriores al lado"
+          >
+            Comparar
+          </button>
           {periodos.length > 0 && sel && (
             <select
               value={`${sel.anio}-${sel.mes}`}
@@ -200,7 +233,13 @@ export default function EstadoResultados() {
               <thead>
                 <tr>
                   <th>Concepto</th>
-                  <th style={num}>{presentado ? 'Declarado' : 'Derivado'}</th>
+                  {/* Los meses previos primero: el ojo lee de izquierda a
+                      derecha y así el mes en curso queda al final, que es
+                      donde uno espera el número más reciente. */}
+                  {comparando && serie.map((x) => (
+                    <th key={`${x.p.anio}-${x.p.mes}`} style={num} className="muted">{per(x.p)}</th>
+                  ))}
+                  <th style={num}>{comparando ? per(sel) : presentado ? 'Declarado' : 'Derivado'}</th>
                   {presentado && <th style={num}>Derivado</th>}
                   {presentado && <th style={num}>Diferencia</th>}
                 </tr>
@@ -212,6 +251,9 @@ export default function EstadoResultados() {
                       <td style={{ fontWeight: 600 }}>
                         <Chevron abierto={rubrosAbiertos.has(r.clave)} />{r.titulo}
                       </td>
+                      {comparando && serie.map((x) => (
+                        <td key={`${x.p.anio}-${x.p.mes}`} style={num} className="muted">{mxn(x.rubro.get(r.clave))}</td>
+                      ))}
                       <td style={{ ...num, fontWeight: 600 }}>{mxn(cifra(r))}</td>
                       {presentado && <td style={num} className="muted">{mxn(r.derivado)}</td>}
                       {presentado && <td style={num} className="muted">{mxn(r.diferencia)}</td>}
@@ -232,6 +274,9 @@ export default function EstadoResultados() {
                                 </span>
                               )}
                             </td>
+                            {comparando && serie.map((x) => (
+                              <td key={`${x.p.anio}-${x.p.mes}`} style={num} className="muted">{mxn(x.cuenta.get(c.numCta))}</td>
+                            ))}
                             <td style={num}>{mxn(presentado ? c.declarado : c.derivado)}</td>
                             {presentado && <td style={num} className="muted">{mxn(c.derivado)}</td>}
                             {presentado && <td style={num} className="muted">{mxn(c.diferencia)}</td>}
@@ -260,6 +305,9 @@ export default function EstadoResultados() {
                     {rubrosAbiertos.has(r.clave) && r.clave === 'costos' && (
                       <tr>
                         <td style={{ fontWeight: 600 }}>Utilidad bruta</td>
+                        {comparando && serie.map((x) => (
+                          <td key={`${x.p.anio}-${x.p.mes}`} style={num} className="muted">{mxn(x.bruta)}</td>
+                        ))}
                         <td style={{ ...num, fontWeight: 600 }}>
                           {mxn(presentado ? er.utilidadBruta.declarado : er.utilidadBruta.derivado)}
                         </td>
@@ -271,6 +319,9 @@ export default function EstadoResultados() {
                 ))}
                 <tr>
                   <td style={{ fontWeight: 700 }}>Resultado</td>
+                  {comparando && serie.map((x) => (
+                    <td key={`${x.p.anio}-${x.p.mes}`} style={num} className="muted">{mxn(x.resultado)}</td>
+                  ))}
                   <td style={{ ...num, fontWeight: 700 }}>
                     {mxn(presentado ? er.resultado.declarado : er.resultado.derivado)}
                   </td>
@@ -288,6 +339,16 @@ export default function EstadoResultados() {
       )}
     </div>
   )
+}
+
+// Los N meses anteriores a uno dado, del más viejo al más nuevo.
+function mesesAntes(sel, n) {
+  const out = []
+  for (let i = n; i >= 1; i--) {
+    const d = new Date(sel.anio, sel.mes - 1 - i, 1)
+    out.push({ anio: d.getFullYear(), mes: d.getMonth() + 1 })
+  }
+  return out
 }
 
 function Chevron({ abierto }) {

@@ -42,6 +42,11 @@ export default function BalanceGeneral() {
   const [gruposAbiertos, setGruposAbiertos] = useState(() => new Set(['activo']))
   const [cuentas, setCuentas] = useState({})   // numCta → { cargando, abierta, data }
   const [verCfdi, setVerCfdi] = useState(null)
+  // El handoff compara el balance contra el CIERRE del ejercicio anterior, no
+  // contra el mes pasado. Es lo correcto: un balance es una foto, y la foto que
+  // importa comparar es la del último corte auditado.
+  const [comparar, setComparar] = useState(true)
+  const [cierre, setCierre] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -63,12 +68,18 @@ export default function BalanceGeneral() {
     if (!activeCompany?.id || !sel) return
     setLoading(true); setError(null)
     setCuentas({}); setVerCfdi(null)
+    const url = (a, m) =>
+      `/api/contabilidad/ce-balance-general?companyId=${activeCompany.id}&anio=${a}&mes=${m}`
     try {
-      setBg(await apiFetch(
-        `/api/contabilidad/ce-balance-general?companyId=${activeCompany.id}&anio=${sel.anio}&mes=${sel.mes}`,
-      ))
+      setBg(await apiFetch(url(sel.anio, sel.mes)))
+      // Diciembre del ejercicio anterior. Si esa CE no está importada, la
+      // comparación simplemente no sale — el balance del mes se enseña igual.
+      if (!comparar) { setCierre(null); return }
+      const prev = { anio: sel.anio - 1, mes: 12 }
+      const hay = periodos.some((q) => q.anio === prev.anio && q.mes === prev.mes)
+      setCierre(hay ? { p: prev, d: await apiFetch(url(prev.anio, prev.mes)).catch(() => null) } : null)
     } catch (err) { setError(err.message); setBg(null) } finally { setLoading(false) }
-  }, [activeCompany?.id, sel])
+  }, [activeCompany?.id, sel, comparar, periodos])
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -101,8 +112,19 @@ export default function BalanceGeneral() {
     }
   }
 
+  const comp = useMemo(() => {
+    if (!cierre?.d) return null
+    const d = cierre.d
+    return {
+      p: cierre.p,
+      grupo: new Map((d.grupos ?? []).map((g) => [g.clave, d.presentado ? g.declarado : g.derivado])),
+      cuenta: new Map((d.grupos ?? []).flatMap((g) => (g.cuentas ?? []).map((c) => [c.numCta, d.presentado ? c.declarado : c.derivado]))),
+    }
+  }, [cierre])
+  const comparando = comparar && comp != null
+
   const presentado = bg?.presentado ?? false
-  const cols = presentado ? 4 : 2
+  const cols = (presentado ? 4 : 2) + (comparando ? 1 : 0)
   const cifra = (r) => (presentado ? r.declarado : r.derivado)
 
   const kpis = useMemo(() => {
@@ -129,6 +151,14 @@ export default function BalanceGeneral() {
             : 'aún sin declarar — derivado de tus CFDIs'}
         </span>
         <div className="head-actions" style={{ alignSelf: 'center' }}>
+          <button
+            type="button"
+            className={comparando ? undefined : 'ghost'}
+            onClick={() => setComparar((v) => !v)}
+            title="Comparar contra el cierre del ejercicio anterior"
+          >
+            Comparar
+          </button>
           {periodos.length > 0 && sel && (
             <select
               value={`${sel.anio}-${sel.mes}`}
@@ -219,7 +249,8 @@ export default function BalanceGeneral() {
               <thead>
                 <tr>
                   <th>Concepto</th>
-                  <th style={num}>{presentado ? 'Declarado' : 'Derivado'}</th>
+                  {comparando && <th style={num} className="muted">{per(comp.p)}</th>}
+                  <th style={num}>{comparando ? per(sel) : presentado ? 'Declarado' : 'Derivado'}</th>
                   {presentado && <th style={num}>Derivado</th>}
                   {presentado && <th style={num}>Diferencia</th>}
                 </tr>
@@ -231,6 +262,7 @@ export default function BalanceGeneral() {
                       <td style={{ fontWeight: 600 }}>
                         <Chevron abierto={gruposAbiertos.has(g.clave)} />{g.titulo}
                       </td>
+                      {comparando && <td style={num} className="muted">{mxn(comp.grupo.get(g.clave))}</td>}
                       <td style={{ ...num, fontWeight: 600 }}>{mxn(cifra(g))}</td>
                       {presentado && <td style={num} className="muted">{mxn(g.derivado)}</td>}
                       {presentado && <td style={num} className="muted">{mxn(g.diferencia)}</td>}
@@ -259,6 +291,7 @@ export default function BalanceGeneral() {
                                 </span>
                               )}
                             </td>
+                            {comparando && <td style={num} className="muted">{mxn(comp.cuenta.get(c.numCta))}</td>}
                             <td style={num}>{mxn(presentado ? c.declarado : c.derivado)}</td>
                             {presentado && <td style={num} className="muted">{mxn(c.derivado)}</td>}
                             {presentado && <td style={num} className="muted">{mxn(c.diferencia)}</td>}
@@ -290,6 +323,7 @@ export default function BalanceGeneral() {
                     {gruposAbiertos.has(g.clave) && g.clave === 'activo' && (
                       <tr>
                         <td style={{ fontWeight: 600 }}>Total activo</td>
+                        {comparando && <td style={num} className="muted">{mxn(comp.grupo.get(g.clave))}</td>}
                         <td style={{ ...num, fontWeight: 600 }}>{mxn(cifra(g))}</td>
                         {presentado && <td style={num} className="muted">{mxn(g.derivado)}</td>}
                         {presentado && <td />}
