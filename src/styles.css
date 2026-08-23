@@ -1216,3 +1216,61 @@ body { font-variant-numeric: tabular-nums; }
 /* Señal de que el renglón es navegable, sin gritar: la primera celda gana una
    guía fina al pasar por encima. */
 .fila-liga:hover td:first-child { box-shadow: inset 2px 0 0 var(--acc); }
+
+/* ─── PANEL — tarjeta de cifra con comparativo ─────────────────────────────
+   El handoff no enseña la cifra sola, y tiene razón: $85,240 de interés de
+   piso no dice nada hasta que sabes que el mes pasado fueron $71,600. La
+   comparación es la que decide si alguien hace algo hoy. */
+.panel-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 20px; }
+.panel-kpi {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+}
+.panel-kpi > .k { font-size: 12px; color: var(--ink2); display: block; }
+.panel-kpi > .v {
+  font-size: 33px; font-weight: 600; letter-spacing: -0.03em; margin: 10px 0 14px;
+  display: block; font-variant-numeric: tabular-nums;
+}
+.panel-kpi > .v.alerta { color: var(--neg); }
+.panel-comp {
+  display: flex; gap: 20px; padding-top: 12px; border-top: 1px solid var(--line);
+}
+.panel-comp > div { min-width: 0; }
+.panel-comp .ck { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink3); display: block; }
+.panel-comp .cv { font-family: var(--mono); font-size: 11.5px; color: var(--ink2); display: block; margin-top: 3px; }
+@media (max-width: 1180px) { .panel-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+/* Tira de estado de timbrado: mismo patrón que la tira del taller. */
+.panel-timbrado { display: flex; gap: 10px; flex-wrap: wrap; }
+.timbrado-caja {
+  flex: 1; min-width: 150px; background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 12px; padding: 13px 15px;
+}
+.timbrado-caja .fila { display: flex; align-items: center; gap: 7px; }
+.timbrado-caja .punto { width: 6px; height: 6px; border-radius: 50%; background: var(--ink3); flex-shrink: 0; }
+.timbrado-caja .rot { font-size: 11.5px; color: var(--ink2); }
+.timbrado-caja .n { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; margin: 8px 0 3px; display: block; }
+.timbrado-caja .mt { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); display: block; }
+.timbrado-caja .nota { font-size: 10.5px; color: var(--ink3); display: block; margin-top: 4px; }
+.timbrado-caja.ok { background: var(--posBg); border-color: var(--pos); }
+.timbrado-caja.ok .punto { background: var(--posFill); }
+.timbrado-caja.mal { background: var(--negBg); border-color: var(--neg); }
+.timbrado-caja.mal .punto { background: var(--negFill); }
+.timbrado-caja.sin-modelo { opacity: .55; border-style: dashed; }
+
+/* Feed de alertas: barra de severidad a la izquierda, importe a la derecha. */
+.alerta-fila {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--line);
+}
+.alerta-fila:last-child { border-bottom: 0; }
+.alerta-fila > .barra { width: 3px; border-radius: 2px; background: var(--warnFill); flex-shrink: 0; align-self: stretch; }
+.alerta-fila.grave > .barra { background: var(--negFill); }
+.alerta-fila .cuerpo { flex: 1; min-width: 0; }
+.alerta-fila .tit { font-size: 12.5px; font-weight: 500; }
+.alerta-fila .det { font-size: 11.5px; color: var(--ink2); margin-top: 3px; line-height: 1.45; }
+.alerta-fila .monto { font-family: var(--mono); font-size: 11.5px; flex-shrink: 0; }
+.alerta-fila .monto.grave { color: var(--neg); }
+
+.panel-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; align-items: start; }
+.panel-cols > div { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (max-width: 1180px) { .panel-cols { grid-template-columns: 1fr; } }
