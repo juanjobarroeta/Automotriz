@@ -238,6 +238,23 @@ export default function Panel() {
                   : `El back end cubre ${Math.round(absorcion.porcentaje)}% de la estructura; el resto tiene que salir de vender unidades.`}
             </p>
             <AbsorcionGrafica serie={absorcion.serie} />
+          {/* Refacciones cuyo costo no es comparable (se compran por tambo y se
+              venden por litro, por ejemplo). Quedan fuera del cálculo arriba y
+              abajo, así que la absorción sale más baja de lo real. Se dice, en
+              vez de dejar que alguien se pregunte por qué no cuadra con la
+              venta de refacciones del estado de resultados. */}
+          {(() => {
+            const fuera = (absorcion.serie ?? []).reduce((a, m) => a + (m.ingresoSinCosto ?? 0), 0)
+            if (fuera <= 0) return null
+            return (
+              <div className="card-note">
+                Quedan fuera {mxn(fuera)} de venta de refacciones en el periodo: su costo no es
+                comparable —la unidad con que se compran difiere de la que se vende, típico de
+                lubricantes— así que no se afirma un margen que no se puede sostener. La absorción
+                real es algo más alta que la de la gráfica.
+              </div>
+            )
+          })()}
             <details style={{ marginTop: 10 }}>
               <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>Ver los números del mes a mes</summary>
               <table style={{ marginTop: 8 }}>
