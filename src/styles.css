@@ -1274,3 +1274,142 @@ body { font-variant-numeric: tabular-nums; }
 .panel-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; align-items: start; }
 .panel-cols > div { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 @media (max-width: 1180px) { .panel-cols { grid-template-columns: 1fr; } }
+
+/* ═══ TELÉFONO ═══════════════════════════════════════════════════════════
+   El handoff no diseñó el responsivo —«min width 1340px on the shell»— así
+   que esto es diseño, no adaptación. La medida que lo motiva: en 390 px, la
+   barra lateral se come 60 (el 15%) en iconos sin rótulo que nadie descifra,
+   y deja 330 para tablas de hasta doce columnas.
+
+   Abajo de 768 la barra lateral se va y baja al pie, donde el pulgar llega. */
+:root { --barra-inf: 56px; }
+
+@media (max-width: 767px) {
+  /* La barra lateral desaparece por completo: no se encoge, se va. Encogerla
+     dejaba iconos ilegibles cobrando peaje en cada pantalla. */
+  .rail-slot { display: none; }
+
+  .shell { height: 100dvh; }
+  .content {
+    padding: 0 14px 14px;
+    /* El pie flotante taparía el último renglón de cada lista. */
+    padding-bottom: calc(var(--barra-inf) + env(safe-area-inset-bottom, 0px) + 18px);
+  }
+  .content > * { padding-top: 14px; }
+
+  /* La topbar se queda con lo que de pie sirve: marca y búsqueda. El tema, el
+     estado del SAT y el selector de empresa se van a «Más» — se tocan una vez
+     al día, no en cada pantalla. */
+  .topbar { padding: 8px 12px; gap: 8px; }
+  .topbar .sync-pill,
+  .topbar .tema-toggle,
+  .topbar > .avatar { display: none; }
+  .topbar-search { flex: 1; min-width: 0; }
+  .topbar-search-kbd { display: none; }
+
+  /* Encabezados de página: el título baja de tamaño y las acciones envuelven
+     debajo en vez de apretujarse al lado. */
+  .page-head { flex-wrap: wrap; gap: 8px; }
+  .page-head h1 { font-size: 23px; }
+  .head-actions { width: 100%; flex-wrap: wrap; }
+
+  /* Objetivo táctil: 44 px es el mínimo con el que un dedo acierta. Muchos
+     controles del escritorio miden 22 y en el teléfono se fallan. */
+  button, .filtro, .faceta, select, input[type="month"], input[type="date"] {
+    min-height: 44px;
+  }
+  .ghost, .ver-todas { min-height: 0; }
+
+  /* Las rejillas de dos columnas del escritorio se apilan. Sin esto, la
+     segunda tarjeta del panel se corta a la mitad — defecto real medido. */
+  .panel-kpis,
+  .panel-cols,
+  .expediente-cols,
+  .cards { grid-template-columns: 1fr !important; }
+  .expediente-hero { flex-direction: column; }
+  .hero-fotos { width: auto; min-height: 96px; }
+  .kpi-embebido { flex-wrap: wrap; }
+  .kpi-embebido > div { flex-basis: 50%; }
+  .meta-orden { grid-template-columns: 1fr 1fr; }
+
+  /* Toda tabla rueda dentro de su tarjeta, nunca la página entera. */
+  .card table, table.tabla { display: block; overflow-x: auto; white-space: nowrap; }
+  .card table thead, .card table tbody, .card table tfoot,
+  table.tabla thead, table.tabla tbody, table.tabla tfoot { display: table; width: 100%; }
+}
+
+/* ── Barra inferior ─────────────────────────────────────────────────────
+   Cinco destinos: los cinco que alguien abre de pie. El resto vive en «Más».
+   Cuando lleguen los roles, esta barra los respeta — el vendedor no necesita
+   Contabilidad y el contador no necesita el piso. */
+.barra-inferior {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  display: none; align-items: stretch;
+  background: var(--panel); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (max-width: 767px) { .barra-inferior { display: flex; } }
+
+.barra-inferior a, .barra-inferior button {
+  flex: 1; min-width: 0; border: 0; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 7px 2px; height: var(--barra-inf);
+  color: var(--ink3); font-size: 10px; text-decoration: none; font-family: inherit;
+}
+.barra-inferior svg { width: 20px; height: 20px; }
+.barra-inferior .activo { color: var(--acc); }
+.barra-inferior .activo svg { stroke: var(--acc); }
+
+/* Hoja «Más»: el árbol completo de la agencia, que en el escritorio vive en la
+   barra lateral. Sube desde abajo porque de ahí viene el dedo. */
+.hoja-fondo {
+  position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.5);
+  display: flex; align-items: flex-end;
+}
+.hoja {
+  width: 100%; max-height: 82dvh; overflow: auto;
+  background: var(--panel); border-top-left-radius: 16px; border-top-right-radius: 16px;
+  padding: 6px 0 calc(env(safe-area-inset-bottom, 0px) + 14px);
+}
+.hoja-asa {
+  width: 34px; height: 4px; border-radius: 2px; background: var(--line2);
+  margin: 8px auto 12px;
+}
+.hoja .nav-group-title { padding: 0 18px; }
+.hoja .rail-item { margin: 0 10px; }
+.hoja-cierre {
+  display: block; width: calc(100% - 20px); margin: 12px 10px 0;
+  min-height: 44px; border-radius: 10px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hoja { animation: sube .18s ease-out; }
+  @keyframes sube { from { transform: translateY(14px); opacity: .6 } to { transform: none; opacity: 1 } }
+}
+
+/* ── Panel en el teléfono ───────────────────────────────────────────────
+   Quien abre el panel de pie no viene a leer cifras: viene a ver si hay algo
+   que atender. Las alertas suben al primer lugar y las cuatro cifras se
+   compactan — a tamaño de escritorio ocupaban 1,400 px de scroll antes de
+   que apareciera nada accionable. */
+@media (max-width: 767px) {
+  .pagina-panel { display: flex; flex-direction: column; }
+  .pagina-panel > .page-head { order: 0; }
+  .pagina-panel > .panel-cols { order: 1; }
+  .pagina-panel > .panel-kpis { order: 2; }
+  .pagina-panel > .card        { order: 3; }
+
+  /* Dentro de la columna, primero lo que pide acción. */
+  .pagina-panel .panel-cols > div:first-child { order: 0; }
+  .pagina-panel .panel-cols > div:last-child  { order: 1; }
+
+  /* Cifras compactas: el número sigue mandando, pero deja de ocupar
+     media pantalla cada uno. */
+  .panel-kpi { padding: 13px 15px; }
+  .panel-kpi > .v { font-size: 25px; margin: 6px 0 9px; }
+  .panel-comp { gap: 14px; padding-top: 9px; }
+  .panel-comp .cv { font-size: 11px; }
+
+  /* La tira de timbrado rueda en horizontal en vez de apilar cinco cajas. */
+  .panel-timbrado { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .timbrado-caja { min-width: 132px; flex: 0 0 auto; }
+}

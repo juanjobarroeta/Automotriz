@@ -156,6 +156,106 @@ function TemaToggle() {
   )
 }
 
+
+// Los cinco destinos del teléfono. NO son los cinco primeros del árbol: son los
+// que alguien abre de pie —el piso, el taller, un cliente, el panel— más la
+// puerta al resto. El escritorio enseña el organigrama completo; el teléfono
+// enseña lo que se hace parado junto a un coche.
+const BARRA_MOVIL = [
+  { to: '/', label: 'Piso', icon: 'inventario', end: true },
+  { to: '/servicio', label: 'Taller', icon: 'servicio' },
+  { to: '/clientes', label: 'Clientes', icon: 'clientes' },
+  { to: '/panel', label: 'Panel', icon: 'panel' },
+]
+
+function BarraInferior({ onMas }) {
+  return (
+    <nav className="barra-inferior" aria-label="Navegación principal">
+      {BARRA_MOVIL.map((n) => {
+        const Icon = Icons[n.icon]
+        return (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.end}
+            className={({ isActive }) => (isActive ? 'activo' : undefined)}
+          >
+            <Icon />
+            <span>{n.label}</span>
+          </NavLink>
+        )
+      })}
+      <button type="button" onClick={onMas} aria-haspopup="dialog">
+        <Icons.configuracion />
+        <span>Más</span>
+      </button>
+    </nav>
+  )
+}
+
+// La hoja «Más» trae el árbol COMPLETO, el mismo de la barra lateral, más lo
+// que la topbar deja de enseñar en pantalla chica: empresa, tema y sesión.
+function HojaMas({ onCerrar, user, logout }) {
+  return (
+    <div className="hoja-fondo" onClick={onCerrar} role="presentation">
+      <div
+        className="hoja"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Más destinos"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="hoja-asa" />
+
+        <div style={{ padding: '0 18px 12px' }}>
+          <CompanySwitcher />
+        </div>
+
+        {NAV.map((g) => (
+          <div className="nav-group" key={g.grupo}>
+            <div className="nav-group-title">{g.grupo}</div>
+            {g.items.map((n) => {
+              const Icon = Icons[n.icon]
+              if (n.porConstruir) {
+                return (
+                  <span key={n.label} className="rail-item por-construir" aria-disabled="true">
+                    <Icon /><span className="rail-label">{n.label}</span>
+                  </span>
+                )
+              }
+              return (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  end={n.to === '/'}
+                  onClick={onCerrar}
+                  className={({ isActive }) => (isActive ? 'rail-item active' : 'rail-item')}
+                >
+                  <Icon /><span className="rail-label">{n.label}</span>
+                </NavLink>
+              )
+            })}
+          </div>
+        ))}
+
+        <div className="nav-group">
+          <div className="nav-group-title">Sesión</div>
+          <NavLink to="/configuracion" onClick={onCerrar} className="rail-item">
+            <Icons.configuracion /><span className="rail-label">Configuración</span>
+          </NavLink>
+          <div style={{ padding: '10px 18px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <TemaToggle />
+            <span className="muted" style={{ fontSize: 11.5 }}>{user?.name || user?.email}</span>
+          </div>
+          <button type="button" className="ghost hoja-cierre" onClick={() => { onCerrar(); logout() }}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { user, logout } = useAuth()
   const [mini, setMini] = useState(() => {
@@ -173,6 +273,7 @@ export default function Layout() {
   }, [mini])
 
   const [paleta, setPaleta] = useState(false)
+  const [mas, setMas] = useState(false)
   const abrirPaleta = useCallback(() => setPaleta(true), [])
   useAtajoPaleta(abrirPaleta)
 
@@ -289,6 +390,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <BarraInferior onMas={() => setMas(true)} />
+      {mas && <HojaMas onCerrar={() => setMas(false)} user={user} logout={logout} />}
 
       <PaletaComandos abierta={paleta} onCerrar={() => setPaleta(false)} />
     </div>
