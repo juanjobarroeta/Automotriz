@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { useEsMovil } from '../lib/pantalla'
 import { Link } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -192,7 +193,20 @@ export default function OrdenesTaller() {
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
-  const ordenes = data?.ordenes ?? []
+  const movil = useEsMovil()
+  const ordenes = useMemo(() => {
+    const base = data?.ordenes ?? []
+    if (!movil) return base
+    // Vencidas primero, después por promesa más próxima; las que no tienen
+    // promesa al final, que es donde estorban menos.
+    return [...base].sort((a, b) => {
+      const va = esVencida(a), vb = esVencida(b)
+      if (va !== vb) return va ? -1 : 1
+      const pa = a.prometidaAt ? new Date(a.prometidaAt).getTime() : Infinity
+      const pb = b.prometidaAt ? new Date(b.prometidaAt).getTime() : Infinity
+      return pa - pb
+    })
+  }, [data, movil])
   const n = (e) => data?.porEstado?.[e] ?? 0
   const abiertasN = n('RECIBIDA') + n('EN_PROCESO') + n('LISTA')
   // El importe por estado lo suma el hub sobre TODAS las órdenes; no se puede
@@ -284,6 +298,33 @@ export default function OrdenesTaller() {
         </section>
       )}
 
+      {movil ? (
+        <div className="lista-tarjetas">
+          {ordenes.map((o) => (
+            <Fragment key={o.id}>
+              <TarjetaOrden o={o} onAbrir={() => setAbierta(abierta === o.id ? null : o.id)} />
+              {abierta === o.id && (
+                <div className="card" style={{ margin: 0 }}>
+                  <OrdenDetalle o={o} onRefrescar={cargar} empleados={empleados} cargarCatalogos={cargarCatalogos} />
+                </div>
+              )}
+            </Fragment>
+          ))}
+          {ordenes.length === 0 && (
+            <p className="muted">
+              {filtro === 'ABIERTAS' && totalHistorico > 0
+                ? `Ninguna orden abierta. Las ${totalHistorico.toLocaleString('es-MX')} del histórico ya se entregaron.`
+                : 'Sin órdenes con este filtro.'}
+            </p>
+          )}
+          {ordenes.length > 0 && (
+            <div className="tarjetas-pie">
+              {ordenes.length} orden(es) · {mxn(totalEnVista)}
+              {vencidasEnVista > 0 && <span style={{ color: 'var(--neg)' }}> · {vencidasEnVista} vencida(s)</span>}
+            </div>
+          )}
+        </div>
+      ) : (
       <table className="tabla">
         <thead><tr>
           <th>Folio</th><th>Unidad</th><th>Cliente</th><th>Trabajo</th><th>Técnico</th>
@@ -332,6 +373,40 @@ export default function OrdenesTaller() {
           </tfoot>
         )}
       </table>
+      )}
+    </div>
+  )
+}
+
+
+// La orden vista desde el teléfono. Arriba folio y unidad; a la derecha la
+// PROMESA, que es lo único que decide de pie —si venció, en rojo—. El
+// presupuesto no sube a la tarjeta: no se cobra caminando por el taller.
+function TarjetaOrden({ o, onAbrir }) {
+  const vencida = esVencida(o)
+  const unidad = o.vehiculo
+    ? `${o.vehiculo.marca} ${o.vehiculo.modelo} ${o.vehiculo.anio}`
+    : (o.descripcionUnidad ?? 'Unidad sin describir')
+  return (
+    <div
+      className={`tarjeta-fila clicable${vencida ? ' excepcion' : ''}`}
+      onClick={onAbrir}
+      tabIndex={0}
+      role="link"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAbrir() } }}
+    >
+      <div className="tf-alto">
+        <span className="tf-titulo">OS-{o.folio} · {unidad}</span>
+        <span className={`tf-cifra${vencida ? ' mal' : ''}`}>
+          {o.prometidaAt ? fecha(o.prometidaAt) : 'sin promesa'}
+        </span>
+      </div>
+      <div className="tf-bajo">
+        <span className="tf-sub" style={{ fontFamily: 'inherit' }}>
+          {o.cliente?.razonSocial ?? 'Mostrador'} · {o.fallaReportada}
+        </span>
+        <span className={`badge ${BADGE[o.estado]}`}>{o.estado.replace('_', ' ')}</span>
+      </div>
     </div>
   )
 }

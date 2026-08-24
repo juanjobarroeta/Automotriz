@@ -1413,3 +1413,65 @@ body { font-variant-numeric: tabular-nums; }
   .panel-timbrado { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
   .timbrado-caja { min-width: 132px; flex: 0 0 auto; }
 }
+
+/* ── Lista de tarjetas: la tabla cuando el trabajo es BUSCAR ─────────────
+   Doce columnas en 390 px son 27 px cada una. Pero no todas las tablas
+   necesitan el mismo remedio: ésta es para las que existen para encontrar
+   UNA fila entre muchas —inventario, taller, clientes—, donde las columnas
+   son criterios de descarte y no cifras que se comparen entre sí.
+   Las que existen para COMPARAR conservan la rejilla. */
+.lista-tarjetas { display: grid; gap: 8px; }
+.tarjeta-fila {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px 14px;
+  display: grid; gap: 5px;
+}
+.tarjeta-fila.clicable { cursor: pointer; }
+.tarjeta-fila.clicable:active { background: var(--panel2); }
+.tarjeta-fila:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+/* La excepción se marca con el mismo filo rojo de la tabla del escritorio. */
+.tarjeta-fila.excepcion { border-left: 3px solid var(--neg); }
+.tarjeta-fila.seleccionada { border-color: var(--acc); }
+
+/* Renglón superior: identidad a la izquierda, LA cifra que decide a la derecha. */
+.tf-alto { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.tf-titulo { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; min-width: 0; }
+.tf-cifra { font-family: var(--mono); font-size: 13px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.tf-cifra.mal { color: var(--neg); }
+.tf-bajo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tf-sub { font-family: var(--mono); font-size: 11px; color: var(--ink3); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tarjetas-pie { font-size: 11.5px; color: var(--ink3); padding: 6px 2px; }
+
+/* ── Filtros en el teléfono: se deslizan, no se apilan ───────────────────
+   Ocho facetas envueltas ocupaban ~800 px antes de la primera unidad — más
+   peaje que el que cobraba la barra lateral. En horizontal caben en una
+   línea y el resto se alcanza con el pulgar. */
+@media (max-width: 767px) {
+  .facetas, .tramos-leyenda {
+    flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  /* El selector de orden se saca del carrusel y va debajo, a lo ancho. */
+  .facetas { display: block; white-space: nowrap; }
+  .facetas > .faceta { display: inline-flex; vertical-align: middle; margin-right: 6px; }
+  .facetas-extra { display: flex; white-space: normal; margin-top: 8px; }
+  .facetas::-webkit-scrollbar { display: none; }
+  .faceta { flex: 0 0 auto; }
+
+  /* El orden se separa de las facetas: es otra pregunta y merece su renglón. */
+  .head-actions > select { width: 100%; }
+}
+.facetas-extra { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+@media (max-width: 767px) {
+  /* OJO: no volver a poner `flex-wrap: wrap` aquí. Envueltos, ocho chips
+     ocupaban 532 px antes de la primera unidad — más peaje que el que
+     cobraba la barra lateral. Ruedan en una línea, y el selector de orden
+     sale del carrusel a su propio renglón. */
+  .facetas > .faceta { flex: 0 0 auto; }
+  .facetas-extra {
+    order: 99; flex-basis: 100%; margin-top: 8px;
+    position: sticky; left: 0;
+  }
+  .facetas-extra select { flex: 1; width: 100%; }
+}

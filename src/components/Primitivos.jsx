@@ -1,3 +1,4 @@
+import { useEsMovil } from '../lib/pantalla'
 // ─────────────────────────────────────────────────────────────────────────────
 // Los ocho primitivos del handoff (v4). Se construyen UNA vez y las nueve
 // pantallas los componen; una corrección se hace aquí y no en nueve lugares.
@@ -16,7 +17,54 @@ const mxn = (n) =>
 // columnas: [{ clave, etiqueta, num?, ancho? }]
 // filas:    objetos; `render[clave]` permite pintar una celda a mano.
 // pie:      { alcance: '8 de 96', valores: { clave: nodo } }
-export function Tabla({ columnas, filas, pie, render = {}, onFila, esExcepcion, claveFila, seleccion }) {
+export function Tabla({ columnas, filas, pie, render = {}, onFila, esExcepcion, claveFila, seleccion, tarjeta }) {
+  const movil = useEsMovil()
+
+  // En el teléfono una tabla de doce columnas no se encoge: cambia de forma.
+  // Doce columnas en 390 px son 27 px cada una — ilegible con cualquier
+  // tipografía. La tarjeta enseña lo que decide y esconde lo demás.
+  if (movil && tarjeta) {
+    return (
+      <div className="lista-tarjetas">
+        {filas.map((f, i) => {
+          const id = claveFila ? claveFila(f) : i
+          const clases = [
+            'tarjeta-fila',
+            esExcepcion?.(f) ? 'excepcion' : '',
+            onFila ? 'clicable' : '',
+            seleccion != null && seleccion === id ? 'seleccionada' : '',
+          ].filter(Boolean).join(' ')
+          const ir = onFila ? () => onFila(f) : undefined
+          return (
+            <div
+              key={id}
+              className={clases}
+              onClick={ir}
+              tabIndex={ir ? 0 : undefined}
+              role={ir ? 'link' : undefined}
+              onKeyDown={ir ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir() }
+              } : undefined}
+            >
+              {tarjeta(f)}
+            </div>
+          )
+        })}
+        {/* El pie es `{ alcance, valores }`, no un nodo: en la tabla se reparte
+            por columna y aquí no hay columnas. Se enseña el alcance —«8 de
+            96»— y los totales en una línea, que es lo que cabe. */}
+        {pie && (
+          <div className="tarjetas-pie">
+            {pie.alcance}
+            {Object.entries(pie.valores ?? {}).map(([k, v]) => (
+              <span key={k}> · {v}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <table className="tabla">
@@ -105,7 +153,10 @@ export function Facetas({ opciones, valor, onCambio, extra }) {
           )}
         </button>
       ))}
-      {extra}
+      {/* `extra` —el selector de orden— sale del carrusel de chips: es otra
+          pregunta y en el teléfono merece su propio renglón, no meterse
+          entre las facetas a la mitad del deslizamiento. */}
+      {extra && <span className="facetas-extra">{extra}</span>}
     </div>
   )
 }
