@@ -1531,3 +1531,19 @@ body { font-variant-numeric: tabular-nums; }
 /* El renglón que no entra al total se atenúa, pero NO se esconde: es lo que
    se está dejando de acreditar y por eso hay que verlo. */
 .tabla tr.fuera td { opacity: .62; }
+
+/* ── Tiras de cifras: el número de columnas se declara en CSS ────────────
+   En línea NO: un `gridTemplateColumns` en el atributo style es inalcanzable
+   para cualquier media query, y por esa vía se rompió el teléfono tres veces
+   —la leyenda de tramos, los KPIs del panel y la tira de Impuestos, que se
+   encimaba a sí misma en seis columnas de 65 px—. */
+.kpi-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1180px) { .kpi-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767px) {
+  /* Dos columnas, no una: son cifras cortas y apiladas de una en una
+     obligarían a rodar media pantalla para ver el total. */
+  .kpi-4, .kpi-6, .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .kpi-strip .kpi { font-size: 19px; }
+  .kpi-strip .kpi-sub { font-size: 10.5px; }
+}
