@@ -1547,3 +1547,54 @@ body { font-variant-numeric: tabular-nums; }
   .kpi-strip .kpi { font-size: 19px; }
   .kpi-strip .kpi-sub { font-size: 10.5px; }
 }
+
+/* ── Rejillas de dos columnas, declaradas en CSS ─────────────────────────
+   Estaban en línea. Una rejilla en el atributo `style` es inalcanzable para
+   cualquier media query, y por ese camino se rompió el teléfono tres veces.
+   La de la orden traía además `minmax(240px, 1fr)` en la segunda columna: un
+   mínimo en píxeles NO encoge, así que en 390 px empujaba a lo ancho. */
+.detalle-orden,
+.dos-columnas {
+  display: grid; gap: 20px; align-items: start;
+}
+.detalle-orden { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.dos-columnas  { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+.kpi-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 900px) {
+  .detalle-orden, .dos-columnas { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .kpi-3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+/* ── Rejilla con el concepto congelado ───────────────────────────────────
+   Las tablas de COMPARAR —resultados, balance, estado de cuenta— son las
+   únicas que NO se vuelven tarjetas en el teléfono: sus columnas existen para
+   leerse unas contra otras, y apilarlas mata justo eso.
+
+   Pero rodando en horizontal se pierde el concepto, que es lo que da sentido a
+   cada cifra —el mismo defecto que tenía el papel de IVA, donde al rodar
+   quedaba una lista de importes sin dueño—. Así que la primera columna se
+   queda fija y las cifras se deslizan bajo ella: paneles inmovilizados, como
+   en una hoja de cálculo. */
+@media (max-width: 767px) {
+  .tabla-comparativa th:first-child,
+  .tabla-comparativa td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--panel);
+    /* El filo marca dónde termina lo fijo y empieza lo que rueda; sin él, las
+       cifras parecen pasar por debajo del texto sin explicación. */
+    box-shadow: 1px 0 0 var(--line);
+    max-width: 152px; min-width: 118px;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  /* El encabezado va por encima de las celdas al rodar en las dos direcciones,
+     y toma el MISMO fondo que el resto del renglón: con el de las celdas se
+     veía una costura donde el rótulo se encuentra con las columnas. */
+  .tabla-comparativa thead th:first-child { z-index: 3; background: var(--panel2); }
+  .tabla-comparativa thead th { position: sticky; top: 0; background: var(--panel2); z-index: 1; }
+  /* Los pies de total también conservan su rótulo. */
+  .tabla-comparativa tfoot td:first-child { background: var(--panel2); }
+  .tabla-comparativa td, .tabla-comparativa th { font-size: 12px; }
+}

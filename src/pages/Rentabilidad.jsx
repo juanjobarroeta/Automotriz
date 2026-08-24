@@ -419,7 +419,7 @@ function PorUnidad() {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div className="dos-columnas">
             {data.unidades.length > 0
               ? <DesgloseUnidad u={data.unidades[0]} deCuantas={data.unidades.length} />
               : <section className="card"><div className="card-head">Desglose por unidad</div>

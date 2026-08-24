@@ -115,7 +115,7 @@ function EstadoDeCuenta({ clienteId, completo = false, setCfdi = () => {} }) {
         </p>
       ) : (
         <>
-          <table>
+          <table className="tabla-comparativa">
             <thead><tr><th>Fecha</th><th>Movimiento</th><th>Referencia</th><th className="num">Cargo</th><th className="num">Abono</th><th className="num">Saldo</th></tr></thead>
             <tbody>
               <tr>

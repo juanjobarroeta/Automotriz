@@ -546,7 +546,7 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
           <LineaProceso pasos={pasosDe(o)} />
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 20, alignItems: 'start' }}>
+      <div className="detalle-orden">
         <div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Falla reportada</div>
           <div style={{ fontSize: 12.5, marginBottom: 14 }}>{o.fallaReportada}</div>

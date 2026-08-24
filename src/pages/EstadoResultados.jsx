@@ -229,7 +229,7 @@ export default function EstadoResultados() {
             </button>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table>
+            <table className="tabla-comparativa">
               <thead>
                 <tr>
                   <th>Concepto</th>

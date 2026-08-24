@@ -48,7 +48,7 @@ export default function Cartera() {
       {!data && !error && <p className="muted">Cargando…</p>}
       {data && (
         <>
-          <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="kpi-strip kpi-3">
             <div className="kpi-item">
               <span className="kpi-label">{lado === 'COBRAR' ? 'Saldo por cobrar' : 'Saldo por pagar'}</span>
               <span className="kpi">{mxn(data.resumen.saldoTotal)}</span>

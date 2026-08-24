@@ -209,7 +209,7 @@ export default function BalanceGeneral() {
       )}
 
       {kpis && (
-        <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+        <div className="kpi-strip densa kpi-4">
           <div className="kpi-item">
             <div className="kpi-label">Activo</div>
             <div className="kpi">{mxn(kpis.activo)}</div>
@@ -245,7 +245,7 @@ export default function BalanceGeneral() {
             </button>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table>
+            <table className="tabla-comparativa">
               <thead>
                 <tr>
                   <th>Concepto</th>
