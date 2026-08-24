@@ -58,7 +58,7 @@ export default function Alertas() {
         <span className="glosa">{totalAlertas === 0 ? 'todo en orden' : `${totalAlertas} punto(s) por revisar`}</span>
       </header>
 
-      <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <div className="kpi-strip kpi-3">
         <div className="kpi-item">
           <span className="kpi-label">Auditor fiscal</span>
           <span className={`kpi ${criticos > 0 ? 'neg' : ''}`}>{data.hallazgos.length}</span>
