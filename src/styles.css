@@ -1515,3 +1515,19 @@ body { font-variant-numeric: tabular-nums; }
     display: block; text-align: left; line-height: 34px;
   }
 }
+
+/* ── Motivo por el que un CFDI no cuenta ─────────────────────────────────
+   Los motivos NO son intercambiables: «sin complemento» y «parcial» son
+   cuestión de tiempo, «sin pago» es el Art. 5-I, y el 69-B no lo destraba ni
+   el tiempo ni el criterio del contador. El tono los separa. */
+.pill-motivo {
+  display: inline-flex; align-items: center; font-size: 10px;
+  padding: 1px 6px; border-radius: 20px; white-space: nowrap;
+  background: var(--panel3); color: var(--ink2);
+}
+.pill-motivo.aviso { background: var(--warnBg); color: var(--warn); }
+.pill-motivo.ok    { background: var(--posBg);  color: var(--pos); }
+.pill-motivo.grave { background: var(--negBg);  color: var(--neg); }
+/* El renglón que no entra al total se atenúa, pero NO se esconde: es lo que
+   se está dejando de acreditar y por eso hay que verlo. */
+.tabla tr.fuera td { opacity: .62; }
