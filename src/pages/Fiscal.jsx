@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError } from '../components/Estados'
+import CfdiVista from '../components/CfdiVista'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const pct = (n) => (n == null ? '—' : `${(n * 100).toFixed(n * 100 % 1 ? 2 : 0)}%`)
@@ -30,6 +31,106 @@ function Fila({ label, valor, fuerte, tenue }) {
   )
 }
 
+
+
+// ── El papel de trabajo: un renglón por CFDI ────────────────────────────────
+// Una cifra fiscal sin los comprobantes que la sostienen no se defiende ante
+// nadie. Cada renglón dice de dónde sale su IVA y, cuando NO cuenta, por qué.
+//
+// Los motivos no son intercambiables y por eso se distinguen:
+//   · «sin complemento» y «parcial» son cuestión de TIEMPO — el REP llegará.
+//   · «sin pago» es el Art. 5-I: sólo es acreditable lo efectivamente pagado.
+//   · «69-B» no lo destraba el tiempo ni el criterio del contador: lo publica
+//     el SAT, y por eso ese renglón ni siquiera ofrece la acción de incluirlo.
+function MotivoIva({ r }) {
+  if (r.emisorEnLista69B) {
+    return <span className="pill-motivo grave" title="El emisor aparece en la lista 69-B del SAT como DEFINITIVO: la deducción y el IVA son improcedentes (Art. 69-B CFF)">proveedor en la lista 69-B</span>
+  }
+  if (r.excluidoAcreditamiento) {
+    return <span className="pill-motivo">excluido por el contador</span>
+  }
+  if (r.sinComplementoPago) {
+    return <span className="pill-motivo" title="PPD sin complemento de pago en el periodo — su IVA se reconoce cuando llegue el REP">sin complemento</span>
+  }
+  if (r.pagoParcial) {
+    return <span className="pill-motivo aviso" title="PPD con pago parcial: sólo se acredita el IVA del monto pagado">parcial</span>
+  }
+  if (r.sinPagoConciliado) {
+    return <span className="pill-motivo aviso" title="PUE sin pago conciliado en banco — el IVA sólo es acreditable si se pagó (Art. 5-I LIVA)">sin pago en banco</span>
+  }
+  if (r.pagadaConciliada) {
+    return <span className="pill-motivo ok" title="PUE con pago conciliado en banco">pagada</span>
+  }
+  return null
+}
+
+function TablaPapel({ titulo, glosa, filas, total, totalLabel, onVer }) {
+  const fuera = (r) => r.excluidoAcreditamiento || r.sinComplementoPago || r.emisorEnLista69B
+  const excluidos = filas.filter(fuera).length
+  return (
+    <section className="card">
+      <div className="card-head" style={{ gap: 10 }}>
+        <span>{titulo}</span>
+        <span className="muted" style={{ fontWeight: 400 }}>{glosa}</span>
+      </div>
+      {filas.length === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>Sin comprobantes en el periodo.</p>
+      ) : (
+        <table className="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Folio</th><th>Contraparte</th><th>Pago</th>
+              <th className="num">Subtotal</th><th className="num">Tasa</th><th className="num">IVA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((r) => (
+              <tr
+                key={r.id + (r.esComplemento ? '-rep' : '')}
+                className={`fila-liga${fuera(r) ? ' fuera' : ''}`}
+                tabIndex={0}
+                role="link"
+                title="Ver este CFDI"
+                onClick={() => onVer(r.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onVer(r.id) } }}
+              >
+                <td style={{ color: 'var(--ink-3)' }}>{r.fecha}</td>
+                <td className="mono">{[r.serie, r.folio].filter(Boolean).join('-') || (r.uuid ?? '').slice(0, 8)}</td>
+                <td className="celda2">
+                  <b>{r.contraparte ?? '—'}</b>
+                  <span className="mono">{r.rfc ?? ''}</span>
+                </td>
+                <td>
+                  <span className="mono" style={{ fontSize: 11 }}>{r.metodoPago}</span>{' '}
+                  <MotivoIva r={r} />
+                </td>
+                <td className="num">{mxn(r.subtotal)}</td>
+                <td className="num" style={{ color: 'var(--ink-3)' }}>
+                  {r.tasa != null ? `${(r.tasa * 100).toFixed(0)}%` : '—'}
+                </td>
+                {/* Tachado cuando no entra al total: el importe sigue a la
+                    vista porque es lo que se está dejando de acreditar. */}
+                <td className="num" style={fuera(r) ? { textDecoration: 'line-through', color: 'var(--ink3)' } : undefined}>
+                  {mxn(r.importe)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td className="alcance" colSpan={5}>
+                {filas.length} CFDI
+                {excluidos > 0 && ` · ${excluidos} fuera del cálculo`}
+              </td>
+              <td className="num">{totalLabel}</td>
+              <td className="num" style={{ fontWeight: 700 }}>{mxn(total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+    </section>
+  )
+}
 
 // ── Papel de trabajo del ISAN ───────────────────────────────────────────────
 // El impuesto propio de una distribuidora: lo causa al enajenar automóviles
@@ -148,6 +249,24 @@ function PapelIsan({ isan }) {
   )
 }
 
+// Los meses que se pueden declarar: del mes pasado hacia atrás. El mes EN
+// CURSO no aparece porque no se declara hasta que cierra — ofrecerlo invita a
+// presentar un periodo incompleto.
+const MESES_ELEGIBLES = (() => {
+  const hoy = new Date()
+  const salida = []
+  for (let i = 1; i <= 24; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1)
+    const anio = d.getFullYear()
+    const mes = d.getMonth() + 1
+    salida.push({
+      clave: `${anio}-${String(mes).padStart(2, '0')}`,
+      etiqueta: `${MESES[mes - 1]} ${anio}`,
+    })
+  }
+  return salida
+})()
+
 // Periodo por defecto: el MES ANTERIOR — el que está por declararse.
 function periodoDefault() {
   const hoy = new Date()
@@ -164,6 +283,12 @@ export default function Fiscal() {
   // (Resumen), defenderla (Papeles) y saber si se puede presentar (Revisión).
   const [vista, setVista] = useState('resumen')
   const [papel, setPapel] = useState('iva')
+  // El detalle por CFDI vive en el hub (/api/papeles/iva) y se pide APARTE del
+  // resumen: es más pesado, y si falla se enseña la cifra del mes igual. La
+  // cifra sin comprobantes es pobre; ninguna cifra es peor.
+  const [detalle, setDetalle] = useState(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [verCfdi, setVerCfdi] = useState(null)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -178,6 +303,20 @@ export default function Fiscal() {
   }, [activeCompany?.id, periodo])
 
   useEffect(() => { cargar() }, [cargar])
+
+  // El papel se pide sólo cuando la pestaña está abierta: 400 renglones de
+  // CFDI no se traen para enseñar un resumen.
+  useEffect(() => {
+    if (!activeCompany?.id || vista !== 'papeles' || papel !== 'iva') return
+    const [y, m] = periodo.split('-').map(Number)
+    let vivo = true
+    setCargandoDetalle(true)
+    apiFetch(`/api/papeles/iva?companyId=${activeCompany.id}&year=${y}&month=${m}`)
+      .then((d) => { if (vivo) setDetalle(d) })
+      .catch(() => { if (vivo) setDetalle(null) })
+      .finally(() => { if (vivo) setCargandoDetalle(false) })
+    return () => { vivo = false }
+  }, [activeCompany?.id, periodo, vista, papel])
 
   const ivaCargo = data ? data.iva.pagar > 0 : false
   const atencionN = data?.checklist?.resumen?.atencion ?? 0
@@ -197,7 +336,21 @@ export default function Fiscal() {
           </span>
         )}
         <div className="head-actions">
-          <input type="month" value={periodo} onChange={(e) => e.target.value && setPeriodo(e.target.value)} style={{ width: 'auto' }} />
+          {/* `<input type="month">` lo pinta el navegador con SU idioma —salía
+              «July 2026» en una aplicación en español— y no deja elegir qué
+              meses ofrecer. El selector propio dice los meses en español y sólo
+              lista los declarables: del arranque de la CE al mes pasado, que es
+              el último que se puede declarar. Igual que en ContabilidadOS. */}
+          <select
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+            style={{ width: 'auto' }}
+            aria-label="Periodo"
+          >
+            {MESES_ELEGIBLES.map((p) => (
+              <option key={p.clave} value={p.clave}>{p.etiqueta}</option>
+            ))}
+          </select>
         </div>
       </header>
 
@@ -215,6 +368,7 @@ export default function Fiscal() {
         ))}
       </div>
 
+      {verCfdi && <CfdiVista invoiceId={verCfdi} onCerrar={() => setVerCfdi(null)} />}
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
       {loading && <p className="muted">Calculando la posición fiscal…</p>}
 
@@ -316,6 +470,61 @@ export default function Fiscal() {
           </div>
 
           {papel === 'iva' && (
+          <>
+          {cargandoDetalle && <p className="muted">Buscando los comprobantes del mes…</p>}
+
+          {detalle && (
+            <>
+              <TablaPapel
+                titulo="IVA trasladado (cobrado)"
+                glosa="el que les cobraste a tus clientes en el periodo"
+                filas={detalle.trasladado ?? []}
+                total={detalle.totales?.trasladado ?? 0}
+                totalLabel="Total trasladado"
+                onVer={setVerCfdi}
+              />
+              <TablaPapel
+                titulo="IVA acreditable (pagado)"
+                glosa="el que les pagaste a tus proveedores"
+                filas={detalle.acreditable ?? []}
+                total={detalle.totales?.acreditable ?? 0}
+                totalLabel="Total acreditable"
+                onVer={setVerCfdi}
+              />
+
+              {/* El 69-B se explica aparte porque no se destraba solo: el
+                  efecto es retroactivo a todo lo comprado a ese proveedor. */}
+              {detalle.totales?.excluido69B?.count > 0 && (
+                <div className="warn" style={{ borderColor: 'var(--neg)', color: 'var(--ink)' }}>
+                  <b style={{ color: 'var(--neg)' }}>Lista 69-B.</b>{' '}
+                  {detalle.totales.excluido69B.count} CFDI de{' '}
+                  {(detalle.totales.excluido69B.rfcs ?? []).join(', ')} quedan fuera del
+                  acreditamiento: son {mxn(detalle.totales.excluido69B.iva)} de IVA no acreditable,
+                  y el efecto es retroactivo a todo lo que le compraste.
+                </div>
+              )}
+
+              {detalle.totales?.proporcionAcreditamiento < 1 && (
+                <div className="warn">
+                  <b>Proporción de acreditamiento (Art. 5-V LIVA).</b> Con actos exentos en el mes,
+                  el IVA sólo procede en {pct(detalle.totales.proporcionAcreditamiento)} —{' '}
+                  {mxn(detalle.totales.actosGravados)} gravados contra{' '}
+                  {mxn(detalle.totales.actosExentos)} exentos. Acreditable procedente:{' '}
+                  {mxn(detalle.totales.acreditableProcedente)}.
+                </div>
+              )}
+            </>
+          )}
+
+          {!cargandoDetalle && !detalle && (
+            <div className="card">
+              <p className="muted" style={{ margin: 0 }}>
+                No se pudo traer el detalle por CFDI de este mes. El desglose de abajo sigue siendo
+                el del cálculo; lo que falta son los comprobantes que lo sostienen.
+              </p>
+            </div>
+          )}
+
           <div className="cards">
             <section className="card">
               <div className="card-head">Desglose de IVA (flujo de efectivo)</div>
@@ -337,6 +546,7 @@ export default function Fiscal() {
               )}
             </section>
           </div>
+          </>
           )}
 
           {papel === 'isr' && (
