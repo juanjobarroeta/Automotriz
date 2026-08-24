@@ -340,6 +340,27 @@ export default function Inventario() {
           // vivo de la fila: cazar el pedacito clickeable era trabajo que la
           // pantalla le pasaba al usuario.
           onFila={(v) => navegar(`/vehiculos/${v.id}`)}
+          /* En el teléfono la tabla se vuelve lista. Lo que sube a la tarjeta
+             contesta las dos preguntas que se hacen de pie: «¿tenemos esta
+             unidad?» y «¿cuál lleva demasiado parada?».
+
+             El COSTO y el PRECIO se quedan fuera a propósito: un vendedor
+             parado junto a un cliente no debería enseñar el costo sin querer.
+             Se ven al abrir el expediente. */
+          tarjeta={(v) => (
+            <>
+              <div className="tf-alto">
+                <span className="tf-titulo">{v.marca} {v.modelo} {v.anio}</span>
+                <span className={`tf-cifra${(v.diasEnPiso ?? 0) > 90 ? ' mal' : ''}`}>
+                  {v.diasEnPiso != null ? `${v.diasEnPiso} d` : '—'}
+                </span>
+              </div>
+              <div className="tf-bajo">
+                <span className="tf-sub"><Vin vin={v.vin} />{v.color ? ` · ${v.color}` : ''}</span>
+                <span className={`badge badge-${v.estado}`}>{ESTADO_LABEL[v.estado] ?? v.estado}</span>
+              </div>
+            </>
+          )}
           render={{
             vin: (v) => (
               <span className="mono">
