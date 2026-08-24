@@ -134,7 +134,7 @@ export default function Panel() {
   ].filter(Boolean).sort((a, b) => Number(b.grave) - Number(a.grave))
 
   return (
-    <div>
+    <div className="pagina-panel">
       <header className="page-head">
         <h1>Panel</h1>
         <span className="glosa">
