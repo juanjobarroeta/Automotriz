@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import { AvisoError } from '../components/Estados'
 import CfdiVista from '../components/CfdiVista'
+import { useEsMovil } from '../lib/pantalla'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
 const pct = (n) => (n == null ? '—' : `${(n * 100).toFixed(n * 100 % 1 ? 2 : 0)}%`)
@@ -65,6 +66,7 @@ function MotivoIva({ r }) {
 }
 
 function TablaPapel({ titulo, glosa, filas, total, totalLabel, onVer }) {
+  const movil = useEsMovil()
   const fuera = (r) => r.excluidoAcreditamiento || r.sinComplementoPago || r.emisorEnLista69B
   const excluidos = filas.filter(fuera).length
   return (
@@ -75,6 +77,48 @@ function TablaPapel({ titulo, glosa, filas, total, totalLabel, onVer }) {
       </div>
       {filas.length === 0 ? (
         <p className="muted" style={{ margin: 0 }}>Sin comprobantes en el periodo.</p>
+      ) : movil ? (
+        /* Siete columnas por CFDI no caben en 390 px: rodando en horizontal se
+           pierde la contraparte, que es lo que identifica el renglón, y queda
+           una lista de importes sin dueño. En el teléfono cada comprobante es
+           una tarjeta — quien defiende la cifra ante el SAT lo hace sentado,
+           pero consultarla de pie tiene que poder hacerse. */
+        <div className="lista-tarjetas">
+          {filas.map((r) => (
+            <div
+              key={r.id + (r.esComplemento ? '-rep' : '')}
+              className={`tarjeta-fila clicable${fuera(r) ? ' fuera' : ''}`}
+              tabIndex={0}
+              role="link"
+              onClick={() => onVer(r.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onVer(r.id) } }}
+            >
+              <div className="tf-alto">
+                <span className="tf-titulo">{r.contraparte ?? '—'}</span>
+                <span
+                  className="tf-cifra"
+                  style={fuera(r) ? { textDecoration: 'line-through', color: 'var(--ink3)' } : undefined}
+                >
+                  {mxn(r.importe)}
+                </span>
+              </div>
+              <div className="tf-bajo">
+                <span className="tf-sub">
+                  {[r.serie, r.folio].filter(Boolean).join('-') || (r.uuid ?? '').slice(0, 8)}
+                  {' · '}{r.fecha}{' · '}{mxn(r.subtotal)}
+                </span>
+                <span style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                  <span className="mono" style={{ fontSize: 10, color: 'var(--ink3)' }}>{r.metodoPago}</span>
+                  <MotivoIva r={r} />
+                </span>
+              </div>
+            </div>
+          ))}
+          <div className="tarjetas-pie">
+            {filas.length} CFDI{excluidos > 0 && ` · ${excluidos} fuera del cálculo`}
+            {' · '}<b>{totalLabel} {mxn(total)}</b>
+          </div>
+        </div>
       ) : (
         <table className="tabla">
           <thead>
@@ -151,7 +195,7 @@ function PapelIsan({ isan }) {
 
   return (
     <>
-      <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginBottom: 16 }}>
+      <div className="kpi-strip densa kpi-4" style={{ marginBottom: 16 }}>
         <div className="kpi-item">
           <span className="kpi-label">ISAN del mes</span>
           <span className="kpi">{mxn(isan.total)}</span>
@@ -381,7 +425,7 @@ export default function Fiscal() {
           )}
 
           {vista === 'resumen' && (<>
-          <div className="kpi-strip densa" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
+          <div className="kpi-strip densa kpi-6">
             <div className="kpi-item">
               <span className="kpi-label">IVA del periodo</span>
               <span className="kpi" style={{ color: ivaCargo ? 'var(--danger)' : 'var(--ok)' }}>
