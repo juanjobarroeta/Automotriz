@@ -208,7 +208,11 @@ export default function Inventario() {
               </div>
               {/* La leyenda del handoff: etiqueta, la cifra grande, y debajo
                   las unidades con su interés. Cuatro columnas, no una rejilla. */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 14 }}>
+              {/* La rejilla vive en el CSS, no en línea: en línea el media query
+                  no la alcanza, y cuatro columnas de «$98,251,486» en mono de
+                  17 px no caben en 390 px — empujaban la PÁGINA ENTERA a la
+                  derecha en el teléfono. */}
+              <div className="tramos-leyenda">
                 {tramos.map((t) => (
                   <button
                     key={t.clave}

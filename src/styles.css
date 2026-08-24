@@ -1448,7 +1448,7 @@ body { font-variant-numeric: tabular-nums; }
    peaje que el que cobraba la barra lateral. En horizontal caben en una
    línea y el resto se alcanza con el pulgar. */
 @media (max-width: 767px) {
-  .facetas, .tramos-leyenda {
+  .facetas {
     flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px;
     scrollbar-width: none; -webkit-overflow-scrolling: touch;
   }
@@ -1474,4 +1474,44 @@ body { font-variant-numeric: tabular-nums; }
     position: sticky; left: 0;
   }
   .facetas-extra select { flex: 1; width: 100%; }
+}
+
+/* ── Leyenda de tramos ──────────────────────────────────────────────────
+   Cuatro columnas en el escritorio. Estaba en línea y por eso ningún media
+   query la alcanzaba: en el teléfono, cuatro cifras como «$98,251,486» en
+   monoespaciada empujaban el documento entero y toda la aplicación aparecía
+   corrida a la izquierda. `min-width: 0` es lo que deja que una columna `1fr`
+   se encoja por debajo de su contenido; sin eso, la rejilla gana siempre. */
+.tramos-leyenda {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px; margin-top: 14px;
+}
+.tramos-leyenda > * { min-width: 0; }
+
+@media (max-width: 767px) {
+  /* Dos y dos. Cuatro no caben con estas cifras, y encogerlas más las vuelve
+     ilegibles — que es peor que dar dos vueltas de renglón. */
+  .tramos-leyenda { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tramos-leyenda [style*="font-size: 17"],
+  .tramos-leyenda > button > div:nth-child(2) { font-size: 14px !important; }
+}
+
+/* ── Red de seguridad de la cáscara ─────────────────────────────────────
+   Un elemento ancho de más se recorta; la aplicación entera corrida a la
+   izquierda es catastrófica —se pierde el inicio de cada renglón y no hay
+   forma obvia de volver—. El contenido ancho ya rueda dentro de su tarjeta,
+   así que esto sólo ataja lo que se escape. */
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; }
+  .shell, .main { max-width: 100vw; overflow-x: hidden; }
+  .content { max-width: 100%; }
+}
+
+/* La búsqueda de la topbar se recorta con puntos suspensivos en vez de
+   envolverse en cuatro renglones y empujar la barra hacia abajo. */
+@media (max-width: 767px) {
+  .topbar-search {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: block; text-align: left; line-height: 34px;
+  }
 }
