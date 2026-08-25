@@ -910,8 +910,28 @@ body { font-variant-numeric: tabular-nums; }
   font-size: 11.5px; white-space: nowrap;
 }
 .tabla .mono { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink2); }
-/* Celda de dos renglones: identificador arriba, su calificador abajo. */
-.celda2 > b { display: block; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+/* Celda de dos renglones: identificador arriba, su calificador abajo.
+
+   El `max-width` no es cosmetico: sin el, una razon social larga —«AUTOEXPRESS
+   INBURSA, SOCIEDAD ANONIMA DE CAPITAL VARIABLE, SOCIEDAD FINANCIERA DE OBJETO
+   MULTIPLE, ENTIDAD REGULADA, GRUPO FINANCIERO INBURSA»— se lleva 1066 px de
+   una tabla de 1550 y empuja `.content` a rodar en horizontal, con lo que la
+   pagina entera se recorre y se pierden el titulo y la primera columna.
+
+   No se arregla volviendo la tabla `display: block; overflow-x: auto` como en
+   el telefono: `th` es `position: sticky` contra `.content` (linea 578) y esa
+   caja nueva de scroll le quitaria el encabezado pegajoso justo a las tablas
+   que lo necesitan, las de cientos de CFDI. Se acota la columna y ya.
+
+   El nombre completo queda en el `title` del renglon. */
+.celda2 > b {
+  display: block; font-size: 12.5px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 320px;
+}
+/* El renglon de abajo NO lleva `nowrap`: envuelve solo, asi que nunca fue
+   parte del desbordamiento, y acotarlo le cortaria la razon social del
+   proveedor en la tabla de costos de la unidad. */
 .celda2 > span { display: block; font-size: 10.5px; color: var(--ink3); margin-top: 2px; }
 .tabla tfoot td {
   padding: 13px 16px; border-top: 1px solid var(--line2); border-bottom: 0;
