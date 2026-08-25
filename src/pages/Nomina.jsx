@@ -75,6 +75,31 @@ const vsMinimo = (sd, minimo) => {
   return 'arriba'
 }
 
+// El SBC es salario INTEGRADO (lleva aguinaldo y prima vacacional
+// proporcionales), así que su piso legal no es el mínimo sino el mínimo por
+// el factor de integración del primer año (Art. 27 LSS): 315.04 × 1.0493 ≈
+// $330.57. Comparar el SBC contra el mínimo a secas marcaría «arriba» a
+// quien está exactamente en el piso.
+const FACTOR_INTEGRACION = 1.0493
+const vsPiso = (sbc, minimo) => {
+  if (sbc == null || !minimo) return null
+  const piso = minimo * FACTOR_INTEGRACION
+  if (sbc < piso - 0.5) return 'debajo'
+  if (sbc <= piso * 1.005) return 'piso'
+  return 'arriba'
+}
+
+// EN NÓMINA se deriva de cuándo cobró, no del flag isActive del padrón: en
+// MARGOM el flag dice 36 activos y hay 281 personas con recibo en los
+// últimos 45 días (245 de ellas marcadas inactivas). Si el hub todavía no
+// manda ultimoPago, se cae al flag — mejor la marca vieja que nada.
+const EN_NOMINA_DIAS = 45
+const enNomina = (e) => {
+  if (!('ultimoPago' in e)) return e.isActive
+  if (!e.ultimoPago) return false
+  return (Date.now() - new Date(e.ultimoPago).getTime()) / 86400000 <= EN_NOMINA_DIAS
+}
+
 export default function Nomina() {
   const { activeCompany } = useAuth()
   const movil = useEsMovil()
@@ -132,7 +157,7 @@ export default function Nomina() {
         <h1>Nómina</h1>
         <span className="glosa">
           derivada de tus CFDIs de nómina
-          {roster && ` · ${roster.activos} activos`}
+          {roster && ` · ${(roster.empleados ?? []).filter(enNomina).length} en nómina`}
           {corridas && ` · ${corridas.length.toLocaleString('es-MX')} corridas`}
         </span>
         <div className="head-actions" style={{ alignSelf: 'center', display: 'flex', gap: 8 }}>
@@ -265,23 +290,24 @@ function TabCosto({ res, resAnt, cargando, sel, roster, corridas, salarioMinimo,
 
   const adminPct = total > 0 ? Math.round(((porLinea.find((l) => l.linea === 'ADMIN')?.monto ?? 0) / total) * 100) : null
 
-  // ── Riesgos de la plantilla (con datos reales, no los del mock) ──────────
-  const activos = (roster?.empleados ?? []).filter((e) => e.isActive)
-  const exactos = activos.filter((e) => vsMinimo(e.salarioDiario, salarioMinimo) === 'exacto')
-  const debajo = activos.filter((e) => vsMinimo(e.salarioDiario, salarioMinimo) === 'debajo')
-  const masaRegistrada = activos.reduce((a, e) => a + (e.salarioDiario ?? 0), 0) * 30.4
+  // ── Riesgos de la plantilla ──────────────────────────────────────────────
+  // Sobre el SBC de los RECIBOS del mes, no sobre los campos de salario del
+  // Employee: ésos son captura vieja (hay $59 y $79 diarios, imposibles como
+  // SBC) y el flag isActive marca inactiva a la mayoría de la gente que
+  // cobra. La autoridad es el CFDI.
+  const personasMes = res?.detalle?.nomina ?? []
+  const conSbc = personasMes.filter((p) => p.sbcDiario != null)
+  const enPiso = conSbc.filter((p) => vsPiso(p.sbcDiario, salarioMinimo) === 'piso')
+  const masaSbc = conSbc.reduce((a, p) => a + p.sbcDiario, 0) * 30.4
+
+  const plantilla = roster?.empleados ?? []
+  const cobranMarcadosInactivos = plantilla.filter((e) => 'ultimoPago' in e && enNomina(e) && !e.isActive)
 
   const corridasMes = (corridas ?? []).filter((c) => {
     const f = new Date(c.fechaPago)
     return f.getUTCFullYear() === sel.y && f.getUTCMonth() + 1 === sel.m
   })
   const sinTimbrar = corridasMes.reduce((a, c) => a + (c.recibosSinTimbrar ?? 0), 0)
-
-  const rfcsPagados = useMemo(() => new Set((res?.detalle?.nomina ?? []).map((p) => p.rfc)), [res])
-  // Sólo cuando el mes YA tiene recibos: en un mes sin nómina timbrada (el
-  // día 1, o un mes futuro) toda la plantilla estaría «sin recibo» y el
-  // riesgo sería ruido, no señal.
-  const sinRecibo = res && nom?.porLinea?.length ? activos.filter((e) => !rfcsPagados.has(e.rfc)) : []
 
   if (cargando && !res) return <p className="muted">Calculando el costo del mes…</p>
 
@@ -422,21 +448,21 @@ function TabCosto({ res, resAnt, cargando, sel, roster, corridas, salarioMinimo,
         <div className="card-head" style={{ gap: 10 }}>
           <span>Riesgos de la plantilla</span>
           <span className="muted" style={{ fontWeight: 400 }}>
-            {[debajo.length > 0 && `${debajo.length} por debajo del mínimo`, sinTimbrar > 0 && `${sinTimbrar} sin timbrar`].filter(Boolean).join(' · ') || 'lo que hay que ver'}
+            {[enPiso.length > 0 && `${enPiso.length} en el piso integrado`, sinTimbrar > 0 && `${sinTimbrar} sin timbrar`].filter(Boolean).join(' · ') || 'lo que hay que ver'}
           </span>
         </div>
         {roster == null ? (
           <p className="muted" style={{ margin: 0 }}>Sin plantilla cargada.</p>
         ) : (
           <div className="riesgos">
-            {(exactos.length > 0 || debajo.length > 0) && (
+            {enPiso.length > 0 && (
               <button type="button" className="riesgo-fila grave" onClick={irEmpleados}>
                 <div>
-                  <b>{exactos.length + debajo.length} de {activos.length} activos registrados en el mínimo o por debajo</b>
+                  <b>{enPiso.length} de {conSbc.length} que cobraron en {MES_LARGO[sel.m]} con SBC en el piso integrado</b>
                   <span>
-                    {exactos.length} exactamente en {mxn2(salarioMinimo)} diarios y {debajo.length} por debajo — el IMSS
-                    rechaza movimientos sub-mínimos. Si el pago real supera el salario registrado, la diferencia es un
-                    pasivo de IMSS e ISR. Masa registrada: {mxn(masaRegistrada)}/mes.
+                    Registrados ante el IMSS en {mxn2(salarioMinimo * FACTOR_INTEGRACION)} diarios (mínimo × factor de
+                    integración) — el dato sale de los propios recibos. Si el pago real supera lo registrado, la
+                    diferencia es un pasivo de IMSS e ISR. Masa registrada: {mxn(masaSbc)}/mes.
                   </span>
                 </div>
                 <span className="riesgo-liga">Revisar →</span>
@@ -451,20 +477,20 @@ function TabCosto({ res, resAnt, cargando, sel, roster, corridas, salarioMinimo,
                 <span className="riesgo-liga">Ver corridas →</span>
               </button>
             )}
-            {res && sinRecibo.length > 0 && (
+            {cobranMarcadosInactivos.length > 0 && (
               <button type="button" className="riesgo-fila aviso" onClick={irEmpleados}>
                 <div>
-                  <b>{sinRecibo.length} activo(s) sin recibo en {MES_LARGO[sel.m]}</b>
+                  <b>El padrón está desincronizado: {cobranMarcadosInactivos.length} personas que cobran están marcadas inactivas</b>
                   <span>
-                    {sinRecibo.slice(0, 4).map((e) => e.nombreCompleto).join(', ')}
-                    {sinRecibo.length > 4 ? ` y ${sinRecibo.length - 4} más` : ''} siguen en plantilla y no aparecen en
-                    ningún recibo del mes. O se les paga, o son bajas sin registrar.
+                    La pantalla deriva la plantilla de los recibos (cobró en los últimos {EN_NOMINA_DIAS} días), pero
+                    el padrón alimenta al motor de corridas y a la propuesta de la siguiente — vale la pena
+                    sincronizar altas y bajas.
                   </span>
                 </div>
                 <span className="riesgo-liga">Revisar →</span>
               </button>
             )}
-            {exactos.length === 0 && debajo.length === 0 && sinTimbrar === 0 && (!res || sinRecibo.length === 0) && (
+            {enPiso.length === 0 && sinTimbrar === 0 && cobranMarcadosInactivos.length === 0 && (
               <p className="muted" style={{ margin: 0 }}>Sin riesgos detectados en {MES_LARGO[sel.m]}.</p>
             )}
           </div>
@@ -717,7 +743,7 @@ function DetalleCorrida({ runId, companyId, onCerrar }) {
 /* ── Empleados ──────────────────────────────────────────────────────────── */
 
 function TabEmpleados({ roster, res, salarioMinimo, movil }) {
-  const [chip, setChip] = useState('activos')
+  const [chip, setChip] = useState('nomina')
   const [q, setQ] = useState('')
 
   const costoPorRfc = useMemo(() => {
@@ -727,18 +753,21 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
   }, [res])
 
   const todos = roster?.empleados ?? []
-  const activos = todos.filter((e) => e.isActive)
+  // «En nómina» = cobró en los últimos 45 días (el flag isActive del padrón
+  // marca inactiva a la mayoría de la gente que cobra). «En el piso» se mide
+  // con el SBC del recibo del mes — autoridad de CFDI, no captura del padrón.
+  const nomina = todos.filter(enNomina)
   const grupos = {
-    activos,
-    minimo: activos.filter((e) => vsMinimo(e.salarioDiario, salarioMinimo) === 'exacto'),
-    debajo: activos.filter((e) => vsMinimo(e.salarioDiario, salarioMinimo) === 'debajo'),
-    bajas: todos.filter((e) => !e.isActive),
+    nomina,
+    piso: nomina.filter((e) => vsPiso(costoPorRfc.get(e.rfc)?.sbcDiario, salarioMinimo) === 'piso'),
+    bajas: todos.filter((e) => e.fechaBaja != null),
+    padron: todos,
   }
   const CHIPS = [
-    ['activos', 'Activos', grupos.activos.length],
-    ['minimo', 'En el mínimo', grupos.minimo.length],
-    ['debajo', 'Bajo el mínimo', grupos.debajo.length],
+    ['nomina', 'En nómina', grupos.nomina.length],
+    ['piso', 'En el piso (SBC)', grupos.piso.length],
     ['bajas', 'Bajas', grupos.bajas.length],
+    ['padron', 'Padrón completo', grupos.padron.length],
   ]
 
   const filas = useMemo(() => {
@@ -777,20 +806,20 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
         <div className="lista-tarjetas">
           {filas.map((e) => {
             const c = costoPorRfc.get(e.rfc)
-            const v = vsMinimo(e.salarioDiario, salarioMinimo)
+            const v = vsPiso(c?.sbcDiario, salarioMinimo)
             return (
-              <div key={e.id} className="tarjeta-fila" style={!e.isActive ? { opacity: 0.6 } : undefined}>
+              <div key={e.id} className="tarjeta-fila" style={!enNomina(e) ? { opacity: 0.6 } : undefined}>
                 <div className="tf-alto">
                   <span className="tf-titulo">{e.nombreCompleto}</span>
                   <span className="tf-cifra">{c ? mxn(c.monto) : '—'}</span>
                 </div>
                 <div className="tf-bajo">
                   <span className="tf-sub">
-                    {[e.puesto, e.departamento].filter(Boolean).join(' · ') || 'sin puesto'} · {mxn2(e.salarioDiario)}/día
+                    {[e.puesto, e.departamento].filter(Boolean).join(' · ') || 'sin puesto'}
+                    {c?.sbcDiario != null ? ` · SBC ${mxn2(c.sbcDiario)}` : ''}
                   </span>
-                  {v === 'debajo' && <span className="pill-motivo grave">bajo el mínimo</span>}
-                  {v === 'exacto' && <span className="pill-motivo aviso">en el mínimo</span>}
-                  {!e.isActive && <span className="pill-motivo">baja {dia(e.fechaBaja)}</span>}
+                  {v === 'piso' && <span className="pill-motivo aviso">en el piso</span>}
+                  {e.fechaBaja != null && <span className="pill-motivo">baja {dia(e.fechaBaja)}</span>}
                 </div>
               </div>
             )
@@ -803,16 +832,16 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
         <table className="tabla">
           <thead>
             <tr>
-              <th>Empleado</th><th>Puesto y plaza</th><th className="num">Registrado</th>
-              <th className="num">Costo del mes</th><th className="num">Recibos</th><th>Ingreso</th>
+              <th>Empleado</th><th>Puesto y plaza</th><th className="num">SBC del recibo</th>
+              <th className="num">Costo del mes</th><th className="num">Recibos</th><th>Último pago</th>
             </tr>
           </thead>
           <tbody>
             {filas.map((e) => {
               const c = costoPorRfc.get(e.rfc)
-              const v = vsMinimo(e.salarioDiario, salarioMinimo)
+              const v = vsPiso(c?.sbcDiario, salarioMinimo)
               return (
-                <tr key={e.id} style={!e.isActive ? { opacity: 0.55 } : undefined}>
+                <tr key={e.id} style={!enNomina(e) ? { opacity: 0.55 } : undefined}>
                   <td className="celda2">
                     <b>{e.nombreCompleto}</b>
                     <span className="mono">{e.rfc}</span>
@@ -822,16 +851,22 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
                     <span>{e.departamento ?? ''}</span>
                   </td>
                   <td className="num">
-                    <span style={v === 'debajo' ? { color: 'var(--neg)' } : undefined}>{mxn2(e.salarioDiario)}</span>
-                    <span style={{ display: 'block', fontSize: 10, color: v === 'debajo' ? 'var(--neg)' : v === 'exacto' ? 'var(--warn)' : 'var(--ink3)' }}>
-                      {v === 'debajo' ? 'por debajo del mínimo' : v === 'exacto' ? 'exactamente el mínimo' : 'sobre el mínimo'}
-                    </span>
+                    {c?.sbcDiario != null ? (
+                      <>
+                        <span>{mxn2(c.sbcDiario)}</span>
+                        <span style={{ display: 'block', fontSize: 10, color: v === 'piso' ? 'var(--warn)' : v === 'debajo' ? 'var(--neg)' : 'var(--ink3)' }}>
+                          {v === 'piso' ? 'en el piso integrado' : v === 'debajo' ? 'debajo del piso' : 'sobre el piso'}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="muted" style={{ fontSize: 11 }}>sin recibo en el mes</span>
+                    )}
                   </td>
                   <td className="num" style={{ fontWeight: 600 }}>{c ? mxn(c.monto) : '—'}</td>
                   <td className="num">{c?.recibos ?? '—'}</td>
                   <td>
-                    {dia(e.fechaIngreso)}
-                    {!e.isActive && <span className="pill-motivo" style={{ marginLeft: 6 }}>baja {dia(e.fechaBaja)}</span>}
+                    {'ultimoPago' in e ? dia(e.ultimoPago) : dia(e.fechaIngreso)}
+                    {e.fechaBaja != null && <span className="pill-motivo" style={{ marginLeft: 6 }}>baja {dia(e.fechaBaja)}</span>}
                   </td>
                 </tr>
               )
@@ -847,10 +882,12 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
         </table>
       )}
       <div className="card-note">
-        «Registrado» es el salario diario ante el IMSS, no lo que se paga: por eso se compara contra el mínimo
-        vigente ({mxn2(salarioMinimo)}) y contra lo que realmente salió en los recibos del mes. Los CFDI de esta
-        agencia no traen claves de comisión ni destajo, así que no hay columna de variable — todo viene timbrado
-        como sueldo.
+        El SBC sale del <b>recibo timbrado del mes</b> — no de los campos de salario del padrón, que son captura
+        vieja. Su piso legal es el mínimo integrado: {mxn2(salarioMinimo)} × {FACTOR_INTEGRACION} ≈{' '}
+        {mxn2(salarioMinimo * FACTOR_INTEGRACION)}. «En nómina» se deriva de haber cobrado en los últimos{' '}
+        {EN_NOMINA_DIAS} días, porque el flag de activo del padrón está desincronizado de la realidad de pago. Los
+        CFDI no traen claves de comisión ni destajo, así que no hay columna de variable — todo viene timbrado como
+        sueldo.
       </div>
     </section>
   )
@@ -952,7 +989,10 @@ function NuevaCorrida({ companyId, roster, onCreada }) {
     return () => { vivo = false }
   }, [companyId])
 
-  const activos = (roster?.empleados ?? []).filter((e) => e.isActive)
+  // Elegibles: quien está EN NÓMINA (cobró hace poco), no el flag del padrón
+  // — con el flag, 245 personas que cobran no aparecerían ni seleccionables.
+  // La propuesta del prefill preselecciona a los de la corrida anterior.
+  const activos = (roster?.empleados ?? []).filter(enNomina)
 
   const crear = async () => {
     setCreando(true); setErr(null)
@@ -1229,8 +1269,11 @@ function CorridaEnCurso({ run, companyId, roster, salarioMinimo, ocupado, movil,
                 {bajoMinimo.length > 0 && (
                   <div className="riesgo-fila aviso estatico">
                     <div>
-                      <b>{bajoMinimo.length} salario(s) registrados por debajo del mínimo</b>
-                      <span>el timbre no se bloquea, pero el IMSS rechaza movimientos sub-mínimos</span>
+                      <b>{bajoMinimo.length} salario(s) del padrón por debajo del mínimo</b>
+                      <span>
+                        el motor calcula con el salario capturado en el padrón (no con el SBC histórico del CFDI);
+                        el timbre no se bloquea, pero el IMSS rechaza movimientos sub-mínimos
+                      </span>
                     </div>
                   </div>
                 )}
