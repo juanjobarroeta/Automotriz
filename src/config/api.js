@@ -278,23 +278,37 @@ export async function apiFetch(path, opts = {}) {
   }
 
   let res
-  try {
-    res = await fetch(api(path), {
-      method,
-      headers: finalHeaders,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal,
-    })
-  } catch (causa) {
-    // Una cancelación NO es un fallo: es la paleta de comandos descartando la
-    // consulta de «MAJ» porque ya se tecleó «MAJ6S3». Reportarla llenaría
-    // Sentry de errores de red falsos, uno por tecla.
-    if (causa?.name === 'AbortError' || signal?.aborted) throw causa
-    // La petición no llegó a salir: red caída, DNS, CORS mal configurado.
-    // Sin este catch el fallo viajaba como "Failed to fetch" y `ignoreErrors`
-    // lo descartaba, así que un hub caído se veía como silencio.
-    reportarFalloApi({ method, path, causa })
-    throw causa
+  let reintentoRed = false
+  while (true) {
+    try {
+      res = await fetch(api(path), {
+        method,
+        headers: finalHeaders,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal,
+      })
+      break
+    } catch (causa) {
+      // Una cancelación NO es un fallo: es la paleta de comandos descartando la
+      // consulta de «MAJ» porque ya se tecleó «MAJ6S3». Reportarla llenaría
+      // Sentry de errores de red falsos, uno por tecla.
+      if (causa?.name === 'AbortError' || signal?.aborted) throw causa
+      // La petición no llegó a salir: red caída, DNS, o el hub reiniciando a
+      // media deploy. Un GET se reintenta UNA vez tras una pausa corta — el
+      // parpadeo de un despliegue deja de llegar a Sentry como «sin respuesta»
+      // (así nacieron AUTOMOTRIZ-6/7)—. Una ESCRITURA no se reintenta jamás:
+      // la petición pudo haber llegado y se duplicaría la corrida/el timbrado.
+      if ((method === 'GET' || method === 'HEAD') && !reintentoRed) {
+        reintentoRed = true
+        await new Promise((r) => setTimeout(r, 1200))
+        if (signal?.aborted) throw causa
+        continue
+      }
+      // Sin este catch el fallo viajaba como "Failed to fetch" y `ignoreErrors`
+      // lo descartaba, así que un hub caído se veía como silencio.
+      reportarFalloApi({ method, path, causa })
+      throw causa
+    }
   }
 
   let data = null
