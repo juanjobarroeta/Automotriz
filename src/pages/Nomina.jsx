@@ -278,7 +278,10 @@ function TabCosto({ res, resAnt, cargando, sel, roster, corridas, salarioMinimo,
   const sinTimbrar = corridasMes.reduce((a, c) => a + (c.recibosSinTimbrar ?? 0), 0)
 
   const rfcsPagados = useMemo(() => new Set((res?.detalle?.nomina ?? []).map((p) => p.rfc)), [res])
-  const sinRecibo = res ? activos.filter((e) => !rfcsPagados.has(e.rfc)) : []
+  // Sólo cuando el mes YA tiene recibos: en un mes sin nómina timbrada (el
+  // día 1, o un mes futuro) toda la plantilla estaría «sin recibo» y el
+  // riesgo sería ruido, no señal.
+  const sinRecibo = res && nom?.porLinea?.length ? activos.filter((e) => !rfcsPagados.has(e.rfc)) : []
 
   if (cargando && !res) return <p className="muted">Calculando el costo del mes…</p>
 
