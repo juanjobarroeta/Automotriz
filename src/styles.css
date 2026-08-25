@@ -1648,3 +1648,123 @@ button.lado-iva:hover { background: var(--panel2); }
   .tabla-comparativa tfoot td:first-child { background: var(--panel2); }
   .tabla-comparativa td, .tabla-comparativa th { font-size: 12px; }
 }
+
+/* ── Nómina: costo, riesgos y asistente de corrida ───────────────────────
+   Los patrones nuevos de la pantalla de Nómina rediseñada. Todo lo tabular
+   reusa .tabla/.lista-tarjetas; aquí sólo vive lo que no existía: el héroe
+   del costo, la barra de mezcla percepciones/cuotas, las fracciones por
+   departamento, las filas de riesgo y el riel de pasos del asistente. */
+.hero-nomina {
+  display: grid; grid-template-columns: minmax(250px, 1.1fr) 2fr;
+  gap: 26px; align-items: start;
+}
+.cifra-hero {
+  font-family: var(--font-mono); font-size: 30px; font-weight: 700;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 4px 0 12px;
+}
+.hero-delta { font-family: var(--font-ui); font-size: 11.5px; font-weight: 400; color: var(--ink3); }
+/* Barra de mezcla: UNA barra, el primer segmento pinta encima del fondo.
+   El corte es percepciones vs cuotas patronales — el que SÍ sale del recibo
+   (el fijo/variable del handoff no existe en los CFDI de esta agencia). */
+.mezcla {
+  height: 8px; border-radius: 4px; background: var(--warn);
+  overflow: hidden; max-width: 340px;
+}
+.mezcla > span { display: block; height: 100%; background: var(--acc); }
+.mezcla-leyenda {
+  display: flex; gap: 14px; margin-top: 7px; font-size: 11px; color: var(--ink2);
+  flex-wrap: wrap;
+}
+.mezcla-leyenda i {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: 5px; vertical-align: baseline;
+}
+.mezcla-leyenda .pta { background: var(--acc); }
+.mezcla-leyenda .ptb { background: var(--warn); }
+.hero-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+.hero-kpis > div { padding: 2px 18px; border-left: 1px solid var(--line); }
+.hero-kpis .kpi { margin-top: 2px; }
+
+/* Fracción por departamento: barra chica + porcentaje, en celda de tabla. */
+.frac { display: inline-flex; align-items: center; gap: 8px; }
+.frac-barra {
+  width: 64px; height: 6px; border-radius: 3px; background: var(--surface-soft);
+  overflow: hidden; flex-shrink: 0;
+}
+.frac-barra > span { display: block; height: 100%; background: var(--acc); border-radius: 3px; }
+
+/* Filas de riesgo: hechos con borde al tono, no tarjetas de alarma. Las que
+   navegan son <button>; .estatico es informativa (dentro del asistente). */
+.riesgos { display: flex; flex-direction: column; gap: 8px; }
+.riesgo-fila {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: var(--panel2); border: 0; border-left: 2px solid var(--ink3);
+  border-radius: var(--radius-input); padding: 11px 14px;
+}
+.riesgo-fila.grave { border-left-color: var(--neg); }
+.riesgo-fila.aviso { border-left-color: var(--warn); }
+.riesgo-fila.estatico { cursor: default; }
+button.riesgo-fila:hover { background: var(--panel3); }
+.riesgo-fila > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.riesgo-fila b { font-size: 12.5px; font-weight: 600; }
+.riesgo-fila span { font-size: 11.5px; color: var(--ink2); }
+.riesgo-liga { flex-shrink: 0; font-size: 11.5px; color: var(--acc); white-space: nowrap; }
+
+/* Riel de pasos del asistente: el estado REAL de la corrida, no un avance
+   decorativo — por eso sólo hay activo/hecho, sin porcentajes. */
+.rail-pasos {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+  overflow-x: auto; padding-bottom: 2px;
+}
+.paso {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--ink3); white-space: nowrap;
+}
+.paso i {
+  font-style: normal; width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-family: var(--font-mono);
+  border: 1px solid var(--line2); color: var(--ink3);
+}
+.paso.activo { color: var(--ink); font-weight: 600; }
+.paso.activo i { border-color: var(--acc); background: var(--accSoft); color: var(--acc); }
+.paso.hecho i { border-color: var(--pos); color: var(--pos); }
+
+/* Asistente: tabla de recibos a la izquierda, cálculo y timbre a la derecha. */
+.correr-cols { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+
+.forma-corrida { display: flex; gap: 12px; flex-wrap: wrap; }
+.forma-corrida label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11.5px; color: var(--ink2);
+}
+.forma-corrida input, .forma-corrida select { width: auto; min-width: 130px; }
+
+.lista-seleccion {
+  max-height: 300px; overflow-y: auto; border: 1px solid var(--line);
+  border-radius: var(--radius-input); padding: 4px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px;
+}
+.lista-seleccion label {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 7px; cursor: pointer; font-size: 12px; min-width: 0;
+}
+.lista-seleccion label:hover { background: var(--panel2); }
+.lista-seleccion label.sel { background: var(--panel2); }
+.lista-seleccion .nom { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lista-seleccion .pue { margin-left: auto; font-size: 10px; color: var(--ink3); white-space: nowrap; }
+
+button.ghost.mini { padding: 0 7px; height: 20px; font-size: 12px; line-height: 1; margin-left: 4px; }
+button.peligro { background: var(--neg); border-color: var(--neg); color: #fff; }
+
+@media (max-width: 767px) {
+  .hero-nomina { grid-template-columns: 1fr; gap: 16px; }
+  .hero-kpis { grid-template-columns: 1fr; }
+  .hero-kpis > div { border-left: 0; border-top: 1px solid var(--line); padding: 10px 2px; }
+  .correr-cols { display: block; }
+  .correr-cols > div > .card { margin-top: 16px; }
+  .riesgo-fila { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
