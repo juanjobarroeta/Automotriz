@@ -327,6 +327,7 @@ export default function Fiscal() {
   // (Resumen), defenderla (Papeles) y saber si se puede presentar (Revisión).
   const [vista, setVista] = useState('resumen')
   const [papel, setPapel] = useState('iva')
+  const [ladoIva, setLadoIva] = useState('trasladado')
   // El detalle por CFDI vive en el hub (/api/papeles/iva) y se pide APARTE del
   // resumen: es más pesado, y si falla se enseña la cifra del mes igual. La
   // cifra sin comprobantes es pobre; ninguna cifra es peor.
@@ -519,22 +520,66 @@ export default function Fiscal() {
 
           {detalle && (
             <>
-              <TablaPapel
-                titulo="IVA trasladado (cobrado)"
-                glosa="el que les cobraste a tus clientes en el periodo"
-                filas={detalle.trasladado ?? []}
-                total={detalle.totales?.trasladado ?? 0}
-                totalLabel="Total trasladado"
-                onVer={setVerCfdi}
-              />
-              <TablaPapel
-                titulo="IVA acreditable (pagado)"
-                glosa="el que les pagaste a tus proveedores"
-                filas={detalle.acreditable ?? []}
-                total={detalle.totales?.acreditable ?? 0}
-                totalLabel="Total acreditable"
-                onVer={setVerCfdi}
-              />
+              {/* Las dos tablas apiladas obligaban a recorrer cientos de CFDI
+                  trasladados para llegar al acreditable. Se elige el lado y la
+                  aritmética del mes queda siempre a la vista arriba; la celda
+                  del neto no es botón porque no tiene tabla propia. */}
+              <div className="lados-iva">
+                <button
+                  type="button"
+                  className={`lado-iva${ladoIva === 'trasladado' ? ' activo' : ''}`}
+                  aria-pressed={ladoIva === 'trasladado'}
+                  onClick={() => setLadoIva('trasladado')}
+                >
+                  <span className="lado-titulo">IVA trasladado (cobrado)</span>
+                  <span className="lado-cifra">{mxn(detalle.totales?.trasladado ?? 0)}</span>
+                  <span className="lado-sub">{(detalle.trasladado ?? []).length} CFDI emitidos</span>
+                </button>
+                <button
+                  type="button"
+                  className={`lado-iva${ladoIva === 'acreditable' ? ' activo' : ''}`}
+                  aria-pressed={ladoIva === 'acreditable'}
+                  onClick={() => setLadoIva('acreditable')}
+                >
+                  <span className="lado-titulo">IVA acreditable (pagado)</span>
+                  <span className="lado-cifra">{mxn(detalle.totales?.acreditable ?? 0)}</span>
+                  <span className="lado-sub">{(detalle.acreditable ?? []).length} CFDI recibidos</span>
+                </button>
+                {(() => {
+                  const t = detalle.totales?.trasladado ?? 0
+                  const a = detalle.totales?.acreditableProcedente ?? detalle.totales?.acreditable ?? 0
+                  const neto = t - a
+                  return (
+                    <div className="lado-iva neto">
+                      <span className="lado-titulo">{neto >= 0 ? 'IVA a cargo' : 'Saldo a favor'}</span>
+                      <span className="lado-cifra">{mxn(Math.abs(neto))}</span>
+                      <span className="lado-sub">
+                        trasladado − acreditable{detalle.totales?.proporcionAcreditamiento < 1 ? ' procedente' : ''}
+                      </span>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {ladoIva === 'trasladado' ? (
+                <TablaPapel
+                  titulo="IVA trasladado (cobrado)"
+                  glosa="el que les cobraste a tus clientes en el periodo"
+                  filas={detalle.trasladado ?? []}
+                  total={detalle.totales?.trasladado ?? 0}
+                  totalLabel="Total trasladado"
+                  onVer={setVerCfdi}
+                />
+              ) : (
+                <TablaPapel
+                  titulo="IVA acreditable (pagado)"
+                  glosa="el que les pagaste a tus proveedores"
+                  filas={detalle.acreditable ?? []}
+                  total={detalle.totales?.acreditable ?? 0}
+                  totalLabel="Total acreditable"
+                  onVer={setVerCfdi}
+                />
+              )}
 
               {/* El 69-B se explica aparte porque no se destraba solo: el
                   efecto es retroactivo a todo lo comprado a ese proveedor. */}
