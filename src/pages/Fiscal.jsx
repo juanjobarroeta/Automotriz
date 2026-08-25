@@ -140,7 +140,7 @@ function TablaPapel({ titulo, glosa, filas, total, totalLabel, onVer }) {
               >
                 <td style={{ color: 'var(--ink-3)' }}>{r.fecha}</td>
                 <td className="mono">{[r.serie, r.folio].filter(Boolean).join('-') || (r.uuid ?? '').slice(0, 8)}</td>
-                <td className="celda2">
+                <td className="celda2" title={r.contraparte ?? undefined}>
                   <b>{r.contraparte ?? '—'}</b>
                   <span className="mono">{r.rfc ?? ''}</span>
                 </td>
