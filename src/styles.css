@@ -1768,3 +1768,42 @@ button.peligro { background: var(--neg); border-color: var(--neg); color: #fff; 
   .correr-cols > div > .card { margin-top: 16px; }
   .riesgo-fila { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
+
+/* ── Expediente del empleado y plantillas de corrida ─────────────────────
+   El perfil vive en la ventana de detalle; aquí sólo la ficha de datos, el
+   botón de subir archivo y las tarjetas de plantilla del asistente. */
+.ficha-datos {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px 18px; padding: 12px 14px;
+  background: var(--panel2); border-radius: var(--radius-input);
+}
+.ficha-datos > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ficha-datos span { font-size: 10.5px; color: var(--ink3); }
+.ficha-datos b { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.ficha-datos .ficha-nota { font-style: normal; font-weight: 400; font-size: 10.5px; color: var(--ink3); }
+
+/* Subir archivo: un label que envuelve al input file (el input nativo no se
+   estiliza); mismo cuerpo que un botón fantasma. */
+.boton-archivo {
+  display: inline-flex; align-items: center; padding: 0 12px; height: 30px;
+  border: 1px solid var(--line2); border-radius: var(--radius-chip);
+  font-size: 12px; color: var(--ink); cursor: pointer; background: none;
+}
+.boton-archivo:hover { background: var(--panel2); }
+.boton-archivo.ocupado { opacity: 0.6; cursor: default; }
+.boton-archivo input { display: none; }
+
+/* Plantillas del asistente: de cuál corrida parte la nueva. Una por
+   cadencia (semanal / quincenal / mensual) más la propuesta del hub. */
+.plantillas { display: flex; gap: 10px; flex-wrap: wrap; }
+.plantilla {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: 9px 14px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-input); font: inherit; color: var(--ink);
+  cursor: pointer; text-align: left;
+}
+.plantilla:hover { background: var(--panel2); }
+.plantilla.activa { border-color: var(--accLine); background: var(--accSoft); }
+.plantilla b { font-size: 12.5px; font-weight: 600; }
+.plantilla span { font-size: 10.5px; color: var(--ink3); }
+.plantilla:disabled { opacity: 0.55; cursor: default; }
