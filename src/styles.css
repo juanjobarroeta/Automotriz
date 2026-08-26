@@ -1807,3 +1807,92 @@ button.peligro { background: var(--neg); border-color: var(--neg); color: #fff; 
 .plantilla b { font-size: 12.5px; font-weight: 600; }
 .plantilla span { font-size: 10.5px; color: var(--ink3); }
 .plantilla:disabled { opacity: 0.55; cursor: default; }
+
+/* ── Asistente de timbrado: rejilla de incidencias y compañía ────────────
+   El paso del riel ahora es <button> (se navega entre pasos); la rejilla
+   edita números en la celda y cada commit recalcula en el servidor. */
+.paso {
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+  font-size: 12px; color: var(--ink3);
+}
+.paso:disabled { opacity: 0.45; cursor: default; }
+
+.corrida-cabeza {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.corrida-titulo { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; display: block; }
+.corrida-glosa { font-size: 11.5px; color: var(--ink3); display: flex; gap: 5px; align-items: center; }
+.corrida-hermanas { display: flex; gap: 6px; }
+.hermana {
+  font: inherit; font-size: 11.5px; color: var(--ink2); cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-chip); padding: 4px 10px;
+}
+.hermana b { font-family: var(--font-mono); font-weight: 600; margin-left: 3px; }
+.hermana.activa { border-color: var(--accLine); background: var(--accSoft); color: var(--ink); }
+
+.toolbar-grid {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.sel-todo { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink2); cursor: pointer; }
+.toolbar-acciones { display: flex; gap: 6px; align-items: center; }
+.toolbar-nota { margin-left: auto; font-size: 10.5px; color: var(--ink3); }
+
+/* Celdas numéricas editables. El input hereda el look de celda: sin caja
+   hasta enfocar, mono, alineado a la derecha. `.alerta` = requiere folio. */
+.celda-edit { padding-top: 4px; padding-bottom: 4px; }
+.celda-edit input {
+  width: 58px; text-align: right; font-family: var(--font-mono); font-size: 11.5px;
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--ink); padding: 3px 6px;
+}
+.celda-edit input:hover:not(:disabled) { border-color: var(--line2); }
+.celda-edit input:focus { border-color: var(--accLine); background: var(--panel2); outline: none; }
+.celda-edit input:disabled { color: var(--ink3); }
+.celda-edit input.alerta { border-color: var(--warn); color: var(--warn); }
+/* Chrome pinta spinners que comen la mitad de una celda de 58px. */
+.celda-edit input::-webkit-outer-spin-button,
+.celda-edit input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.celda-edit input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+
+/* Renglón con problema (incapacidad sin folio, neto en cero o negativo):
+   mismo tinte que usa el diseño, sin esconder nada. */
+.tabla tr.fila-marcada td { background: var(--negBg); }
+.tabla tr.fila-marcada > td:first-child { border-left: 2px solid var(--neg); }
+
+.glosa-celda { display: block; font-size: 9.5px; color: var(--ink3); font-family: var(--font-ui); }
+
+/* Costo patronal real: la cifra que entra al estado de resultados. */
+.costo-patronal {
+  margin-top: 12px; padding: 11px 13px; background: var(--panel2);
+  border-radius: var(--radius-input);
+}
+.costo-patronal span { font-size: 11.5px; color: var(--ink2); }
+.costo-patronal b { font-family: var(--font-mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.costo-patronal p { margin: 6px 0 0; font-size: 10.5px; color: var(--ink3); line-height: 1.45; }
+
+/* Movimientos del periodo: alta/baja/cambio con su plazo de IDSE. */
+.mov-fila {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel2); border-radius: var(--radius-input); padding: 10px 14px;
+}
+.mov-tipo { font-size: 11px; font-weight: 600; width: 62px; flex-shrink: 0; }
+.mov-fila > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.mov-fila b { font-size: 12.5px; font-weight: 500; }
+.mov-fila > div > span { font-size: 11px; color: var(--ink3); }
+.mov-estado { font-size: 11px; color: var(--ink3); white-space: nowrap; flex-shrink: 0; }
+
+@media (max-width: 767px) {
+  .toolbar-nota { display: none; }
+  .mov-fila { flex-wrap: wrap; }
+  .mov-estado { width: 100%; padding-left: 74px; }
+}
+
+/* La rejilla tiene 10 columnas: con el padding normal de celda (16px por
+   lado) sólo el padding ya come 320px y la tabla rueda hasta en 1470. Se
+   compacta a 8px; el nombre del empleado sigue siendo la única columna
+   elástica. */
+.grid-incidencias th, .grid-incidencias td { padding-left: 8px; padding-right: 8px; }
+.grid-incidencias .celda2 > b { max-width: 220px; }
