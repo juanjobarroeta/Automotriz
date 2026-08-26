@@ -1002,10 +1002,11 @@ function TabCorrer({ companyId, roster, corridas, salarioMinimo, recargar, movil
 
       {runId && (
         <CorridaEnCurso
-          run={run} companyId={companyId} roster={roster} salarioMinimo={salarioMinimo}
+          run={run} companyId={companyId} roster={roster} corridas={corridas} salarioMinimo={salarioMinimo}
           ocupado={ocupado} movil={movil}
           onRecargar={() => cargarRun(runId)}
           onSalir={() => { setRunId(null); setRun(null); recargar() }}
+          onCambiarRun={(id) => setRunId(id)}
           onAccion={accion}
         />
       )}
@@ -1207,298 +1208,750 @@ function NuevaCorrida({ companyId, roster, corridas, onCreada }) {
   )
 }
 
-function CorridaEnCurso({ run, companyId, roster, salarioMinimo, ocupado, movil, onRecargar, onSalir, onAccion }) {
-  const [confirmaTimbre, setConfirmaTimbre] = useState(false)
-  const [confirmaBorrar, setConfirmaBorrar] = useState(false)
+// ─── El asistente sobre una corrida ──────────────────────────────────────
+// Seis pasos como en el diseño, pero el riel refleja capacidades REALES:
+// Percepciones es lectura (los importes nunca se editan a mano — las
+// incidencias recalculan con el motor), Timbrado se abre cuando la corrida
+// está calculada y Dispersión cuando está timbrada.
+
+const PASOS = ['Periodo', 'Incidencias', 'Percepciones', 'Cálculo', 'Timbrado', 'Dispersión']
+
+function CorridaEnCurso({ run, companyId, roster, corridas, salarioMinimo, ocupado, movil, onRecargar, onSalir, onCambiarRun, onAccion }) {
+  const [pasoManual, setPasoManual] = useState(null)
   const [resultadoTimbre, setResultadoTimbre] = useState(null)
-  const [formInc, setFormInc] = useState(null)
+
+  useEffect(() => { setPasoManual(null); setResultadoTimbre(null) }, [run?.id])
 
   if (!run) return <p className="muted">Leyendo la corrida…</p>
 
   const timbrada = run.status === 'STAMPED' || run.status === 'PAID'
-  const paso = timbrada ? 3 : 2
-  const PASOS = ['Periodo', 'Incidencias y cálculo', 'Timbrado', 'Dispersión']
+  const paso = pasoManual ?? (timbrada ? 6 : 2)
+  const habilitado = (n) => {
+    if (n === 5) return run.status === 'CALCULATED' || timbrada
+    if (n === 6) return timbrada
+    return true
+  }
 
   const empPorId = new Map((roster?.empleados ?? []).map((e) => [e.id, e]))
-
-  // Bloqueos previos al timbre — los definitivos los valida el servidor al
-  // timbrar; éstos son los que se pueden ver ANTES de intentarlo.
-  const sinCurp = run.items.filter((i) => !empPorId.get(i.employeeId)?.curp)
-  const incapSinFolio = (run.incidencias ?? []).filter((x) => x.tipo === 'INCAPACIDAD' && !x.folioImss)
-  const bajoMinimo = run.items.filter((i) => {
-    const e = empPorId.get(i.employeeId)
-    return e && vsMinimo(e.salarioDiario, salarioMinimo) === 'debajo'
-  })
-
   const incPorEmpleado = new Map()
   for (const x of run.incidencias ?? []) {
     const arr = incPorEmpleado.get(x.employeeId) ?? []
     arr.push(x); incPorEmpleado.set(x.employeeId, arr)
   }
 
-  const recalcular = () => onAccion(async () => {
-    await apiFetch(`/api/nomina/run/${run.id}/recalcular`, { method: 'POST' })
-    onRecargar()
-  })
-
-  const timbrar = () => onAccion(async () => {
-    const r = await apiFetch(`/api/nomina/run/${run.id}/stamp`, { method: 'POST' })
-    setResultadoTimbre(r); setConfirmaTimbre(false)
-    onRecargar()
-  })
-
-  const borrar = () => onAccion(async () => {
-    await apiFetch(`/api/nomina/run/${run.id}`, { method: 'DELETE' })
-    onSalir()
-  })
-
-  const agregarIncidencia = () => onAccion(async () => {
-    await apiFetch('/api/nomina/incidencias', {
-      method: 'POST',
-      body: JSON.stringify({ companyId, payrollRunId: run.id, ...formInc }),
-    })
-    setFormInc(null)
-    onRecargar()
-  })
+  // Las corridas hermanas en curso (la otra cadencia del mismo momento):
+  // MARGOM corre semanal y quincenal en paralelo y se brinca entre ambas.
+  const hermanas = (corridas ?? []).filter((c) => c.status === 'DRAFT' || c.status === 'CALCULATED')
 
   return (
     <>
       <div className="rail-pasos">
-        {PASOS.map((p, i) => (
-          <span key={p} className={`paso${i + 1 === paso ? ' activo' : ''}${i + 1 < paso ? ' hecho' : ''}`}>
-            <i>{i + 1}</i> {p}
+        {PASOS.map((nombre, i) => {
+          const n = i + 1
+          return (
+            <button
+              type="button" key={nombre}
+              className={`paso${n === paso ? ' activo' : ''}${n < paso && n > 1 ? ' hecho' : ''}${n === 1 ? ' hecho' : ''}`}
+              disabled={!habilitado(n)}
+              onClick={() => { if (n === 1) onSalir(); else setPasoManual(n) }}
+            >
+              <i>{n}</i> {nombre}
+            </button>
+          )
+        })}
+        <button type="button" className="ghost" style={{ marginLeft: 'auto', flexShrink: 0 }} onClick={onSalir}>← Corridas</button>
+      </div>
+
+      <div className="corrida-cabeza">
+        <div>
+          <span className="corrida-titulo">{periodoLegible(run.periodo)}</span>
+          <span className="corrida-glosa">
+            {run.items.length} empleados · {cadenciaDe(run)} · pago {dia(run.fechaPago)} · <EstadoCorrida c={run} />
           </span>
-        ))}
-        <button type="button" className="ghost" style={{ marginLeft: 'auto' }} onClick={onSalir}>← Corridas</button>
+        </div>
+        {hermanas.length > 1 && (
+          <div className="corrida-hermanas">
+            {hermanas.map((c) => (
+              <button
+                type="button" key={c.id}
+                className={`hermana${c.id === run.id ? ' activa' : ''}`}
+                onClick={() => { if (c.id !== run.id) onCambiarRun(c.id) }}
+              >
+                {cadenciaDe(c)[0].toUpperCase() + cadenciaDe(c).slice(1)} <b>{c._count?.items ?? 0}</b>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={movil ? undefined : 'correr-cols'}>
-        <section className="card">
-          <div className="card-head" style={{ gap: 10 }}>
-            <span>{periodoLegible(run.periodo)}</span>
-            <span className="muted" style={{ fontWeight: 400 }}>
-              {run.items.length} personas · pago {dia(run.fechaPago)} · <EstadoCorrida c={run} />
-            </span>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="tabla">
-              <thead>
-                <tr>
-                  <th>Empleado</th><th>Incidencias</th><th className="num">Percepciones</th>
-                  <th className="num">ISR</th><th className="num">Neto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {run.items.map((i) => {
-                  const e = empPorId.get(i.employeeId)
-                  const incs = incPorEmpleado.get(i.employeeId) ?? []
-                  return (
-                    <tr key={i.id}>
-                      <td className="celda2">
-                        <b>{e?.nombreCompleto ?? (i.employee ? `${i.employee.nombre} ${i.employee.apellidoPaterno}` : '—')}</b>
-                        <span>{e ? [e.puesto, e.departamento].filter(Boolean).join(' · ') : ''}</span>
-                      </td>
-                      <td>
-                        {incs.length === 0
-                          ? <span className="muted" style={{ fontSize: 11 }}>—</span>
-                          : incs.map((x) => (
-                            <span key={x.id} className={`pill-motivo${x.tipo === 'INCAPACIDAD' && !x.folioImss ? ' grave' : ''}`}
-                              style={{ marginRight: 4 }}
-                              title={`${dia(x.fecha)}${x.dias > 1 ? ` · ${x.dias} días` : ''}`}>
-                              {x.tipo === 'HORAS_EXTRA' ? `${(x.horas ?? 0) + (x.horasTriples ?? 0)}h extra` : x.tipo.toLowerCase().replaceAll('_', ' ')}
-                              {x.dias > 1 && CON_DIAS.includes(x.tipo) ? ` ×${x.dias}` : ''}
-                            </span>
-                          ))}
-                        {!timbrada && (
-                          <button type="button" className="ghost mini" title="Agregar incidencia"
-                            onClick={() => setFormInc({ employeeId: i.employeeId, tipo: 'FALTA', fecha: dia(run.periodo.split('/')[0]), dias: 1 })}>
-                            +
-                          </button>
-                        )}
-                      </td>
-                      <td className="num">{mxn2(i.totalPercepciones)}</td>
-                      <td className="num">{mxn2(i.isrRetenido)}</td>
-                      <td className="num" style={{ fontWeight: 600 }}>{mxn2(i.netoAPagar)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td className="alcance" colSpan={2}>{run.items.length} recibos</td>
-                  <td className="num">{mxn2(run.totalPercepciones)}</td>
-                  <td className="num" />
-                  <td className="num">{mxn2(run.totalNeto)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          {!timbrada && (
-            <div className="card-note">
-              Las incidencias recalculan el recibo con el motor — los importes nunca se editan a mano. Un periodo ya
-              timbrado no acepta incidencias: los CFDIs emitidos no cambian.
-            </div>
+        <div>
+          {paso === 2 && (
+            <>
+              <GridIncidencias
+                run={run} companyId={companyId} empPorId={empPorId} incPorEmpleado={incPorEmpleado}
+                timbrada={timbrada} ocupado={ocupado} onAccion={onAccion} onRecargar={onRecargar}
+              />
+              <MovimientosPeriodo companyId={companyId} run={run} />
+            </>
           )}
-        </section>
+          {paso === 3 && <PasoPercepciones run={run} empPorId={empPorId} />}
+          {paso === 4 && (
+            <PasoCalculo run={run} empPorId={empPorId} timbrada={timbrada} ocupado={ocupado}
+              onAccion={onAccion} onRecargar={onRecargar} onSalir={onSalir} />
+          )}
+          {paso === 5 && (
+            <PasoTimbrado
+              run={run} companyId={companyId} empPorId={empPorId} incPorEmpleado={incPorEmpleado}
+              salarioMinimo={salarioMinimo} timbrada={timbrada} ocupado={ocupado}
+              resultado={resultadoTimbre}
+              onAccion={onAccion} onRecargar={onRecargar}
+              onResultado={(r) => { setResultadoTimbre(r); setPasoManual(6) }}
+            />
+          )}
+          {paso === 6 && <PasoDispersion run={run} ocupado={ocupado} resultado={resultadoTimbre} onAccion={onAccion} />}
+        </div>
 
         <div>
-          <section className="card" style={{ marginBottom: 16 }}>
-            <div className="card-head">Cálculo de la corrida</div>
-            <FilaResumen label="Percepciones" valor={mxn2(run.totalPercepciones)} />
-            <FilaResumen label="Deducciones" valor={mxn2(run.totalDeducciones)} />
-            <FilaResumen fuerte label="Neto a dispersar" valor={mxn2(run.totalNeto)} />
-            {!timbrada && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button type="button" className="ghost" disabled={ocupado} onClick={recalcular}>Recalcular</button>
-                {!confirmaBorrar
-                  ? <button type="button" className="ghost" disabled={ocupado} onClick={() => setConfirmaBorrar(true)}>Descartar</button>
-                  : <button type="button" className="peligro" disabled={ocupado} onClick={borrar}>Confirmar descarte</button>}
-              </div>
-            )}
-          </section>
-
-          {!timbrada && (
+          <SidebarCalculo run={run} incPorEmpleado={incPorEmpleado} />
+          {!timbrada && paso !== 5 && (
             <section className="card" style={{ marginBottom: 16 }}>
               <div className="card-head" style={{ gap: 10 }}>
                 <span>Antes de timbrar</span>
-                {(sinCurp.length + incapSinFolio.length + bajoMinimo.length) > 0 && (
-                  <span style={{ color: 'var(--neg)', fontSize: 11.5 }}>
-                    {sinCurp.length + incapSinFolio.length + bajoMinimo.length} bloqueo(s)
-                  </span>
-                )}
               </div>
-              <div className="riesgos">
-                {sinCurp.length > 0 && (
-                  <div className="riesgo-fila grave estatico">
-                    <div>
-                      <b>{sinCurp.length} empleado(s) sin CURP en el expediente</b>
-                      <span>el CFDI de nómina 1.2 la exige — {sinCurp.map((i) => empPorId.get(i.employeeId)?.nombreCompleto).filter(Boolean).slice(0, 3).join(', ')}</span>
-                    </div>
-                  </div>
-                )}
-                {incapSinFolio.length > 0 && (
-                  <div className="riesgo-fila grave estatico">
-                    <div>
-                      <b>{incapSinFolio.length} incapacidad(es) sin folio del IMSS</b>
-                      <span>captura el folio en la incidencia antes de timbrar</span>
-                    </div>
-                  </div>
-                )}
-                {bajoMinimo.length > 0 && (
-                  <div className="riesgo-fila aviso estatico">
-                    <div>
-                      <b>{bajoMinimo.length} salario(s) del padrón por debajo del mínimo</b>
-                      <span>
-                        el motor calcula con el salario capturado en el padrón (no con el SBC histórico del CFDI);
-                        el timbre no se bloquea, pero el IMSS rechaza movimientos sub-mínimos
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {sinCurp.length === 0 && incapSinFolio.length === 0 && bajoMinimo.length === 0 && (
-                  <p className="muted" style={{ margin: 0 }}>Sin bloqueos visibles — la validación definitiva la hace el timbrado.</p>
-                )}
-              </div>
-              <div style={{ marginTop: 12 }}>
-                {!confirmaTimbre ? (
-                  <button type="button" disabled={ocupado || run.status !== 'CALCULATED'} onClick={() => setConfirmaTimbre(true)}>
-                    Timbrar {run.items.length} recibo(s)
-                  </button>
-                ) : (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button type="button" className="peligro" disabled={ocupado} onClick={timbrar}>
-                      {ocupado ? 'Timbrando…' : 'Confirmar — es el punto sin retorno'}
-                    </button>
-                    <button type="button" className="ghost" onClick={() => setConfirmaTimbre(false)}>Cancelar</button>
-                  </div>
-                )}
-                <p className="glosa" style={{ marginTop: 8 }}>
-                  Una vez sellado el CFDI, corregir exige cancelar y refacturar.
-                </p>
-              </div>
-            </section>
-          )}
-
-          {resultadoTimbre && (
-            <section className="card" style={{ marginBottom: 16 }}>
-              <div className="card-head">Resultado del timbrado</div>
-              <p style={{ margin: 0, fontSize: 13 }}>
-                {resultadoTimbre.stamped} de {resultadoTimbre.total} recibos timbrados.
+              <p className="glosa" style={{ margin: '0 0 10px' }}>
+                Los bloqueos se revisan en el paso de Timbrado; la validación definitiva la hace el PAC al sellar.
               </p>
-              {(resultadoTimbre.errors ?? []).length > 0 && (
-                <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--neg)' }}>
-                  {resultadoTimbre.errors.slice(0, 8).map((e, i) => <li key={i}>{String(e)}</li>)}
-                </ul>
-              )}
-            </section>
-          )}
-
-          {timbrada && (
-            <section className="card">
-              <div className="card-head">Dispersión</div>
-              <p style={{ margin: '0 0 10px', fontSize: 12.5, color: 'var(--ink2)' }}>
-                Archivo SPEI por lotes (CSV compatible con BBVA, Banorte, Santander y Banamex). Usa la CLABE
-                capturada en cada empleado; los que no la tengan salen sin cuenta y se pagan a mano.
-              </p>
-              <button type="button" disabled={ocupado}
-                onClick={() => onAccion(() => apiDownload(`/api/nomina/dispersion?runId=${run.id}`, `dispersion-${run.periodo.replaceAll('/', '_')}.csv`))}>
-                Descargar archivo de dispersión
+              <button type="button" disabled={run.status !== 'CALCULATED'} onClick={() => setPasoManual(5)}>
+                Ir al timbrado →
               </button>
             </section>
           )}
+          <ContraAnterior run={run} corridas={corridas} />
         </div>
       </div>
-
-      {formInc && (
-        <VentanaDetalle
-          titulo="Agregar incidencia"
-          glosa={empPorId.get(formInc.employeeId)?.nombreCompleto ?? ''}
-          onCerrar={() => setFormInc(null)}
-        >
-          <div className="forma-corrida" style={{ marginBottom: 12 }}>
-            <label>Tipo
-              <select value={formInc.tipo} onChange={(e) => setFormInc({ ...formInc, tipo: e.target.value })}>
-                {TIPOS_INCIDENCIA.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-              </select>
-            </label>
-            <label>Fecha
-              <input type="date" value={formInc.fecha}
-                onChange={(e) => setFormInc({ ...formInc, fecha: e.target.value })} />
-            </label>
-            {CON_DIAS.includes(formInc.tipo) && (
-              <label>Días
-                <input type="number" min="1" value={formInc.dias ?? 1}
-                  onChange={(e) => setFormInc({ ...formInc, dias: e.target.value })} />
-              </label>
-            )}
-            {formInc.tipo === 'HORAS_EXTRA' && (
-              <label>Horas dobles
-                <input type="number" min="0" step="0.5" value={formInc.horas ?? ''}
-                  onChange={(e) => setFormInc({ ...formInc, horas: e.target.value })} />
-              </label>
-            )}
-            {CON_MONTO.includes(formInc.tipo) && (
-              <label>Monto
-                <input type="number" min="0" step="0.01" value={formInc.monto ?? ''}
-                  onChange={(e) => setFormInc({ ...formInc, monto: e.target.value })} />
-              </label>
-            )}
-            {formInc.tipo === 'INCAPACIDAD' && (
-              <label>Folio IMSS
-                <input type="text" value={formInc.folioImss ?? ''}
-                  onChange={(e) => setFormInc({ ...formInc, folioImss: e.target.value })} />
-              </label>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" disabled={ocupado} onClick={agregarIncidencia}>
-              {ocupado ? 'Guardando…' : 'Guardar y recalcular'}
-            </button>
-            <button type="button" className="ghost" onClick={() => setFormInc(null)}>Cancelar</button>
-          </div>
-        </VentanaDetalle>
-      )}
     </>
+  )
+}
+
+/* Suma de días/horas/montos por tipo de incidencia de un empleado. */
+const sumaInc = (incs, tipo, campo = 'dias') =>
+  incs.filter((x) => x.tipo === tipo).reduce((a, x) => a + (x[campo] ?? 0), 0)
+
+function GridIncidencias({ run, companyId, empPorId, incPorEmpleado, timbrada, ocupado, onAccion, onRecargar }) {
+  const [sel, setSel] = useState(new Set())
+  const [bonoMonto, setBonoMonto] = useState('')
+
+  const inicioPeriodo = run.periodo.split('/')[0].slice(0, 10)
+
+  // Editar una celda = reescribir las incidencias de ese tipo del empleado:
+  // se eliminan las del periodo y se crea UNA con el valor nuevo (con
+  // payrollRunId, para que el motor recalcule el recibo — los importes nunca
+  // se editan a mano). El folio del IMSS de una incapacidad existente se
+  // conserva al reescribir.
+  const reescribir = (employeeId, tipo, valores) => onAccion(async () => {
+    const previas = (incPorEmpleado.get(employeeId) ?? []).filter((x) => x.tipo === tipo)
+    for (const x of previas) {
+      await apiFetch('/api/nomina/incidencias', {
+        method: 'POST',
+        body: { companyId, action: 'delete', incidenciaId: x.id },
+      })
+    }
+    if (valores) {
+      await apiFetch('/api/nomina/incidencias', {
+        method: 'POST',
+        body: { companyId, payrollRunId: run.id, employeeId, tipo, fecha: inicioPeriodo, ...valores },
+      })
+    } else if (previas.length) {
+      // Sólo se borró: recalcular al empleado explícitamente.
+      await apiFetch(`/api/nomina/run/${run.id}/recalcular`, { method: 'POST', body: { employeeId } })
+    }
+    onRecargar()
+  })
+
+  const setDias = (employeeId, tipo, n) => {
+    const previas = (incPorEmpleado.get(employeeId) ?? []).filter((x) => x.tipo === tipo)
+    const folio = previas.find((x) => x.folioImss)?.folioImss
+    if (n === sumaInc(incPorEmpleado.get(employeeId) ?? [], tipo)) return
+    reescribir(employeeId, tipo, n > 0 ? { dias: n, ...(folio ? { folioImss: folio } : {}) } : null)
+  }
+  const setHoras = (employeeId, h) => {
+    if (h === sumaInc(incPorEmpleado.get(employeeId) ?? [], 'HORAS_EXTRA', 'horas')) return
+    reescribir(employeeId, 'HORAS_EXTRA', h > 0 ? { horas: h } : null)
+  }
+  const setMonto = (employeeId, tipo, m) => {
+    if (m === sumaInc(incPorEmpleado.get(employeeId) ?? [], tipo, 'monto')) return
+    reescribir(employeeId, tipo, m > 0 ? { monto: m } : null)
+  }
+
+  const marcarFalta = () => onAccion(async () => {
+    for (const id of sel) {
+      const n = sumaInc(incPorEmpleado.get(id) ?? [], 'FALTA') + 1
+      const previas = (incPorEmpleado.get(id) ?? []).filter((x) => x.tipo === 'FALTA')
+      for (const x of previas) {
+        await apiFetch('/api/nomina/incidencias', { method: 'POST', body: { companyId, action: 'delete', incidenciaId: x.id } })
+      }
+      await apiFetch('/api/nomina/incidencias', {
+        method: 'POST',
+        body: { companyId, payrollRunId: run.id, employeeId: id, tipo: 'FALTA', fecha: inicioPeriodo, dias: n },
+      })
+    }
+    onRecargar()
+  })
+
+  const aplicarBono = () => {
+    const m = Number(bonoMonto)
+    if (!m || m <= 0) return
+    onAccion(async () => {
+      for (const id of sel) {
+        await apiFetch('/api/nomina/incidencias', {
+          method: 'POST',
+          body: { companyId, payrollRunId: run.id, employeeId: id, tipo: 'BONO', fecha: inicioPeriodo, monto: m },
+        })
+      }
+      setBonoMonto('')
+      onRecargar()
+    })
+  }
+
+  const todos = run.items.map((i) => i.employeeId)
+  const todosSel = todos.length > 0 && todos.every((id) => sel.has(id))
+
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      {!timbrada && (
+        <div className="toolbar-grid">
+          <label className="sel-todo">
+            <input type="checkbox" style={{ width: 'auto' }} checked={todosSel}
+              onChange={(e) => setSel(e.target.checked ? new Set(todos) : new Set())} />
+            {sel.size > 0 ? `${sel.size} seleccionados` : 'seleccionar'}
+          </label>
+          <span className="toolbar-acciones">
+            <input type="number" min="0" step="50" placeholder="$ bono" value={bonoMonto}
+              onChange={(e) => setBonoMonto(e.target.value)} style={{ width: 90 }} />
+            <button type="button" className="ghost" disabled={ocupado || sel.size === 0 || !Number(bonoMonto)} onClick={aplicarBono}>
+              Aplicar bono
+            </button>
+            <button type="button" className="ghost" disabled={ocupado || sel.size === 0} onClick={marcarFalta}>
+              Marcar falta
+            </button>
+          </span>
+          <span className="toolbar-nota">
+            el checador y el pegado desde Excel no están conectados — las incidencias se capturan aquí
+          </span>
+        </div>
+      )}
+      <div style={{ overflowX: 'auto' }}>
+        <table className="tabla grid-incidencias">
+          <thead>
+            <tr>
+              {!timbrada && <th style={{ width: 28 }} />}
+              <th>Empleado</th><th className="num">Días</th><th className="num">Faltas</th>
+              <th className="num">Incap.</th><th className="num">H. extra</th>
+              <th className="num">Comisión</th><th className="num">Bono</th>
+              <th className="num">Deducciones</th><th className="num">Neto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {run.items.map((i) => {
+              const e = empPorId.get(i.employeeId)
+              const incs = incPorEmpleado.get(i.employeeId) ?? []
+              const faltas = sumaInc(incs, 'FALTA')
+              const incap = sumaInc(incs, 'INCAPACIDAD')
+              const hextra = sumaInc(incs, 'HORAS_EXTRA', 'horas')
+              const comision = sumaInc(incs, 'COMISION', 'monto')
+              const bono = sumaInc(incs, 'BONO', 'monto')
+              const incapSinFolio = incs.some((x) => x.tipo === 'INCAPACIDAD' && !x.folioImss)
+              const marcada = incapSinFolio || i.netoAPagar <= 0
+              return (
+                <tr key={i.id} className={marcada ? 'fila-marcada' : undefined}>
+                  {!timbrada && (
+                    <td>
+                      <input type="checkbox" style={{ width: 'auto' }} checked={sel.has(i.employeeId)}
+                        onChange={(ev) => {
+                          const s = new Set(sel)
+                          if (ev.target.checked) s.add(i.employeeId); else s.delete(i.employeeId)
+                          setSel(s)
+                        }} />
+                    </td>
+                  )}
+                  <td className="celda2">
+                    <b>{e?.nombreCompleto ?? (i.employee ? `${i.employee.nombre} ${i.employee.apellidoPaterno}` : '—')}</b>
+                    <span>{e ? [e.puesto, e.departamento].filter(Boolean).join(' · ') : ''}</span>
+                  </td>
+                  <td className="num">{Math.max(0, (run.extraData?.diasPagados ?? diasDelPeriodo(run)) - faltas - incap)}</td>
+                  <CeldaNum valor={faltas} disabled={timbrada || ocupado} onCommit={(n) => setDias(i.employeeId, 'FALTA', n)} alerta={faltas > 0} />
+                  <CeldaNum valor={incap} disabled={timbrada || ocupado} onCommit={(n) => setDias(i.employeeId, 'INCAPACIDAD', n)} alerta={incapSinFolio} />
+                  <CeldaNum valor={hextra} disabled={timbrada || ocupado} paso={0.5} onCommit={(n) => setHoras(i.employeeId, n)} />
+                  <CeldaNum valor={comision} disabled={timbrada || ocupado} dinero paso={50} onCommit={(n) => setMonto(i.employeeId, 'COMISION', n)} />
+                  <CeldaNum valor={bono} disabled={timbrada || ocupado} dinero paso={50} onCommit={(n) => setMonto(i.employeeId, 'BONO', n)} />
+                  <td className="num">
+                    {mxn(i.totalDeducciones)}
+                    <span className="glosa-celda">ISR e IMSS</span>
+                  </td>
+                  <td className="num" style={{ fontWeight: 600, color: i.netoAPagar <= 0 ? 'var(--neg)' : undefined }}>
+                    {mxn2(i.netoAPagar)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              {!timbrada && <td />}
+              <td className="alcance">{run.items.length} empleados{sel.size > 0 ? ` · ${sel.size} seleccionados` : ''}</td>
+              <td />
+              <td className="num">{run.items.reduce((a, i) => a + sumaInc(incPorEmpleado.get(i.employeeId) ?? [], 'FALTA'), 0) || ''}</td>
+              <td className="num">{run.items.reduce((a, i) => a + sumaInc(incPorEmpleado.get(i.employeeId) ?? [], 'INCAPACIDAD'), 0) || ''}</td>
+              <td className="num">{run.items.reduce((a, i) => a + sumaInc(incPorEmpleado.get(i.employeeId) ?? [], 'HORAS_EXTRA', 'horas'), 0) || ''}</td>
+              <td className="num">{mxn(run.items.reduce((a, i) => a + sumaInc(incPorEmpleado.get(i.employeeId) ?? [], 'COMISION', 'monto'), 0))}</td>
+              <td className="num">{mxn(run.items.reduce((a, i) => a + sumaInc(incPorEmpleado.get(i.employeeId) ?? [], 'BONO', 'monto'), 0))}</td>
+              <td className="num">{mxn(run.totalDeducciones)}</td>
+              <td className="num">{mxn2(run.totalNeto)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="card-note">
+        Cada celda reescribe las incidencias del empleado y el motor recalcula su recibo — los importes nunca se
+        editan a mano, y toda captura queda en la bitácora con quién la hizo. Un periodo timbrado no cambia.
+      </div>
+    </section>
+  )
+}
+
+/* Días del periodo de una corrida, del propio texto "inicio/fin". */
+const diasDelPeriodo = (run) => {
+  const [a, b] = run.periodo.split('/')
+  const n = Math.round((new Date(b) - new Date(a)) / 86400000) + 1
+  return Number.isFinite(n) && n > 0 ? n : 15
+}
+
+/* Celda numérica editable: committea al salir o con Enter, no por tecla —
+   cada commit dispara incidencias + recálculo en el servidor. */
+function CeldaNum({ valor, onCommit, disabled, dinero, paso = 1, alerta }) {
+  const [texto, setTexto] = useState(null)
+  const mostrado = texto ?? (dinero ? (valor > 0 ? String(valor) : '') : String(valor))
+  const commit = () => {
+    if (texto == null) return
+    const n = Math.max(0, Number(texto) || 0)
+    setTexto(null)
+    onCommit(n)
+  }
+  return (
+    <td className="num celda-edit">
+      <input
+        type="number" min="0" step={paso} inputMode="decimal"
+        className={alerta ? 'alerta' : undefined}
+        value={mostrado} placeholder={dinero ? '—' : '0'}
+        disabled={disabled}
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+      />
+    </td>
+  )
+}
+
+function PasoPercepciones({ run, empPorId }) {
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head" style={{ gap: 10 }}>
+        <span>Percepciones por empleado</span>
+        <span className="muted" style={{ fontWeight: 400 }}>lectura — se cambian con incidencias, nunca a mano</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="tabla">
+          <thead>
+            <tr>
+              <th>Empleado</th><th className="num">Sueldo</th><th className="num">H. extra</th>
+              <th className="num">Bonos</th><th className="num">Extraordinarias</th>
+              <th className="num">Otras</th><th className="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {run.items.map((i) => (
+              <tr key={i.id}>
+                <td className="celda2">
+                  <b>{empPorId.get(i.employeeId)?.nombreCompleto ?? '—'}</b>
+                </td>
+                <td className="num">{mxn2(i.sueldoBase)}</td>
+                <td className="num">{i.horasExtra > 0 ? mxn2(i.horasExtra) : '—'}</td>
+                <td className="num">{(i.bonosPagoFijo + i.bonosPagoVar + i.vales) > 0 ? mxn2(i.bonosPagoFijo + i.bonosPagoVar + i.vales) : '—'}</td>
+                <td className="num">{(i.aguinaldo + i.primaVacacional + i.vacaciones + i.ptu) > 0 ? mxn2(i.aguinaldo + i.primaVacacional + i.vacaciones + i.ptu) : '—'}</td>
+                <td className="num">{i.otrasPercepciones > 0 ? mxn2(i.otrasPercepciones) : '—'}</td>
+                <td className="num" style={{ fontWeight: 600 }}>{mxn2(i.totalPercepciones)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td className="alcance">{run.items.length} empleados</td>
+              <td className="num" colSpan={5} />
+              <td className="num">{mxn2(run.totalPercepciones)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function PasoCalculo({ run, empPorId, timbrada, ocupado, onAccion, onRecargar, onSalir }) {
+  const [confirmaBorrar, setConfirmaBorrar] = useState(false)
+  const recalcular = () => onAccion(async () => {
+    await apiFetch(`/api/nomina/run/${run.id}/recalcular`, { method: 'POST' })
+    onRecargar()
+  })
+  const borrar = () => onAccion(async () => {
+    await apiFetch(`/api/nomina/run/${run.id}`, { method: 'DELETE' })
+    onSalir()
+  })
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head" style={{ gap: 10, justifyContent: 'space-between' }}>
+        <span>Cálculo por empleado</span>
+        {!timbrada && (
+          <span style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="ghost" disabled={ocupado} onClick={recalcular}>Recalcular</button>
+            {!confirmaBorrar
+              ? <button type="button" className="ghost" disabled={ocupado} onClick={() => setConfirmaBorrar(true)}>Descartar</button>
+              : <button type="button" className="peligro" disabled={ocupado} onClick={borrar}>Confirmar descarte</button>}
+          </span>
+        )}
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="tabla">
+          <thead>
+            <tr>
+              <th>Empleado</th><th className="num">Percepciones</th><th className="num">ISR</th>
+              <th className="num">IMSS obrero</th><th className="num">INFONAVIT</th>
+              <th className="num">Otras deducc.</th><th className="num">Neto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {run.items.map((i) => (
+              <tr key={i.id}>
+                <td className="celda2"><b>{empPorId.get(i.employeeId)?.nombreCompleto ?? '—'}</b></td>
+                <td className="num">{mxn2(i.totalPercepciones)}</td>
+                <td className="num">{mxn2(i.isrRetenido)}</td>
+                <td className="num">{mxn2(i.imssObrero)}</td>
+                <td className="num">{i.infonavit > 0 ? mxn2(i.infonavit) : '—'}</td>
+                <td className="num">{i.otrasDeducc > 0 ? mxn2(i.otrasDeducc) : '—'}</td>
+                <td className="num" style={{ fontWeight: 600 }}>{mxn2(i.netoAPagar)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td className="alcance">{run.items.length} recibos</td>
+              <td className="num">{mxn2(run.totalPercepciones)}</td>
+              <td className="num" colSpan={4} />
+              <td className="num">{mxn2(run.totalNeto)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function PasoTimbrado({ run, companyId, empPorId, incPorEmpleado, salarioMinimo, timbrada, ocupado, resultado, onAccion, onRecargar, onResultado }) {
+  const [confirma, setConfirma] = useState(false)
+  const [folios, setFolios] = useState({})
+
+  const sinCurp = run.items.filter((i) => !empPorId.get(i.employeeId)?.curp)
+  const incapsSinFolio = (run.incidencias ?? []).filter((x) => x.tipo === 'INCAPACIDAD' && !x.folioImss)
+  const bajoMinimo = run.items.filter((i) => {
+    const e = empPorId.get(i.employeeId)
+    return e && vsMinimo(e.salarioDiario, salarioMinimo) === 'debajo'
+  })
+  const bloqueos = sinCurp.length + incapsSinFolio.length
+
+  // El folio de una incapacidad se captura reescribiendo la incidencia (el
+  // endpoint no tiene update): eliminar + crear con los mismos días y fecha.
+  const capturarFolio = (inc) => {
+    const folio = (folios[inc.id] ?? '').trim()
+    if (!folio) return
+    onAccion(async () => {
+      await apiFetch('/api/nomina/incidencias', { method: 'POST', body: { companyId, action: 'delete', incidenciaId: inc.id } })
+      await apiFetch('/api/nomina/incidencias', {
+        method: 'POST',
+        body: {
+          companyId, payrollRunId: run.id, employeeId: inc.employeeId, tipo: 'INCAPACIDAD',
+          fecha: dia(inc.fecha), dias: inc.dias, folioImss: folio,
+        },
+      })
+      onRecargar()
+    })
+  }
+
+  const timbrar = () => onAccion(async () => {
+    const r = await apiFetch(`/api/nomina/run/${run.id}/stamp`, { method: 'POST' })
+    setConfirma(false)
+    onResultado(r)
+    onRecargar()
+  })
+
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head" style={{ gap: 10 }}>
+        <span>Antes de timbrar</span>
+        {bloqueos > 0 && <span style={{ color: 'var(--neg)', fontSize: 11.5 }}>{bloqueos} bloqueo(s)</span>}
+      </div>
+      <p className="glosa" style={{ margin: '0 0 12px' }}>
+        El timbrado es el punto sin retorno: una vez sellado el CFDI, corregir exige cancelar y refacturar.
+        La validación definitiva la hace el PAC; lo que el SAT rechace aparece abajo como error.
+      </p>
+      <div className="riesgos">
+        {sinCurp.length > 0 && (
+          <div className="riesgo-fila grave estatico">
+            <div>
+              <b>{sinCurp.length} empleado(s) sin CURP en el expediente</b>
+              <span>
+                el CFDI de nómina 1.2 la exige — {sinCurp.map((i) => empPorId.get(i.employeeId)?.nombreCompleto).filter(Boolean).slice(0, 3).join(', ')}
+                {sinCurp.length > 3 ? '…' : ''}. Se captura en el hub, en la ficha del empleado.
+              </span>
+            </div>
+          </div>
+        )}
+        {incapsSinFolio.map((inc) => (
+          <div key={inc.id} className="riesgo-fila grave estatico">
+            <div>
+              <b>Incapacidad sin folio del IMSS</b>
+              <span>{empPorId.get(inc.employeeId)?.nombreCompleto ?? '—'} · {inc.dias} día(s) desde {dia(inc.fecha)}</span>
+            </div>
+            <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <input type="text" placeholder="folio" style={{ width: 120 }}
+                value={folios[inc.id] ?? ''}
+                onChange={(e) => setFolios({ ...folios, [inc.id]: e.target.value })} />
+              <button type="button" className="ghost" disabled={ocupado || !(folios[inc.id] ?? '').trim()} onClick={() => capturarFolio(inc)}>
+                Capturar
+              </button>
+            </span>
+          </div>
+        ))}
+        {bajoMinimo.length > 0 && (
+          <div className="riesgo-fila aviso estatico">
+            <div>
+              <b>{bajoMinimo.length} salario(s) del padrón por debajo del mínimo</b>
+              <span>el motor calcula con el salario capturado en el padrón; el timbre no se bloquea, pero el IMSS rechaza movimientos sub-mínimos</span>
+            </div>
+          </div>
+        )}
+        {bloqueos === 0 && bajoMinimo.length === 0 && (
+          <div className="riesgo-fila estatico" style={{ borderLeftColor: 'var(--pos)' }}>
+            <div><b>Sin bloqueos visibles</b><span>CURP completas e incapacidades con folio</span></div>
+          </div>
+        )}
+      </div>
+
+      {!timbrada && (
+        <div style={{ marginTop: 14 }}>
+          {!confirma ? (
+            <button type="button" disabled={ocupado || run.status !== 'CALCULATED' || bloqueos > 0} onClick={() => setConfirma(true)}>
+              Timbrar {run.items.length} recibo(s)
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="peligro" disabled={ocupado} onClick={timbrar}>
+                {ocupado ? 'Timbrando…' : 'Confirmar — es el punto sin retorno'}
+              </button>
+              <button type="button" className="ghost" onClick={() => setConfirma(false)}>Cancelar</button>
+            </div>
+          )}
+          {bloqueos > 0 && (
+            <p className="glosa" style={{ marginTop: 8 }}>El timbre se habilita al resolver los bloqueos de arriba.</p>
+          )}
+        </div>
+      )}
+
+      {resultado && (
+        <div style={{ marginTop: 14 }}>
+          <p style={{ margin: 0, fontSize: 13 }}>
+            <b>{resultado.stamped} de {resultado.total}</b> recibos timbrados.
+          </p>
+          {(resultado.errors ?? []).length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--neg)' }}>
+              {resultado.errors.slice(0, 8).map((e, i) => <li key={i}>{String(e)}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function PasoDispersion({ run, ocupado, resultado, onAccion }) {
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head">Dispersión</div>
+      {resultado && (
+        <p style={{ margin: '0 0 10px', fontSize: 13 }}>
+          <b>{resultado.stamped} de {resultado.total}</b> recibos timbrados
+          {(resultado.errors ?? []).length > 0 ? ` · ${resultado.errors.length} con error` : ''}.
+        </p>
+      )}
+      <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--ink2)' }}>
+        Archivo SPEI por lotes (CSV compatible con BBVA, Banorte, Santander y Banamex). Usa la CLABE capturada en
+        cada empleado; los que no la tengan salen sin cuenta y se pagan a mano.
+      </p>
+      <button type="button" disabled={ocupado}
+        onClick={() => onAccion(() => apiDownload(`/api/nomina/dispersion?runId=${run.id}`, `dispersion-${run.periodo.replaceAll('/', '_')}.csv`))}>
+        Descargar archivo de dispersión
+      </button>
+    </section>
+  )
+}
+
+function SidebarCalculo({ run, incPorEmpleado }) {
+  const suma = (campo) => run.items.reduce((a, i) => a + (i[campo] ?? 0), 0)
+  const sumaTipo = (tipo, campo = 'monto') =>
+    run.items.reduce((a, i) => a + sumaInc(incPorEmpleado.get(i.employeeId) ?? [], tipo, campo), 0)
+  const comisiones = sumaTipo('COMISION')
+  const bonosHoras = sumaTipo('BONO') + suma('horasExtra')
+  const patronal = suma('imssPatronal')
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head" style={{ gap: 10 }}>
+        <span>Cálculo de la corrida</span>
+        <span className="muted" style={{ fontWeight: 400 }}>{run.items.length} empleados</span>
+      </div>
+      <FilaResumen label="Sueldos del periodo" valor={mxn(suma('sueldoBase'))} />
+      <FilaResumen label="Comisiones (incidencias)" valor={comisiones > 0 ? mxn(comisiones) : '—'} />
+      <FilaResumen label="Bonos y horas extra" valor={bonosHoras > 0 ? mxn(bonosHoras) : '—'} />
+      <FilaResumen fuerte label="Total de percepciones" valor={mxn(run.totalPercepciones)} />
+      <FilaResumen label="ISR retenido" valor={mxn(suma('isrRetenido'))} />
+      <FilaResumen label="IMSS obrero, INFONAVIT y otros" valor={mxn(suma('imssObrero') + suma('infonavit') + suma('otrasDeducc'))} />
+      <FilaResumen fuerte label="Neto a dispersar" valor={mxn2(run.totalNeto)} />
+      {patronal > 0 && (
+        <div className="costo-patronal">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span>Costo patronal real</span>
+            <b>{mxn(run.totalPercepciones + patronal)}</b>
+          </div>
+          <p>
+            Lo que sale del banco más las cuotas patronales. Es la cifra que entra al estado de resultados, no el neto.
+          </p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ContraAnterior({ run, corridas }) {
+  const anterior = (corridas ?? [])
+    .filter((c) =>
+      c.id !== run.id && c.tipo === 'ORDINARIA' &&
+      (c.status === 'STAMPED' || c.status === 'PAID') &&
+      cadenciaDe(c) === cadenciaDe(run) &&
+      new Date(c.fechaPago) < new Date(run.fechaPago))
+    .sort((a, b) => new Date(b.fechaPago) - new Date(a.fechaPago))[0]
+  if (!anterior) return null
+  const delta = (a, b) => {
+    const d = a - b
+    return `${d >= 0 ? '+' : '−'}${mxn(Math.abs(d))}`
+  }
+  const dPlantilla = run.items.length - (anterior._count?.items ?? 0)
+  return (
+    <section className="card">
+      <div className="card-head">Contra la corrida anterior</div>
+      <FilaResumen label="Percepciones" valor={delta(run.totalPercepciones, anterior.totalPercepciones)} />
+      <FilaResumen label="Neto" valor={delta(run.totalNeto, anterior.totalNeto)} />
+      <FilaResumen label="Plantilla" valor={dPlantilla === 0 ? `${run.items.length} · sin cambio` : `${run.items.length} · ${dPlantilla > 0 ? `+${dPlantilla} alta(s)` : `${dPlantilla} baja(s)`}`} />
+      <p className="glosa" style={{ marginTop: 8 }}>
+        comparada contra la {cadenciaDe(anterior)} de {periodoLegible(anterior.periodo)}
+      </p>
+    </section>
+  )
+}
+
+function MovimientosPeriodo({ companyId, run }) {
+  const [movs, setMovs] = useState(null)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    apiFetch(`/api/nomina/imss-movimientos?companyId=${companyId}`)
+      .then((d) => { if (vivo) setMovs(d.movimientos ?? []) })
+      .catch((e) => { if (vivo) setErr(e.message) })
+    return () => { vivo = false }
+  }, [companyId, run.id])
+
+  // Del periodo o pendientes de avisar: un alta vieja sin IDSE sigue siendo
+  // asunto de HOY aunque su fecha quede fuera del periodo.
+  const [iniS, finS] = run.periodo.split('/')
+  const visibles = (movs ?? []).filter((m) => {
+    const f = new Date(m.fechaMovimiento)
+    return m.status === 'PENDING' || (f >= new Date(iniS) && f <= new Date(finS))
+  })
+
+  const MOV = {
+    ALTA: { texto: 'Alta', color: 'var(--pos)' },
+    REINGRESO: { texto: 'Reingreso', color: 'var(--pos)' },
+    BAJA: { texto: 'Baja', color: 'var(--neg)' },
+    MODIFICACION_SALARIO: { texto: 'Cambio', color: 'var(--ink2)' },
+  }
+  // Plazo del aviso: 5 días hábiles desde el movimiento (Art. 15 LSS).
+  const plazoIdse = (m) => {
+    const d = new Date(m.fechaMovimiento)
+    let habiles = 0
+    while (habiles < 5) {
+      d.setUTCDate(d.getUTCDate() + 1)
+      if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) habiles++
+    }
+    return d
+  }
+
+  if (err) return <section className="card"><div className="card-head">Movimientos del periodo</div><div className="error">{err}</div></section>
+  if (movs == null) return null
+  return (
+    <section className="card">
+      <div className="card-head" style={{ gap: 10, justifyContent: 'space-between' }}>
+        <span>
+          Movimientos del periodo
+          <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
+            altas, bajas y cambios de salario se avisan al IMSS dentro de 5 días hábiles
+          </span>
+        </span>
+        {visibles.some((m) => m.status === 'PENDING') && (
+          <button type="button" className="ghost"
+            onClick={() => apiDownload(`/api/nomina/imss-movimientos?companyId=${companyId}&format=idse&status=PENDING`, 'movimientos-idse.txt').catch(() => {})}>
+            Descargar lote IDSE
+          </button>
+        )}
+      </div>
+      {visibles.length === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>Sin movimientos en el periodo ni avisos pendientes.</p>
+      ) : (
+        <div className="riesgos">
+          {visibles.map((m) => {
+            const t = MOV[m.tipo] ?? { texto: m.tipo, color: 'var(--ink2)' }
+            const limite = plazoIdse(m)
+            const vencido = m.status === 'PENDING' && limite < new Date()
+            return (
+              <div key={m.id} className="mov-fila">
+                <span className="mov-tipo" style={{ color: t.color }}>{t.texto}</span>
+                <div>
+                  <b>{m.employee ? `${m.employee.nombre} ${m.employee.apellidoPaterno}` : '—'}</b>
+                  <span>
+                    {m.tipo === 'MODIFICACION_SALARIO' && m.sbcAnterior != null
+                      ? `SBC ${mxn2(m.sbcAnterior)} → ${mxn2(m.sbcNuevo)}`
+                      : m.sbcNuevo != null ? `SBC ${mxn2(m.sbcNuevo)}` : ''}
+                    {m.motivo ? ` · ${m.motivo}` : ''} · {dia(m.fechaMovimiento)}
+                  </span>
+                </div>
+                <span className="mov-estado" style={vencido ? { color: 'var(--neg)' } : undefined}>
+                  {m.status === 'PENDING'
+                    ? vencido ? `aviso vencido desde ${dia(limite)}` : `avisar al IMSS antes del ${dia(limite)}`
+                    : `enviado${m.filedAt ? ` el ${dia(m.filedAt)}` : ''}${m.idseConfirmation ? ` · ${m.idseConfirmation}` : ''}`}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
 
