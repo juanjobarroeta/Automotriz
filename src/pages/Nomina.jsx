@@ -32,7 +32,7 @@ const MESES_ELEGIBLES = (() => {
 // El orden es el del handoff: primero cuánto cuesta, luego correrla.
 const TABS = [
   ['costo', 'Costo'],
-  ['correr', 'Correr nómina'],
+  ['timbrar', 'Timbrar nómina'],
   ['corridas', 'Corridas'],
   ['empleados', 'Empleados'],
 ]
@@ -98,6 +98,48 @@ const enNomina = (e) => {
   if (!('ultimoPago' in e)) return e.isActive
   if (!e.ultimoPago) return false
   return (Date.now() - new Date(e.ultimoPago).getTime()) / 86400000 <= EN_NOMINA_DIAS
+}
+
+// El periodo SIGUIENTE a una corrida plantilla. Las quincenas de calendario
+// (1–15 / 16–fin de mes) no son de largo uniforme, así que no basta sumar
+// días: 16–31 de agosto + 16 días daría 01–16 de septiembre. Se reconocen
+// las dos quincenas por sus bordes; todo lo demás (semanal, catorcenal)
+// avanza por su propio largo. La fecha de pago conserva el desfase de la
+// plantilla (pago − fin de periodo).
+const siguientePeriodoDe = (run) => {
+  const [iniS, finS] = run.periodo.split('/')
+  const ini = new Date(`${iniS.slice(0, 10)}T00:00:00Z`)
+  const fin = new Date(`${finS.slice(0, 10)}T00:00:00Z`)
+  if (isNaN(ini) || isNaN(fin)) return null
+  const diaMs = 86400000
+  const finDeMes = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate() === d.getUTCDate()
+  let nIni, nFin, dias
+  if (ini.getUTCDate() === 1 && fin.getUTCDate() === 15) {
+    nIni = new Date(fin.getTime() + diaMs)
+    nFin = new Date(Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth() + 1, 0))
+    dias = 15
+  } else if (ini.getUTCDate() === 16 && finDeMes(fin)) {
+    nIni = new Date(Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth() + 1, 1))
+    nFin = new Date(Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth() + 1, 15))
+    dias = 15
+  } else {
+    const largo = Math.round((fin - ini) / diaMs) + 1
+    nIni = new Date(fin.getTime() + diaMs)
+    nFin = new Date(fin.getTime() + largo * diaMs)
+    dias = largo
+  }
+  const desfase = Math.max(0, Math.round((new Date(run.fechaPago) - fin) / diaMs))
+  const nPago = new Date(nFin.getTime() + desfase * diaMs)
+  return { periodoInicio: dia(nIni), periodoFin: dia(nFin), fechaPago: dia(nPago), diasPagados: dias }
+}
+
+// Cadencia legible de una corrida, por el largo de su periodo.
+const cadenciaDe = (run) => {
+  const [iniS, finS] = run.periodo.split('/')
+  const largo = Math.round((new Date(finS) - new Date(iniS)) / 86400000) + 1
+  if (largo <= 9) return 'semanal'
+  if (largo <= 20) return 'quincenal'
+  return 'mensual'
 }
 
 export default function Nomina() {
@@ -200,7 +242,7 @@ export default function Nomina() {
           irCorridas={() => setTab('corridas')}
         />
       )}
-      {!loading && tab === 'correr' && (
+      {!loading && tab === 'timbrar' && (
         <TabCorrer
           companyId={activeCompany?.id} roster={roster} corridas={corridas}
           salarioMinimo={salarioMinimo} recargar={cargarBase} movil={movil}
@@ -745,6 +787,7 @@ function DetalleCorrida({ runId, companyId, onCerrar }) {
 function TabEmpleados({ roster, res, salarioMinimo, movil }) {
   const [chip, setChip] = useState('nomina')
   const [q, setQ] = useState('')
+  const [perfil, setPerfil] = useState(null)
 
   const costoPorRfc = useMemo(() => {
     const by = new Map()
@@ -759,13 +802,11 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
   const nomina = todos.filter(enNomina)
   const grupos = {
     nomina,
-    piso: nomina.filter((e) => vsPiso(costoPorRfc.get(e.rfc)?.sbcDiario, salarioMinimo) === 'piso'),
     bajas: todos.filter((e) => e.fechaBaja != null),
     padron: todos,
   }
   const CHIPS = [
     ['nomina', 'En nómina', grupos.nomina.length],
-    ['piso', 'En el piso (SBC)', grupos.piso.length],
     ['bajas', 'Bajas', grupos.bajas.length],
     ['padron', 'Padrón completo', grupos.padron.length],
   ]
@@ -808,7 +849,10 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
             const c = costoPorRfc.get(e.rfc)
             const v = vsPiso(c?.sbcDiario, salarioMinimo)
             return (
-              <div key={e.id} className="tarjeta-fila" style={!enNomina(e) ? { opacity: 0.6 } : undefined}>
+              <div key={e.id} className="tarjeta-fila clicable" style={!enNomina(e) ? { opacity: 0.6 } : undefined}
+                tabIndex={0} role="link"
+                onClick={() => setPerfil(e)}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setPerfil(e) } }}>
                 <div className="tf-alto">
                   <span className="tf-titulo">{e.nombreCompleto}</span>
                   <span className="tf-cifra">{c ? mxn(c.monto) : '—'}</span>
@@ -841,7 +885,10 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
               const c = costoPorRfc.get(e.rfc)
               const v = vsPiso(c?.sbcDiario, salarioMinimo)
               return (
-                <tr key={e.id} style={!enNomina(e) ? { opacity: 0.55 } : undefined}>
+                <tr key={e.id} className="fila-liga" style={!enNomina(e) ? { opacity: 0.55 } : undefined}
+                  tabIndex={0} role="link" title="Abrir el expediente"
+                  onClick={() => setPerfil(e)}
+                  onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setPerfil(e) } }}>
                   <td className="celda2">
                     <b>{e.nombreCompleto}</b>
                     <span className="mono">{e.rfc}</span>
@@ -889,6 +936,7 @@ function TabEmpleados({ roster, res, salarioMinimo, movil }) {
         CFDI no traen claves de comisión ni destajo, así que no hay columna de variable — todo viene timbrado como
         sueldo.
       </div>
+      {perfil && <PerfilEmpleado empleado={perfil} onCerrar={() => setPerfil(null)} />}
     </section>
   )
 }
@@ -948,7 +996,7 @@ function TabCorrer({ companyId, roster, corridas, salarioMinimo, recargar, movil
               </div>
             </section>
           )}
-          <NuevaCorrida companyId={companyId} roster={roster} onCreada={(id) => { setRunId(id); recargar() }} />
+          <NuevaCorrida companyId={companyId} roster={roster} corridas={corridas} onCreada={(id) => { setRunId(id); recargar() }} />
         </>
       )}
 
@@ -965,10 +1013,12 @@ function TabCorrer({ companyId, roster, corridas, salarioMinimo, recargar, movil
   )
 }
 
-function NuevaCorrida({ companyId, roster, onCreada }) {
+function NuevaCorrida({ companyId, roster, corridas, onCreada }) {
   const [pre, setPre] = useState(null)
   const [preErr, setPreErr] = useState(null)
   const [form, setForm] = useState(null)
+  const [plantilla, setPlantilla] = useState('reciente')
+  const [cargandoPlantilla, setCargandoPlantilla] = useState(false)
   const [seleccion, setSeleccion] = useState(new Set())
   const [creando, setCreando] = useState(false)
   const [err, setErr] = useState(null)
@@ -989,9 +1039,51 @@ function NuevaCorrida({ companyId, roster, onCreada }) {
     return () => { vivo = false }
   }, [companyId])
 
+  // Plantillas: la última corrida timbrada de CADA cadencia (semanal,
+  // quincenal, mensual). MARGOM corre dos nóminas en paralelo — técnicos y
+  // lavadores por semana, administrativos y ventas por quincena — y el
+  // prefill del hub sólo propone la más reciente; sin esto, arrancar la otra
+  // cadencia era capturar todo a mano.
+  const plantillas = useMemo(() => {
+    const vistas = new Map()
+    for (const c of corridas ?? []) {
+      if (c.tipo !== 'ORDINARIA' || (c.status !== 'STAMPED' && c.status !== 'PAID')) continue
+      const cad = cadenciaDe(c)
+      const previa = vistas.get(cad)
+      if (!previa || new Date(c.fechaPago) > new Date(previa.fechaPago)) vistas.set(cad, c)
+    }
+    return [...vistas.entries()].map(([cadencia, run]) => ({ cadencia, run }))
+      .sort((a, b) => new Date(b.run.fechaPago) - new Date(a.run.fechaPago))
+  }, [corridas])
+
+  const usarPlantilla = async (t) => {
+    setPlantilla(t.run.id); setErr(null); setCargandoPlantilla(true)
+    try {
+      const sig = siguientePeriodoDe(t.run)
+      if (!sig) throw new Error('El periodo de la corrida plantilla no se pudo leer.')
+      // Los empleados de ESA corrida que siguen cobrando — lo mismo que hace
+      // el prefill del hub con la más reciente.
+      const det = await apiFetch(`/api/nomina/run/${t.run.id}`)
+      const cobrando = new Set((roster?.empleados ?? []).filter(enNomina).map((e) => e.id))
+      const ids = [...new Set((det.items ?? []).map((i) => i.employeeId))].filter((id) => cobrando.has(id))
+      setForm(sig)
+      setSeleccion(new Set(ids))
+    } catch (e) { setErr(e.message) } finally { setCargandoPlantilla(false) }
+  }
+
+  const usarReciente = () => {
+    setPlantilla('reciente'); setErr(null)
+    if (pre) {
+      setForm({
+        periodoInicio: dia(pre.periodoInicio), periodoFin: dia(pre.periodoFin),
+        fechaPago: dia(pre.fechaPago), diasPagados: pre.diasPagados,
+      })
+      setSeleccion(new Set(pre.employeeIds ?? []))
+    }
+  }
+
   // Elegibles: quien está EN NÓMINA (cobró hace poco), no el flag del padrón
   // — con el flag, 245 personas que cobran no aparecerían ni seleccionables.
-  // La propuesta del prefill preselecciona a los de la corrida anterior.
   const activos = (roster?.empleados ?? []).filter(enNomina)
 
   const crear = async () => {
@@ -1029,6 +1121,32 @@ function NuevaCorrida({ companyId, roster, onCreada }) {
       {!form && !preErr && <p className="muted" style={{ margin: 0 }}>Proponiendo el periodo…</p>}
       {(form || preErr) && (
         <>
+          {plantillas.length > 0 && (
+            <div className="plantillas" style={{ marginBottom: 14 }}>
+              <button
+                type="button"
+                className={`plantilla${plantilla === 'reciente' ? ' activa' : ''}`}
+                onClick={usarReciente}
+                disabled={!pre}
+              >
+                <b>La más reciente</b>
+                <span>{pre ? `${cadenciaDe({ periodo: pre.basadoEnPeriodo })} · sigue a ${periodoLegible(pre.basadoEnPeriodo)}` : 'sin corrida anterior'}</span>
+              </button>
+              {plantillas.map((t) => (
+                <button
+                  type="button"
+                  key={t.run.id}
+                  className={`plantilla${plantilla === t.run.id ? ' activa' : ''}`}
+                  onClick={() => usarPlantilla(t)}
+                  disabled={cargandoPlantilla}
+                >
+                  <b>Siguiente {t.cadencia}</b>
+                  <span>sigue a {periodoLegible(t.run.periodo)} · {t.run._count?.items ?? '—'} personas</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {cargandoPlantilla && <p className="muted">Leyendo la corrida plantilla…</p>}
           <div className="forma-corrida">
             <label>Del
               <input type="date" value={form?.periodoInicio ?? ''}
@@ -1379,6 +1497,244 @@ function CorridaEnCurso({ run, companyId, roster, salarioMinimo, ocupado, movil,
             <button type="button" className="ghost" onClick={() => setFormInc(null)}>Cancelar</button>
           </div>
         </VentanaDetalle>
+      )}
+    </>
+  )
+}
+
+/* ── Expediente del empleado ────────────────────────────────────────────── */
+
+const TIPOS_DOC = [
+  ['CONTRATO', 'Contrato'],
+  ['IDENTIFICACION', 'Identificación'],
+  ['CSF', 'Constancia fiscal'],
+  ['ALTA_IMSS', 'Alta IMSS'],
+  ['OTRO', 'Otro'],
+]
+
+function PerfilEmpleado({ empleado, onCerrar }) {
+  const [data, setData] = useState(null)
+  const [anio, setAnio] = useState(null)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    setErr(null)
+    apiFetch(`/api/nomina/empleado/${empleado.id}${anio ? `?year=${anio}` : ''}`)
+      .then((d) => { if (vivo) { setData(d); setAnio(d.anio) } })
+      .catch((e) => { if (vivo) setErr(e.message) })
+    return () => { vivo = false }
+  }, [empleado.id, anio])
+
+  const e = data?.empleado
+  const ac = data?.acumulados
+
+  return (
+    <VentanaDetalle
+      titulo={empleado.nombreCompleto}
+      glosa={[empleado.puesto, empleado.departamento].filter(Boolean).join(' · ')}
+      onCerrar={onCerrar}
+    >
+      {err && <div className="error">{err}</div>}
+      {!data && !err && <p className="muted">Leyendo el expediente…</p>}
+      {data && e && (
+        <>
+          <div className="ficha-datos">
+            <div><span>RFC</span><b className="mono">{e.rfc}</b></div>
+            <div><span>CURP</span><b className="mono">{e.curp || 'sin capturar'}</b></div>
+            <div><span>NSS</span><b className="mono">{e.nss || 'sin capturar'}</b></div>
+            <div><span>Ingreso</span><b>{dia(e.fechaIngreso)}</b></div>
+            {e.fechaBaja && <div><span>Baja</span><b>{dia(e.fechaBaja)}</b></div>}
+            <div>
+              <span>Cuenta para dispersión</span>
+              <b>{e.clabe ? `${e.banco ?? ''} ${e.clabe}`.trim() : 'sin CLABE — se paga a mano'}</b>
+            </div>
+            <div>
+              <span>Salario del padrón</span>
+              <b>
+                {mxn2(e.salarioDiario)}/día
+                <i className="ficha-nota"> — captura; el SBC con autoridad es el del recibo</i>
+              </b>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 6px' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>Ejercicio {data.anio}</span>
+            {(data.anios ?? []).length > 1 && (
+              <select value={data.anio} style={{ width: 'auto' }} onChange={(ev) => setAnio(Number(ev.target.value))}>
+                {data.anios.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+          </div>
+          {ac && (
+            <div className="kpi-strip densa">
+              <div className="kpi-item">
+                <div className="kpi-label">Percepciones</div>
+                <div className="kpi">{mxn(ac.percepciones?.total)}</div>
+                <div className="kpi-sub">{ac.recibos} recibos</div>
+              </div>
+              <div className="kpi-item">
+                <div className="kpi-label">ISR retenido</div>
+                <div className="kpi">{mxn(ac.deducciones?.isrRetenido)}</div>
+              </div>
+              <div className="kpi-item">
+                <div className="kpi-label">IMSS + INFONAVIT</div>
+                <div className="kpi">{mxn((ac.deducciones?.imssObrero ?? 0) + (ac.deducciones?.infonavit ?? 0))}</div>
+              </div>
+            </div>
+          )}
+
+          {(data.recibos?.items ?? []).length > 0 && (
+            <table className="tabla" style={{ marginTop: 10 }}>
+              <thead>
+                <tr>
+                  <th>Periodo</th><th className="num">Percepciones</th>
+                  <th className="num">Neto</th><th>CFDI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recibos.items.map((r) => (
+                  <tr key={r.id}>
+                    <td className="celda2">
+                      <b style={{ fontWeight: 400 }}>{periodoLegible(r.periodo)}</b>
+                      <span>{r.tipo.toLowerCase()} · pago {dia(r.fechaPago)}</span>
+                    </td>
+                    <td className="num">{mxn2(r.totalPercepciones)}</td>
+                    <td className="num" style={{ fontWeight: 600 }}>{mxn2(r.netoAPagar)}</td>
+                    <td>
+                      {r.pdfDisponible && r.invoiceId ? (
+                        <button type="button" className="ghost mini"
+                          onClick={() => apiDownload(`/api/facturas/${r.invoiceId}/download?format=pdf`, `recibo-${dia(r.fechaPago)}.pdf`).catch(() => {})}>
+                          PDF
+                        </button>
+                      ) : r.cfdiUuid ? (
+                        <span className="mono" style={{ fontSize: 10 }}>{r.cfdiUuid.slice(0, 8)}</span>
+                      ) : (
+                        <span className="pill-motivo grave">sin timbrar</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {data.recibos?.total > (data.recibos?.items ?? []).length && (
+            <p className="glosa" style={{ marginTop: 6 }}>
+              {data.recibos.items.length} de {data.recibos.total} recibos del ejercicio — el resto vive en el hub.
+            </p>
+          )}
+
+          {(data.cambiosSalario ?? []).length > 0 && (
+            <>
+              <div style={{ fontSize: 12.5, fontWeight: 600, margin: '16px 0 6px' }}>Historial salarial (IMSS)</div>
+              <div className="lista-tarjetas">
+                {data.cambiosSalario.slice(0, 6).map((m) => (
+                  <div key={m.id} className="tarjeta-fila">
+                    <div className="tf-alto">
+                      <span className="tf-titulo" style={{ fontWeight: 400 }}>{m.tipo.toLowerCase().replaceAll('_', ' ')}</span>
+                      <span className="tf-cifra" style={{ fontSize: 12.5 }}>
+                        {m.sbcAnterior != null ? `${mxn2(m.sbcAnterior)} → ` : ''}{mxn2(m.sbcNuevo)}
+                      </span>
+                    </div>
+                    <div className="tf-bajo"><span className="tf-sub">{dia(m.fechaMovimiento)}{m.motivo ? ` · ${m.motivo}` : ''}</span></div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <DocumentosEmpleado employeeId={empleado.id} />
+        </>
+      )}
+    </VentanaDetalle>
+  )
+}
+
+function DocumentosEmpleado({ employeeId }) {
+  const [docs, setDocs] = useState(null)
+  const [err, setErr] = useState(null)
+  const [tipo, setTipo] = useState('CONTRATO')
+  const [subiendo, setSubiendo] = useState(false)
+  const [borrar, setBorrar] = useState(null)
+
+  const cargar = useCallback(() => {
+    apiFetch(`/api/nomina/empleado/${employeeId}/documentos`)
+      .then((d) => setDocs(d.documentos ?? []))
+      .catch((e) => setErr(e.message))
+  }, [employeeId])
+  useEffect(() => { cargar() }, [cargar])
+
+  const subir = (archivo) => {
+    if (!archivo) return
+    setSubiendo(true); setErr(null)
+    const lector = new FileReader()
+    lector.onerror = () => { setErr('No se pudo leer el archivo.'); setSubiendo(false) }
+    lector.onload = async () => {
+      try {
+        const base64 = String(lector.result).split(',')[1] ?? ''
+        await apiFetch(`/api/nomina/empleado/${employeeId}/documentos`, {
+          method: 'POST',
+          body: { tipo, nombre: archivo.name, mime: archivo.type || 'application/pdf', base64 },
+        })
+        cargar()
+      } catch (e) { setErr(e.message) } finally { setSubiendo(false) }
+    }
+    lector.readAsDataURL(archivo)
+  }
+
+  const eliminar = async (d) => {
+    try {
+      await apiFetch(`/api/nomina/empleado/${employeeId}/documentos/${d.id}`, { method: 'DELETE' })
+      setBorrar(null); cargar()
+    } catch (e) { setErr(e.message) }
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 6px', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, fontWeight: 600 }}>Documentos</span>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select value={tipo} style={{ width: 'auto' }} onChange={(e) => setTipo(e.target.value)}>
+            {TIPOS_DOC.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+          </select>
+          <label className={`boton-archivo${subiendo ? ' ocupado' : ''}`}>
+            {subiendo ? 'Subiendo…' : 'Subir archivo'}
+            <input type="file" accept=".pdf,image/jpeg,image/png,image/webp,.xml" disabled={subiendo}
+              onChange={(e) => { subir(e.target.files?.[0]); e.target.value = '' }} />
+          </label>
+        </span>
+      </div>
+      {err && <div className="error">{err}</div>}
+      {docs == null && !err && <p className="muted">Leyendo documentos…</p>}
+      {docs != null && docs.length === 0 && (
+        <p className="muted" style={{ margin: 0 }}>Sin documentos — el contrato firmado es el primero que vale la pena subir.</p>
+      )}
+      {docs != null && docs.length > 0 && (
+        <div className="lista-tarjetas">
+          {docs.map((d) => (
+            <div key={d.id} className="tarjeta-fila">
+              <div className="tf-alto">
+                <span className="tf-titulo" style={{ fontWeight: 400 }}>{d.nombre}</span>
+                <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button type="button" className="ghost mini"
+                    onClick={() => apiDownload(`/api/nomina/empleado/${employeeId}/documentos/${d.id}`, d.nombre).catch(() => {})}>
+                    Descargar
+                  </button>
+                  {borrar === d.id ? (
+                    <button type="button" className="ghost mini" style={{ color: 'var(--neg)' }} onClick={() => eliminar(d)}>¿Eliminar?</button>
+                  ) : (
+                    <button type="button" className="ghost mini" onClick={() => setBorrar(d.id)}>×</button>
+                  )}
+                </span>
+              </div>
+              <div className="tf-bajo">
+                <span className="tf-sub">
+                  {(TIPOS_DOC.find(([k]) => k === d.tipo)?.[1] ?? d.tipo).toLowerCase()} · {(d.bytes / 1048576).toFixed(1)} MB · {dia(d.createdAt)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </>
   )
