@@ -126,27 +126,31 @@
 }
 
 /* ── Tema claro ── */
+/* Paleta «papel» del handoff v4 (25-ago): el gris frío neutro leía a
+   hoja de cálculo; el fondo tibio #F7F5F1 con tarjetas blancas y tintas
+   cálidas es la versión que el diseño dejó como definitiva (era la
+   propuesta «Claro A Papel»). Acento y semánticos no cambian de rol. */
 [data-tema="claro"] {
-  --bg: #EFEFEF;
+  --bg: #F7F5F1;
   --panel: #FFFFFF;
-  --panel2: #F5F5F5;
-  --panel3: #E7E7E7;
-  --line: #E6E6E6;
-  --line2: #D4D4D4;
+  --panel2: #F4F2ED;
+  --panel3: #EAE7E0;
+  --line: #E5E2DB;
+  --line2: #D3CFC6;
 
-  --ink: #131313;
-  --ink2: #565656;
-  --ink3: #6A6A6A;
+  --ink: #2A2724;
+  --ink2: #5C574F;
+  --ink3: #726C63;
   --inkOn: #FFFFFF;
 
   --acc: #2563EB;
   --accInk: #FFFFFF;
-  --accSoft: #EBF1FE;
-  --accLine: #C3D6FB;
+  --accSoft: #EDF2FD;
+  --accLine: #C6D8FA;
 
-  --pos: #0E7A46;       --posBg: #E7F4EC;
-  --neg: #C0332B;       --negBg: #FBEAE8;
-  --warn: #8A6410;      --warnBg: #FBF1DC;
+  --pos: #0E7A46;       --posBg: #E8F3EC;
+  --neg: #C0332B;       --negBg: #FAEBE8;
+  --warn: #8A6410;      --warnBg: #FAF1DE;
 
   --posFill: #17A55C;
   --accFill: #3B82F6;
@@ -1896,3 +1900,38 @@ button.peligro { background: var(--neg); border-color: var(--neg); color: #fff; 
    elástica. */
 .grid-incidencias th, .grid-incidencias td { padding-left: 8px; padding-right: 8px; }
 .grid-incidencias .celda2 > b { max-width: 220px; }
+
+/* ── Timbrado: resultado y qué sigue ─────────────────────────────────────
+   El héroe del timbre reusa .mezcla (timbrados sobre rechazados) y el
+   «qué sigue» son pasos con compuerta: el layout bancario cuadra contra
+   recibos timbrados, no contra el cálculo. */
+.timbre-hero {
+  display: grid; grid-template-columns: minmax(260px, 1.3fr) 1fr;
+  gap: 24px; align-items: start; margin-bottom: 4px;
+}
+.banda-rechazo {
+  display: flex; align-items: center; gap: 14px; justify-content: space-between;
+  margin-top: 14px; padding: 11px 14px;
+  background: var(--negBg); border: 1px solid var(--neg);
+  border-radius: var(--radius-input);
+}
+.banda-rechazo > div { font-size: 12px; color: var(--ink); line-height: 1.45; }
+.banda-rechazo b { color: var(--neg); }
+.banda-rechazo button { flex-shrink: 0; }
+.paso-sigue { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; }
+.paso-sigue i {
+  width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  border: 1px solid var(--line2); background: none;
+}
+.paso-sigue i.ok { border-color: var(--pos); background: var(--posBg); position: relative; }
+.paso-sigue i.ok::after {
+  content: '✓'; position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 9px; color: var(--pos);
+}
+.paso-sigue > div { display: flex; flex-direction: column; gap: 2px; }
+.paso-sigue b { font-size: 12px; font-weight: 600; }
+.paso-sigue span { font-size: 11px; color: var(--ink3); }
+@media (max-width: 767px) {
+  .timbre-hero { grid-template-columns: 1fr; }
+  .banda-rechazo { flex-direction: column; align-items: flex-start; }
+}

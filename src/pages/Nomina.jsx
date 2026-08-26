@@ -1225,7 +1225,7 @@ function CorridaEnCurso({ run, companyId, roster, corridas, salarioMinimo, ocupa
   if (!run) return <p className="muted">Leyendo la corrida…</p>
 
   const timbrada = run.status === 'STAMPED' || run.status === 'PAID'
-  const paso = pasoManual ?? (timbrada ? 6 : 2)
+  const paso = pasoManual ?? (timbrada ? 5 : 2)
   const habilitado = (n) => {
     if (n === 5) return run.status === 'CALCULATED' || timbrada
     if (n === 6) return timbrada
@@ -1306,28 +1306,34 @@ function CorridaEnCurso({ run, companyId, roster, corridas, salarioMinimo, ocupa
               salarioMinimo={salarioMinimo} timbrada={timbrada} ocupado={ocupado}
               resultado={resultadoTimbre}
               onAccion={onAccion} onRecargar={onRecargar}
-              onResultado={(r) => { setResultadoTimbre(r); setPasoManual(6) }}
+              onResultado={(r) => setResultadoTimbre(r)}
             />
           )}
           {paso === 6 && <PasoDispersion run={run} ocupado={ocupado} resultado={resultadoTimbre} onAccion={onAccion} />}
         </div>
 
         <div>
-          <SidebarCalculo run={run} incPorEmpleado={incPorEmpleado} />
-          {!timbrada && paso !== 5 && (
-            <section className="card" style={{ marginBottom: 16 }}>
-              <div className="card-head" style={{ gap: 10 }}>
-                <span>Antes de timbrar</span>
-              </div>
-              <p className="glosa" style={{ margin: '0 0 10px' }}>
-                Los bloqueos se revisan en el paso de Timbrado; la validación definitiva la hace el PAC al sellar.
-              </p>
-              <button type="button" disabled={run.status !== 'CALCULATED'} onClick={() => setPasoManual(5)}>
-                Ir al timbrado →
-              </button>
-            </section>
+          {paso < 5 ? (
+            <>
+              <SidebarCalculo run={run} incPorEmpleado={incPorEmpleado} />
+              {!timbrada && (
+                <section className="card" style={{ marginBottom: 16 }}>
+                  <div className="card-head" style={{ gap: 10 }}>
+                    <span>Antes de timbrar</span>
+                  </div>
+                  <p className="glosa" style={{ margin: '0 0 10px' }}>
+                    Los bloqueos se revisan en el paso de Timbrado; la validación definitiva la hace el PAC al sellar.
+                  </p>
+                  <button type="button" disabled={run.status !== 'CALCULATED'} onClick={() => setPasoManual(5)}>
+                    Ir al timbrado →
+                  </button>
+                </section>
+              )}
+              <ContraAnterior run={run} corridas={corridas} />
+            </>
+          ) : (
+            <SidebarTimbrado run={run} ocupado={ocupado} onAccion={onAccion} irDispersion={() => setPasoManual(6)} />
           )}
-          <ContraAnterior run={run} corridas={corridas} />
         </div>
       </div>
     </>
@@ -1660,6 +1666,107 @@ function PasoTimbrado({ run, companyId, empPorId, incPorEmpleado, salarioMinimo,
   const [confirma, setConfirma] = useState(false)
   const [folios, setFolios] = useState({})
 
+  const timbrados = run.items.filter((i) => i.cfdiUuid)
+  const rechazados = run.items.filter((i) => !i.cfdiUuid)
+  // ¿Ya se intentó timbrar? UUIDs presentes, resultado en mano, o el rastro
+  // que deja el motor en extraData. Un timbre parcial deja la corrida en
+  // CALCULATED y reintentar sólo procesa los recibos que faltan.
+  const intentado = timbrada || timbrados.length > 0 || resultado != null || (run.extraData?.stampedCount ?? 0) > 0
+
+  const reintentar = () => onAccion(async () => {
+    const r = await apiFetch(`/api/nomina/run/${run.id}/stamp`, { method: 'POST' })
+    onResultado(r)
+    onRecargar()
+  })
+
+  if (intentado) {
+    const netoTimbrado = timbrados.reduce((a, i) => a + (i.netoAPagar ?? 0), 0)
+    return (
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="timbre-hero">
+          <div>
+            <span className="corrida-glosa">{periodoLegible(run.periodo)} · {run.items.length} recibos</span>
+            <div className="cifra-hero" style={{ margin: '2px 0 10px' }}>
+              {timbrados.length} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ink2)' }}>de {run.items.length} recibos timbrados</span>
+            </div>
+            <div className="mezcla" style={{ background: rechazados.length ? 'var(--neg)' : 'var(--panel3)', maxWidth: 420 }}
+              role="img" aria-label={`${timbrados.length} timbrados, ${rechazados.length} rechazados`}>
+              <span style={{ width: `${run.items.length ? (timbrados.length / run.items.length) * 100 : 0}%` }} />
+            </div>
+            <div className="mezcla-leyenda">
+              <span><i className="pta" /> Timbrados · {timbrados.length}</span>
+              {rechazados.length > 0 && <span><i style={{ background: 'var(--neg)' }} /> Sin timbrar · {rechazados.length}</span>}
+            </div>
+          </div>
+          <div className="hero-kpis" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            <div><div className="kpi-label">Timbrados</div><div className="kpi">{timbrados.length}</div></div>
+            <div><div className="kpi-label">Sin timbrar</div><div className="kpi" style={rechazados.length ? { color: 'var(--neg)' } : undefined}>{rechazados.length}</div></div>
+            <div><div className="kpi-label">Neto timbrado</div><div className="kpi">{mxn(netoTimbrado)}</div></div>
+          </div>
+        </div>
+
+        {rechazados.length > 0 && !timbrada && (
+          <div className="banda-rechazo">
+            <div>
+              <b>Recibos sin timbrar.</b>{' '}
+              El checklist local no sustituye la validación del PAC/SAT: lo rechazado aparece abajo con su error. La
+              corrida no se cierra ni se dispersa hasta corregirlos — reintentar sólo procesa los que faltan.
+            </div>
+            <button type="button" disabled={ocupado} onClick={reintentar}>
+              {ocupado ? 'Timbrando…' : `Reintentar los ${rechazados.length}`}
+            </button>
+          </div>
+        )}
+
+        {(resultado?.errors ?? []).length > 0 && (
+          <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--neg)' }}>
+            {resultado.errors.slice(0, 8).map((e, i) => <li key={i}>{String(e)}</li>)}
+          </ul>
+        )}
+
+        <div className="card-head" style={{ gap: 10, marginTop: 16 }}>
+          <span>Recibos de la corrida</span>
+          <span className="muted" style={{ fontWeight: 400 }}>el folio fiscal es el acuse: sin UUID no hay recibo válido</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="tabla">
+            <thead>
+              <tr><th>Empleado</th><th className="num">Neto</th><th>Folio fiscal</th><th>Acuse</th></tr>
+            </thead>
+            <tbody>
+              {run.items.map((i) => (
+                <tr key={i.id} className={!i.cfdiUuid ? 'fila-marcada' : undefined}>
+                  <td className="celda2"><b>{empPorId.get(i.employeeId)?.nombreCompleto ?? '—'}</b></td>
+                  <td className="num">{mxn2(i.netoAPagar)}</td>
+                  <td>
+                    {i.cfdiUuid
+                      ? <span className="mono" style={{ fontSize: 10.5 }}>{i.cfdiUuid.slice(0, 13)}…</span>
+                      : <span className="pill-motivo grave">sin timbrar</span>}
+                  </td>
+                  <td>
+                    {i.pdfDisponible && i.invoiceId ? (
+                      <button type="button" className="ghost mini"
+                        onClick={() => apiDownload(`/api/facturas/${i.invoiceId}/download?format=pdf`, `recibo-${(empPorId.get(i.employeeId)?.rfc ?? i.id)}.pdf`).catch(() => {})}>
+                        PDF
+                      </button>
+                    ) : <span className="muted" style={{ fontSize: 10.5 }}>—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className="alcance">{timbrados.length} de {run.items.length} con folio fiscal</td>
+                <td className="num">{mxn2(netoTimbrado)}</td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    )
+  }
+
   const sinCurp = run.items.filter((i) => !empPorId.get(i.employeeId)?.curp)
   const incapsSinFolio = (run.incidencias ?? []).filter((x) => x.tipo === 'INCAPACIDAD' && !x.folioImss)
   const bajoMinimo = run.items.filter((i) => {
@@ -1779,6 +1886,70 @@ function PasoTimbrado({ run, companyId, empPorId, incPorEmpleado, salarioMinimo,
         </div>
       )}
     </section>
+  )
+}
+
+function SidebarTimbrado({ run, ocupado, onAccion, irDispersion }) {
+  const timbrados = run.items.filter((i) => i.cfdiUuid).length
+  const rechazados = run.items.length - timbrados
+  const listoParaDispersar = run.status === 'STAMPED' || run.status === 'PAID'
+  return (
+    <>
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">Proveedor de timbrado</div>
+        <FilaResumen label="Proveedor" valor="Facturapi" />
+        <FilaResumen label="Versión" valor="CFDI 4.0 · nómina 1.2" />
+        <p className="glosa" style={{ marginTop: 8 }}>
+          El saldo de timbres y la vigencia del CSD viven en el panel de Facturapi — el hub no los expone todavía,
+          así que aquí no se inventan.
+        </p>
+      </section>
+
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head" style={{ gap: 10 }}>
+          <span>Qué sigue</span>
+          {!listoParaDispersar && <span style={{ color: 'var(--neg)', fontSize: 11.5 }}>bloqueado</span>}
+        </div>
+        <p className="glosa" style={{ margin: '0 0 10px' }}>
+          La dispersión no se habilita con recibos sin timbrar: el layout bancario debe cuadrar contra los recibos
+          timbrados, no contra el cálculo.
+        </p>
+        <div className="riesgos">
+          <div className="paso-sigue">
+            <i className={timbrados === run.items.length ? 'ok' : ''} />
+            <div>
+              <b>{timbrados} de {run.items.length} recibos timbrados</b>
+              <span>los acuses (PDF) quedan en el expediente de cada empleado</span>
+            </div>
+          </div>
+          <div className="paso-sigue">
+            <i className={listoParaDispersar ? 'ok' : ''} />
+            <div>
+              <b>Layout bancario (SPEI)</b>
+              <span>{listoParaDispersar ? 'listo para generar' : `se genera cuando no queden recibos sin timbrar (faltan ${rechazados})`}</span>
+            </div>
+          </div>
+          <div className="paso-sigue">
+            <i />
+            <div>
+              <b>Envío al trabajador</b>
+              <span>el envío por correo o WhatsApp no está conectado — los PDF se descargan aquí o en el expediente</span>
+            </div>
+          </div>
+        </div>
+        <button type="button" style={{ marginTop: 12 }} disabled={!listoParaDispersar || ocupado} onClick={irDispersion}>
+          Generar layout bancario →
+        </button>
+      </section>
+
+      <section className="card">
+        <div className="card-head">Punto sin retorno</div>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>
+          Un recibo timbrado ya existe ante el SAT. Corregir un neto, una incapacidad o un bono después de este paso
+          exige cancelar el CFDI y volver a timbrar — por eso las incidencias se cierran antes, no aquí.
+        </p>
+      </section>
+    </>
   )
 }
 
