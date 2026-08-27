@@ -792,10 +792,22 @@ function MercadoUnidad({ v }) {
               <span className="muted">los listados no traen precio en el texto — ábrelos:</span>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+          {/* Los comparables CON CARA: la miniatura del listado (viene gratis
+              en el resultado) encima del precio — ver cinco Sei7 parecidos con
+              su precio convence más que cualquier texto. */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
             {(m.resultados ?? []).slice(0, 5).map((r) => (
-              <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-                {(r.titulo || 'listado').slice(0, 46)}{r.precio != null ? ` · ${mxn(r.precio)}` : ''}
+              <a key={r.url} href={r.url} target="_blank" rel="noreferrer"
+                style={{ width: 108, fontSize: 11.5, textDecoration: 'none', color: 'inherit' }}>
+                {r.miniatura ? (
+                  <img src={r.miniatura} alt="" style={{ width: 108, height: 74, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                ) : (
+                  <div style={{ width: 108, height: 74, borderRadius: 8, background: 'var(--surface-soft, #2223)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)' }}>🚗</div>
+                )}
+                <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {r.precio != null ? <b>{mxn(r.precio)}</b> : (r.titulo || 'listado').slice(0, 18)}
+                </div>
               </a>
             ))}
           </div>

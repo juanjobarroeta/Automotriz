@@ -93,6 +93,8 @@ export default function Inventario() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAlta, setShowAlta] = useState(false)
+  const [barriendo, setBarriendo] = useState(false)
+  const [avisoBarrido, setAvisoBarrido] = useState(null)
 
   const cargar = useCallback(async () => {
     if (!activeCompany?.id) return
@@ -109,6 +111,17 @@ export default function Inventario() {
   }, [activeCompany?.id])
 
   useEffect(() => { cargar() }, [cargar])
+
+  // El barrido del piso: precio de mercado para todo seminuevo disponible de
+  // un jalón (caché 7 días, agrupado por marca+modelo+año en el hub).
+  const barrerMercado = async () => {
+    setBarriendo(true); setAvisoBarrido(null); setError(null)
+    try {
+      const r = await apiFetch(`/api/automotriz/vehiculos/mercado-piso?companyId=${activeCompany.id}`, { method: 'POST' })
+      setAvisoBarrido(`${r.unidadesActualizadas} unidad(es) con mercado nuevo · ${r.yaFrescas} ya estaban frescas · ${r.consultas} búsqueda(s)`)
+      await cargar()
+    } catch (err) { setError(err.message) } finally { setBarriendo(false) }
+  }
 
   // Los conteos de las vistas se calculan sobre TODO el padrón, no sobre lo
   // que la vista activa deja ver: un chip que cambia de número al hacer clic
@@ -161,9 +174,16 @@ export default function Inventario() {
             onChange={(e) => setQ(e.target.value)}
             style={{ minWidth: 220, width: 'auto' }}
           />
+          {vista === 'SEMINUEVO' && (
+            <button className="ghost" onClick={barrerMercado} disabled={barriendo}>
+              {barriendo ? 'Consultando mercado…' : 'Mercado del piso'}
+            </button>
+          )}
           <button onClick={() => setShowAlta(true)}>Alta de unidad</button>
         </div>
       </header>
+
+      {avisoBarrido && <div className="ok" role="status" style={{ marginBottom: 10 }}>{avisoBarrido}</div>}
 
       {!loading && enPiso.length > 0 && (() => {
         const elegirTramo = (clave) => {
@@ -334,6 +354,7 @@ export default function Inventario() {
             { clave: 'interes', etiqueta: 'Interés devengado', num: true },
             { clave: 'costo', etiqueta: 'Costo', num: true },
             { clave: 'precio', etiqueta: 'Precio', num: true },
+            ...(vista === 'SEMINUEVO' ? [{ clave: 'mercado', etiqueta: 'vs Mercado', num: true }] : []),
             { clave: 'utilidad', etiqueta: 'Utilidad proy.', num: true },
           ]}
           filas={visibles.slice(0, 200)}
@@ -396,6 +417,21 @@ export default function Inventario() {
               ? mxn(v.costoCompra)
               : <span style={{ color: 'var(--neg)' }}>sin documentar</span>),
             precio: (v) => mxn(v.precioVenta),
+            // «±N% vs mediana del mercado»: ámbar cuando el desvío pasa de 10%.
+            // Sin consulta aún: un guion tenue — el barrido o la ficha lo llenan.
+            mercado: (v) => {
+              const med = v.mercado?.precioMediana
+              const propio = v.precioLista ?? v.precioVenta
+              if (!med) return <span style={{ color: 'var(--ink3)' }}>—</span>
+              if (!propio) return <span style={SEC} title={`rango ${mxn(v.mercado.precioMin)} – ${mxn(v.mercado.precioMax)}`}>{mxn(med)}</span>
+              const dif = Math.round(((propio - med) / med) * 100)
+              return (
+                <span title={`mediana ${mxn(med)} · rango ${mxn(v.mercado.precioMin)} – ${mxn(v.mercado.precioMax)}`}
+                  style={Math.abs(dif) > 10 ? { color: 'var(--warn, #b8860b)', fontWeight: 600 } : SEC}>
+                  {dif > 0 ? '+' : ''}{dif}%
+                </span>
+              )
+            },
             // Sin costo no hay utilidad que proyectar: n/d, nunca un cero.
             utilidad: (v) => {
               if (!v.costoCompra || !v.precioVenta) return <span style={{ color: 'var(--ink3)' }}>n/d</span>
