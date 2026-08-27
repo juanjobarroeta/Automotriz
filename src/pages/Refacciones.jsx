@@ -28,6 +28,8 @@ export default function Refacciones() {
   // búsqueda arranca con lo que ya se tecleó allá, no en blanco.
   const [params] = useSearchParams()
   const [q, setQ] = useState(() => params.get('q') ?? '')
+  // Con búsqueda inicial (palette) se abre en TODAS: la parte puede no estar en anaquel.
+  const [tab, setTab] = useState(() => (params.get('q') ? 'TODAS' : 'ALMACEN'))
   const [page, setPage] = useState(1)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -42,11 +44,11 @@ export default function Refacciones() {
     if (!activeCompany?.id) return
     setLoading(true); setError(null)
     try {
-      const qs = new URLSearchParams({ companyId: activeCompany.id, page: String(page) })
+      const qs = new URLSearchParams({ companyId: activeCompany.id, page: String(page), tab })
       if (q.trim()) qs.set('q', q.trim())
       setData(await apiFetch(`/api/automotriz/refacciones?${qs}`))
     } catch (err) { setError(err.message) } finally { setLoading(false) }
-  }, [activeCompany?.id, q, page])
+  }, [activeCompany?.id, q, page, tab])
 
   useEffect(() => {
     const t = setTimeout(cargar, q ? 300 : 0) // debounce de búsqueda
@@ -64,12 +66,17 @@ export default function Refacciones() {
   const contando = conteo != null
   const conCantidad = contando ? Object.values(conteo).filter((v) => v !== '').length : 0
 
-  // Franja de KPIs: el catálogo completo da el total; el resto se resume sobre
-  // la página cargada (el endpoint pagina, no trae agregados globales).
-  const enPagina = data?.refacciones ?? []
-  const valorPagina = enPagina.reduce((s, r) => s + (r.valorInventario || 0), 0)
-  const negativas = enPagina.filter((r) => r.existencia < 0).length
-  const movsPagina = enPagina.reduce((s, r) => s + (r.movimientos || 0), 0)
+  const TABS_R = [
+    ['ALMACEN', 'Almacén'], ['PROCESO', 'En órdenes'], ['PEDIR', 'Por pedir'],
+    ['MUERTAS', 'Sin movimiento'], ['TODAS', 'Todas'],
+  ]
+  const cambiarTab = (k) => { setTab(k); setPage(1); setKardex(null) }
+  // Columna extra según la pestaña: la pregunta que esa pestaña contesta.
+  const extraCol = tab === 'PEDIR'
+    ? { th: 'Demanda 12m', td: (r) => r.demanda12m }
+    : tab === 'MUERTAS'
+      ? { th: 'Último mov.', td: (r) => fecha(r.ultimoMov) }
+      : { th: 'Valor inv.', td: (r) => (r.valorInventario > 0 ? mxn(r.valorInventario) : '—') }
 
   const registrarConteo = async () => {
     const items = Object.entries(conteo)
@@ -105,32 +112,30 @@ export default function Refacciones() {
         </div>
       </header>
       {error && <AvisoError onReintentar={cargar}>{error}</AvisoError>}
-      {data && (
+      {data?.porTab && (
         <div className="kpi-strip densa">
           <div className="kpi-item">
-            <span className="kpi-label">Partes en el catálogo</span>
-            <span className="kpi">{data.total.toLocaleString('es-MX')}</span>
-            <span className="kpi-sub">derivadas de los CFDI de proveedor</span>
+            <span className="kpi-label">Valor en almacén</span>
+            <span className="kpi">{mxn(data.valores?.almacen)}</span>
+            <span className="kpi-sub">a costo comparable · derivado del kardex, el conteo físico lo corrige</span>
           </div>
           <div className="kpi-item">
-            <span className="kpi-label">Valor de inventario</span>
-            <span className="kpi">{mxn(valorPagina)}</span>
-            <span className="kpi-sub">a último costo conocido · en esta página</span>
+            <span className="kpi-label">Por pedir</span>
+            <span className={`kpi${data.porTab.PEDIR > 0 ? ' neg' : ''}`}>{data.porTab.PEDIR.toLocaleString('es-MX')}</span>
+            <span className="kpi-sub">agotadas con demanda en 12 meses</span>
           </div>
           <div className="kpi-item">
-            <span className="kpi-label">Existencia negativa</span>
-            <span className={`kpi${negativas > 0 ? ' neg' : ''}`}>{negativas}</span>
-            <span className="kpi-sub">{negativas > 0 ? 'revisar kardex o hacer conteo' : 'sin partes en negativo en esta página'}</span>
+            <span className="kpi-label">Sin movimiento 12m</span>
+            <span className="kpi">{data.porTab.MUERTAS.toLocaleString('es-MX')}</span>
+            <span className="kpi-sub">{mxn(data.valores?.muertas)} dormidos en anaquel</span>
           </div>
           <div className="kpi-item">
-            <span className="kpi-label">Movimientos</span>
-            <span className="kpi">{movsPagina.toLocaleString('es-MX')}</span>
-            <span className="kpi-sub">de las partes de esta página</span>
+            <span className="kpi-label">Catálogo</span>
+            <span className="kpi">{data.porTab.TODAS.toLocaleString('es-MX')}</span>
+            <span className="kpi-sub">partes derivadas de los CFDI</span>
           </div>
         </div>
       )}
-      <SeccionWip />
-
       {contando && (
         <section className="card" style={{ marginBottom: 16 }}>
           <div className="card-head"><span>Conteo físico</span></div>
@@ -167,9 +172,18 @@ export default function Refacciones() {
       )}
       {loading && !data ? <p className="muted">Cargando catálogo…</p> : data && (
         <>
-          <p className="muted" style={{ margin: '0 0 10px' }}>{data.total.toLocaleString('es-MX')} parte(s){q ? ' encontradas' : ' en el catálogo'} · página {data.page} de {totalPaginas}</p>
+          <div className="tabs" role="tablist" style={{ marginBottom: 10 }}>
+            {TABS_R.map(([k, etiqueta]) => (
+              <button type="button" key={k} role="tab" aria-selected={tab === k}
+                className={tab === k ? 'activo' : ''} onClick={() => cambiarTab(k)}>
+                {etiqueta}{data.porTab ? ` (${(data.porTab[k] ?? 0).toLocaleString('es-MX')})` : ''}
+              </button>
+            ))}
+          </div>
+          {tab === 'PROCESO' && <SeccionWip />}
+          <p className="muted" style={{ margin: '0 0 10px' }}>{data.total.toLocaleString('es-MX')} parte(s){q ? ' con esa búsqueda' : ''} · página {data.page} de {totalPaginas}</p>
           <table>
-            <thead><tr><th>No. de parte</th><th>Descripción</th><th className="num">Existencia</th>{contando && <th className="num">Contada</th>}<th className="num">Último costo</th><th className="num">Último precio</th><th className="num">Valor inv.</th><th className="num">Movs.</th></tr></thead>
+            <thead><tr><th>No. de parte</th><th>Descripción</th><th className="num">Exist.</th><th className="num" title="existencia menos lo comprometido en órdenes abiertas">Disponible</th>{contando && <th className="num">Contada</th>}<th className="num">Costo</th><th className="num">Precio</th><th className="num">Margen</th><th className="num">{extraCol.th}</th></tr></thead>
             <tbody>
               {data.refacciones.map((r) => (
                 <Fragment key={r.id}>
@@ -177,6 +191,10 @@ export default function Refacciones() {
                     <td className="mono">{r.numeroParte}</td>
                     <td style={{ fontSize: 13 }}>{r.descripcion}</td>
                     <td className={`num ${r.existencia < 0 ? 'neg' : ''}`}>{r.existencia}</td>
+                    <td className={`num ${r.disponible < 0 ? 'neg' : ''}`}>
+                      {r.disponible}
+                      {r.comprometida > 0 && <span className="muted" style={{ fontSize: 11 }}> ({r.comprometida} apart.)</span>}
+                    </td>
                     {contando && (
                       <td className="num">
                         <input type="number" min="0" step="1" placeholder="—" value={conteo[r.id] ?? ''}
@@ -185,15 +203,16 @@ export default function Refacciones() {
                           style={{ width: 80, textAlign: 'right' }} />
                       </td>
                     )}
-                    <td className="num" style={{ color: 'var(--ink-3)' }}>{mxn(r.ultimoCosto)}</td>
+                    <td className="num" style={{ color: 'var(--ink-3)' }} title={r.ultimoCosto == null ? 'costo no comparable (unidad de compra distinta a la de venta)' : undefined}>{mxn(r.ultimoCosto)}</td>
                     <td className="num" style={{ color: 'var(--ink-3)' }}>{mxn(r.ultimoPrecio)}</td>
-                    <td className="num">{r.valorInventario > 0 ? mxn(r.valorInventario) : '—'}</td>
-                    <td className="num" style={{ color: 'var(--muted-2)' }}>{r.movimientos}</td>
+                    <td className="num">{r.margenPct != null ? `${r.margenPct}%` : '—'}</td>
+                    <td className="num">{extraCol.td(r)}</td>
                   </tr>
                   {kardex?.id === r.id && (
                     <tr>
-                      <td colSpan={contando ? 8 : 7} style={{ background: 'var(--surface-subtle)', padding: '16px 20px' }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>
+                      <td colSpan={contando ? 10 : 9} style={{ background: 'var(--surface-subtle)', padding: '16px 20px' }}>
+                        <FichaParte f={kardex} />
+                        <div style={{ fontSize: 12.5, fontWeight: 600, margin: '12px 0 10px' }}>
                           Kardex · <span className="mono">{r.numeroParte}</span> — existencia {kardex.existencia}
                         </div>
                         <table style={{ background: 'var(--surface)' }}>
@@ -220,7 +239,7 @@ export default function Refacciones() {
                   )}
                 </Fragment>
               ))}
-              {data.refacciones.length === 0 && <tr><td colSpan={contando ? 8 : 7} className="muted">Sin partes{q ? ' con esa búsqueda' : ' aún — corre el backfill de refacciones'}.</td></tr>}
+              {data.refacciones.length === 0 && <tr><td colSpan={contando ? 10 : 9} className="muted">Sin partes{q ? ' con esa búsqueda' : ' aún — corre el backfill de refacciones'}.</td></tr>}
             </tbody>
           </table>
           {totalPaginas > 1 && (
@@ -345,6 +364,43 @@ function SeccionWip() {
         </div>
       )}
     </section>
+  )
+}
+
+// ── La ficha de la parte: lo que se sabe de ella sin salir de la tabla ──────
+// Aplicaciones (parseadas de la descripción del propio CFDI), disponible vs
+// comprometida con las órdenes donde está, margen con costo comparable y la
+// demanda de 12 meses en barras. El kardex completo sigue debajo.
+function FichaParte({ f }) {
+  const maxDem = Math.max(...(f.demandaMensual ?? []).map((d) => d.salidas), 1)
+  const MES_F = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
+        <span>Disponible <b className={f.disponible < 0 ? 'neg' : ''}>{f.disponible}</b>{f.comprometida > 0 && <span className="muted"> ({f.comprometida} en órdenes)</span>}</span>
+        <span>Margen <b>{f.margenPct != null ? `${f.margenPct}%` : '—'}</b>{!f.costoComparable && <span className="muted" title="unidad de compra distinta a la de venta"> (costo no comparable)</span>}</span>
+        {(f.enOrdenes ?? []).map((o) => (
+          <span key={o.ordenId} className="badge">OS-{o.folio} · {o.cantidad} pza</span>
+        ))}
+      </div>
+      {(f.aplicaciones ?? []).length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="muted" style={{ fontSize: 12 }}>Le queda a:</span>
+          {f.aplicaciones.map((a) => <span key={a} className="badge">{a}</span>)}
+        </div>
+      )}
+      {(f.demandaMensual ?? []).length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 40, maxWidth: 420 }}
+          title="Salidas por mes (12 meses)">
+          {f.demandaMensual.map((d) => (
+            <div key={d.mes} style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ height: Math.max(3, Math.round((d.salidas / maxDem) * 28)), background: 'var(--linea, #555)', borderRadius: 2 }} />
+              <span style={{ fontSize: 9, color: 'var(--muted-2)' }}>{MES_F[new Date(d.mes).getMonth()]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
