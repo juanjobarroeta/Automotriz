@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
@@ -129,6 +129,8 @@ export default function Refacciones() {
           </div>
         </div>
       )}
+      <SeccionWip />
+
       {contando && (
         <section className="card" style={{ marginBottom: 16 }}>
           <div className="card-head"><span>Conteo físico</span></div>
@@ -236,3 +238,113 @@ export default function Refacciones() {
     </div>
   )
 }
+
+// ── WIP: lo que salió del almacén a una orden y NO se ha facturado ──────────
+// Los dos lados del mismo número: el DERIVADO (refacciones a costo en órdenes
+// abiertas de la app) y el DECLARADO (la cuenta «ORD PROCESO» del contador,
+// con su serie mensual de la CE). Es el primer cuadre de balance que no espera
+// bancos — y mientras el taller no opere sus órdenes aquí, la brecha es de
+// ADOPCIÓN: se dice tal cual, no se disfraza.
+function SeccionWip() {
+  const { activeCompany } = useAuth()
+  const [wip, setWip] = useState(null)
+
+  useEffect(() => {
+    if (!activeCompany?.id) return
+    apiFetch(`/api/automotriz/refacciones/wip?companyId=${activeCompany.id}`)
+      .then(setWip)
+      .catch(() => setWip(null)) // hub sin la ruta aún: la sección no aparece
+  }, [activeCompany?.id])
+
+  if (!wip || (!wip.declarado && !wip.derivado?.ordenes?.length)) return null
+  const d = wip.derivado
+  const dec = wip.declarado
+  const maxSerie = dec ? Math.max(...dec.serie.map((s) => s.saldoFin), 1) : 1
+  const MESES_W = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head" style={{ marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+        <h2>En órdenes de servicio (sin facturar)</h2>
+        {dec && (
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>
+            {dec.cuenta} · corte {MESES_W[dec.corte.mes - 1]} {dec.corte.anio}
+          </span>
+        )}
+      </div>
+
+      <div className="kpi-strip densa" style={{ marginBottom: 12 }}>
+        <div className="kpi-item">
+          <span className="kpi-label">Derivado (esta app)</span>
+          <span className="kpi">{mxn(d.total)}</span>
+          <span className="kpi-sub">{d.ordenes.length} orden(es) abiertas con refacciones</span>
+        </div>
+        {dec && (
+          <div className="kpi-item">
+            <span className="kpi-label">Declarado (contabilidad)</span>
+            <span className="kpi">{mxn(dec.saldo)}</span>
+            <span className="kpi-sub">{dec.nombre.toLowerCase()}</span>
+          </div>
+        )}
+        {dec?.almacen && (
+          <div className="kpi-item">
+            <span className="kpi-label">Almacén (declarado)</span>
+            <span className="kpi">{mxn(dec.almacen.saldo)}</span>
+            <span className="kpi-sub">{dec.almacen.cuenta}</span>
+          </div>
+        )}
+        {dec?.mostrador && (
+          <div className="kpi-item">
+            <span className="kpi-label">Mostrador vs taller {dec.mostrador.anio}</span>
+            <span className="kpi">{mxn(dec.mostrador.directo)}</span>
+            <span className="kpi-sub">venta directa · {mxn(dec.mostrador.aOrdenes)} vía órdenes</span>
+          </div>
+        )}
+      </div>
+
+      {dec && (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 46, marginBottom: 6 }}
+          title="Saldo mensual declarado de refacciones en órdenes (CE)">
+          {dec.serie.map((s2) => (
+            <div key={`${s2.anio}-${s2.mes}`} style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{
+                height: Math.max(3, Math.round((s2.saldoFin / maxSerie) * 34)),
+                background: 'var(--linea, #555)', borderRadius: 2,
+              }} />
+              <span style={{ fontSize: 9, color: 'var(--muted-2)' }}>{MESES_W[s2.mes - 1]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {wip.reconciliacion?.adopcion && dec && (
+        <p className="card-note" style={{ margin: 0 }}>
+          La contabilidad trae {mxn(dec.saldo)} en órdenes abiertas que todavía viven en el sistema del
+          taller, no aquí. Cada recepción operada en la app (Servicio → Recibir) acerca el derivado al
+          declarado — este número es el termómetro de la adopción.
+        </p>
+      )}
+
+      {d.ordenes.length > 0 && (
+        <div style={{ overflowX: 'auto', marginTop: 10 }}>
+          <table>
+            <thead><tr><th>Orden</th><th>Cliente</th><th>Unidad</th><th className="num">Refacciones</th><th className="num">Costo</th><th className="num">Venta</th></tr></thead>
+            <tbody>
+              {d.ordenes.map((o) => (
+                <tr key={o.id}>
+                  <td><Link to={`/servicio?q=${o.folio}`} className="mono">OS-{o.folio}</Link></td>
+                  <td>{o.cliente ?? 'Mostrador'}</td>
+                  <td>{o.unidad ?? '—'}</td>
+                  <td className="num">{o.lineas}{o.sinCosto > 0 && <span className="muted" title="líneas sin costo conocido"> ({o.sinCosto} s/costo)</span>}</td>
+                  <td className="num">{mxn(o.costo)}</td>
+                  <td className="num">{mxn(o.venta)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
