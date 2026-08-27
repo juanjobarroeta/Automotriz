@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
@@ -21,6 +21,7 @@ export default function CitasTaller() {
   const { activeCompany } = useAuth()
   const navigate = useNavigate()
   const esMovil = useEsMovil()
+  const [vista, setVista] = useState('CALENDARIO')
   const [rango, setRango] = useState('SEMANA')
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -92,15 +93,26 @@ export default function CitasTaller() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <div className="tabs" role="tablist">
-          {RANGOS.map(([k, etiqueta]) => (
-            <button type="button" key={k} role="tab" aria-selected={rango === k}
-              className={rango === k ? 'activo' : ''} onClick={() => setRango(k)}>{etiqueta}</button>
+          {[['CALENDARIO', 'Calendario'], ['LISTA', 'Lista']].map(([k, etiqueta]) => (
+            <button type="button" key={k} role="tab" aria-selected={vista === k}
+              className={vista === k ? 'activo' : ''} onClick={() => setVista(k)}>{etiqueta}</button>
           ))}
         </div>
+        {vista === 'LISTA' && (
+          <div className="tabs" role="tablist">
+            {RANGOS.map(([k, etiqueta]) => (
+              <button type="button" key={k} role="tab" aria-selected={rango === k}
+                className={rango === k ? 'activo' : ''} onClick={() => setRango(k)}>{etiqueta}</button>
+            ))}
+          </div>
+        )}
         {pendientes > 0 && <span className="glosa">{pendientes} por confirmar</span>}
         <button type="button" style={{ marginLeft: 'auto' }} onClick={() => setCreando(true)}>Nueva cita</button>
       </div>
 
+      {vista === 'CALENDARIO' && <CalendarioSemana navigate={navigate} />}
+
+      {vista === 'LISTA' && (<>
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Leyendo la agenda…</p>}
 
@@ -146,7 +158,130 @@ export default function CitasTaller() {
         </div>
       ))}
 
+      </>)}
+
       {creando && <AltaCita onCerrar={() => setCreando(false)} onCreada={() => { setCreando(false); cargar() }} />}
+    </div>
+  )
+}
+
+// ── El calendario del taller: la semana con lo que ENTRA y lo que SALE ──────
+// ↓ recepciones = citas (portal o staff) en su hora; ↑ entregas = órdenes
+// abiertas en su fecha prometida. Es la cara de agenda del control de
+// servicio: quién llega, qué se promete, y arriba —en rojo— lo ya vencido.
+// Tocar una cita abierta abre la recepción; tocar una entrega abre su orden.
+function CalendarioSemana({ navigate }) {
+  const { activeCompany } = useAuth()
+  const [inicio, setInicio] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })
+  const [citas, setCitas] = useState([])
+  const [ordenes, setOrdenes] = useState([])
+  const [error, setError] = useState(null)
+
+  const fin = useMemo(() => { const d = new Date(inicio); d.setDate(d.getDate() + 7); return d }, [inicio])
+
+  useEffect(() => {
+    if (!activeCompany?.id) return
+    setError(null)
+    const params = new URLSearchParams({
+      companyId: activeCompany.id, desde: inicio.toISOString(), hasta: fin.toISOString(),
+    })
+    Promise.all([
+      apiFetch(`/api/automotriz/citas?${params}`),
+      apiFetch(`/api/automotriz/ordenes?companyId=${activeCompany.id}&abiertas=1`),
+    ])
+      .then(([c, o]) => {
+        setCitas((c?.citas ?? []).filter((x) => x.estado !== 'CANCELADA' && x.estado !== 'NO_SHOW'))
+        setOrdenes(o?.ordenes ?? [])
+      })
+      .catch((err) => setError(err.message))
+  }, [activeCompany?.id, inicio, fin])
+
+  const hoy0 = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [])
+  const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(inicio); d.setDate(d.getDate() + i); return d })
+  const mismoDia = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  const citasDe = (d) => citas.filter((c) => mismoDia(new Date(c.fecha), d)).sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+  const entregasDe = (d) => ordenes.filter((o) => o.prometidaAt && mismoDia(new Date(o.prometidaAt), d))
+  // Lo vencido no vive en ningún día visible (la ventana arranca hoy): se
+  // enseña arriba, en rojo, porque es lo primero que un jefe de taller ataca.
+  const vencidas = ordenes.filter((o) => o.prometidaAt && new Date(o.prometidaAt) < hoy0)
+  const mover = (n) => setInicio((d) => { const x = new Date(d); x.setDate(x.getDate() + n); return x })
+  const irHoy = () => { const d = new Date(); d.setHours(0, 0, 0, 0); setInicio(d) }
+
+  const hora = (x) => new Date(x).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  const rotuloDia = (d) => d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
+  const unidadCita = (c) => c.customer?.razonSocial ?? c.clienteNombre ?? c.descripcionUnidad ?? c.vin?.slice(-6) ?? 'Mostrador'
+  const unidadOrden = (o) => o.vehiculo ? `${o.vehiculo.marca} ${o.vehiculo.modelo}` : (o.descripcionUnidad ?? o.vin?.slice(-6) ?? 'Unidad')
+
+  const abrirCita = (c) => {
+    if (c.estado === 'RECIBIDA' && c.orden) navigate(`/servicio?q=${c.orden.folio}`)
+    else navigate(`/servicio/recepcion?citaId=${c.id}`)
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button type="button" className="ghost" onClick={() => mover(-7)} aria-label="Semana anterior">‹</button>
+        <button type="button" className="ghost" onClick={irHoy}>Hoy</button>
+        <button type="button" className="ghost" onClick={() => mover(7)} aria-label="Semana siguiente">›</button>
+        <span className="glosa">
+          {inicio.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} — {new Date(fin - 1).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+          {' · '}↓ recepción · ↑ entrega
+        </span>
+      </div>
+
+      {error && <div className="error">{error}</div>}
+
+      {vencidas.length > 0 && (
+        <div className="cal-vencidas">
+          <b>{vencidas.length} {vencidas.length === 1 ? 'entrega vencida' : 'entregas vencidas'}:</b>
+          {vencidas.slice(0, 8).map((o) => (
+            <button type="button" key={o.id} className="cal-chip entrega vencida"
+              onClick={() => navigate(`/servicio?q=${o.folio}`)}>
+              ↑ OS-{o.folio} · {unidadOrden(o)} · {new Date(o.prometidaAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+            </button>
+          ))}
+          {vencidas.length > 8 && <span className="muted">y {vencidas.length - 8} más…</span>}
+        </div>
+      )}
+
+      <div className="cal-semana">
+        {dias.map((d) => {
+          const cs = citasDe(d)
+          const es = entregasDe(d)
+          const esHoy = mismoDia(d, new Date())
+          return (
+            <div key={d.toISOString()} className={`cal-dia${esHoy ? ' hoy' : ''}`}>
+              <div className="cal-dia-cab">
+                <span>{rotuloDia(d)}</span>
+                {(cs.length > 0 || es.length > 0) && (
+                  <span className="muted" style={{ fontSize: 10.5 }}>
+                    {cs.length > 0 && `↓${cs.length}`}{cs.length > 0 && es.length > 0 && ' '}{es.length > 0 && `↑${es.length}`}
+                  </span>
+                )}
+              </div>
+              {cs.map((c) => (
+                <button type="button" key={c.id}
+                  className={`cal-chip cita ${c.estado === 'PENDIENTE' ? 'pendiente' : c.estado === 'RECIBIDA' ? 'hecha' : ''}`}
+                  title={c.motivo}
+                  onClick={() => abrirCita(c)}>
+                  ↓ {hora(c.fecha)} {unidadCita(c)}
+                </button>
+              ))}
+              {es.map((o) => (
+                <button type="button" key={o.id} className="cal-chip entrega" title={o.fallaReportada}
+                  onClick={() => navigate(`/servicio?q=${o.folio}`)}>
+                  ↑ OS-{o.folio} · {unidadOrden(o)}
+                </button>
+              ))}
+              {cs.length === 0 && es.length === 0 && <span className="cal-vacio">—</span>}
+            </div>
+          )
+        })}
+      </div>
+      <p className="glosa" style={{ marginTop: 8 }}>
+        Cita punteada = por confirmar · sólida = confirmada · tenue = ya recibida. Las entregas salen de la
+        promesa de cada orden abierta.
+      </p>
     </div>
   )
 }
