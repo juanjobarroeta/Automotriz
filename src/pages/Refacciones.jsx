@@ -374,6 +374,16 @@ function SeccionWip() {
 function FichaParte({ f }) {
   const maxDem = Math.max(...(f.demandaMensual ?? []).map((d) => d.salidas), 1)
   const MES_F = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  // El mercado se consulta bajo demanda (botón) y el cron nocturno lo va
+  // llenando solo para las de más demanda; aquí se muestra lo cacheado.
+  const [mercado, setMercado] = useState(f.mercado ?? null)
+  const [buscando, setBuscando] = useState(false)
+  const [errMercado, setErrMercado] = useState(null)
+  const consultarMercado = async () => {
+    setBuscando(true); setErrMercado(null)
+    try { setMercado(await apiFetch(`/api/automotriz/refacciones/${f.id}/mercado`, { method: 'POST' })) }
+    catch (err) { setErrMercado(err.message) } finally { setBuscando(false) }
+  }
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
@@ -389,6 +399,36 @@ function FichaParte({ f }) {
           {f.aplicaciones.map((a) => <span key={a} className="badge">{a}</span>)}
         </div>
       )}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
+        <span className="muted" style={{ fontSize: 12 }}>En el mercado:</span>
+        {mercado ? (
+          <>
+            {mercado.precioMercado != null && (
+              <span>
+                <b>{mxn(mercado.precioMercado)}</b>
+                {f.ultimoPrecio > 0 && (
+                  <span className="muted"> · tú lo vendes a {mxn(Number(f.ultimoPrecio))}</span>
+                )}
+              </span>
+            )}
+            {(mercado.resultados ?? []).slice(0, 3).map((r) => (
+              <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                {(r.titulo || 'ver listado').slice(0, 44)}{r.precio != null ? ` · ${mxn(r.precio)}` : ''}
+              </a>
+            ))}
+            {(mercado.resultados ?? []).length === 0 && <span className="muted">sin listados encontrados</span>}
+            <button type="button" className="ghost" style={{ padding: '2px 8px', fontSize: 11 }}
+              onClick={consultarMercado} disabled={buscando} title={`consultado ${fecha(mercado.consultadoAt)}`}>
+              {buscando ? '…' : '↻'}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="ghost" onClick={consultarMercado} disabled={buscando}>
+            {buscando ? 'Consultando…' : 'Consultar mercado (ML MX)'}
+          </button>
+        )}
+        {errMercado && <span className="muted" style={{ fontSize: 12 }}>{errMercado}</span>}
+      </div>
       {(f.demandaMensual ?? []).length > 0 && (
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 40, maxWidth: 420 }}
           title="Salidas por mes (12 meses)">
