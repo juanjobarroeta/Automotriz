@@ -660,6 +660,8 @@ export default function VehiculoDetalle() {
           </div>
           </section>
 
+          {v.tipo === 'SEMINUEVO' && <MercadoUnidad v={v} />}
+
           <section className="card">
           <div className="card-head"><span>Rentabilidad por VIN</span></div>
           {v.rentabilidad ? (
@@ -744,3 +746,63 @@ export default function VehiculoDetalle() {
     </div>
   )
 }
+
+// ── El mercado de la unidad (seminuevos): el rango, no un punto ─────────────
+// Listados comparables de marca+modelo+año en autos de ML MX, con mediana y
+// rango de precios plausibles. Un listado suelto es ruido; el rango es la
+// referencia para poner el precio de lista — y en R2, para la toma a cuenta.
+function MercadoUnidad({ v }) {
+  const [m, setM] = useState(v.mercado ?? null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  const consultar = async () => {
+    setBusy(true); setErr(null)
+    try { setM(await apiFetch(`/api/automotriz/vehiculos/${v.id}/mercado`, { method: 'POST' })) }
+    catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  const dif = m?.precioMediana && v.precioLista
+    ? Math.round(((v.precioLista - m.precioMediana) / m.precioMediana) * 100)
+    : null
+  return (
+    <section className="card">
+      <div className="card-head">
+        <span>En el mercado</span>
+        <button type="button" className="ghost" style={{ marginLeft: 'auto' }} onClick={consultar} disabled={busy}>
+          {busy ? 'Consultando…' : m ? '↻ Actualizar' : 'Consultar mercado'}
+        </button>
+      </div>
+      {err && <div className="error">{err}</div>}
+      {!m && !err && (
+        <p className="muted">Listados comparables de {v.marca} {v.modelo} {v.anio} en autos de MercadoLibre — un tap.</p>
+      )}
+      {m && (
+        <>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'baseline' }}>
+            {m.precioMediana != null ? (
+              <>
+                <span style={{ fontSize: 21, fontWeight: 700 }}>{mxn(m.precioMediana)}</span>
+                <span className="muted">rango {mxn(m.precioMin)} – {mxn(m.precioMax)} · {m.listados} listado(s) con precio</span>
+                {dif != null && (
+                  <span style={{ color: Math.abs(dif) > 10 ? 'var(--warn, #b8860b)' : 'var(--muted)' }}>
+                    tu lista {mxn(v.precioLista)} ({dif > 0 ? '+' : ''}{dif}% vs mediana)
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="muted">los listados no traen precio en el texto — ábrelos:</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+            {(m.resultados ?? []).slice(0, 5).map((r) => (
+              <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                {(r.titulo || 'listado').slice(0, 46)}{r.precio != null ? ` · ${mxn(r.precio)}` : ''}
+              </a>
+            ))}
+          </div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>consultado {fecha(m.consultadoAt)}</div>
+        </>
+      )}
+    </section>
+  )
+}
+
