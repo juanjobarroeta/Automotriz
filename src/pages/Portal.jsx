@@ -133,6 +133,8 @@ export default function Portal() {
               <Proceso pasos={pasosCuenta(r)} />
             </section>
 
+            <SeccionServicio unidades={data.unidades} />
+
             <section className="card" style={{ marginBottom: 16 }}>
               <div className="card-head" style={{ marginBottom: 14 }}>
                 <h2>Tus facturas</h2>
@@ -208,8 +210,151 @@ const enlace = {
   color: 'var(--ink)', fontSize: 12, fontWeight: 400,
 }
 
-// El portal no recibe órdenes de servicio del hub todavía, así que el timeline
-// del mockup cuenta el proceso que SÍ tenemos en los datos: la vida del cobro.
+// El timeline de la CUENTA sigue contando la vida del cobro; el avance del
+// TALLER llega por la cita (SeccionServicio): su orden trae folio y estado.
+// ── Servicio: agendar una cita y seguir el avance de la unidad ──────────────
+// La cita es la ventana del cliente al taller: se agenda aquí (nace «por
+// confirmar»), el taller la confirma, y cuando la unidad entra, la misma cita
+// enseña la orden (folio + estado) — sin montos internos de la agencia.
+const HORAS = Array.from({ length: 20 }, (_, i) => {
+  const h = 8 + Math.floor(i / 2); const m = i % 2 ? '30' : '00'
+  return `${String(h).padStart(2, '0')}:${m}`
+})
+const CITA_ETIQUETA = {
+  PENDIENTE: 'por confirmar', CONFIRMADA: 'confirmada', CANCELADA: 'cancelada',
+  RECIBIDA: 'en el taller', NO_SHOW: 'no asistió',
+}
+
+function pasosOrden(estado) {
+  const orden = ['RECIBIDA', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
+  const aqui = orden.indexOf(estado)
+  return [['Recibida'], ['En proceso'], ['Lista'], ['Entregada']].map(([n], i) => ({
+    n,
+    estado: aqui === -1 ? 'pend' : i < aqui ? 'done' : i === aqui ? (estado === 'ENTREGADA' ? 'done' : 'now') : 'pend',
+  }))
+}
+
+function SeccionServicio({ unidades }) {
+  const [citas, setCitas] = useState(null)
+  const [agendando, setAgendando] = useState(false)
+  const [f, setF] = useState({ vehiculoId: '', otraUnidad: '', fecha: '', hora: '10:00', motivo: '' })
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const cargarCitas = useCallback(async () => {
+    try { setCitas((await portalFetch('/api/automotriz/portal/citas'))?.citas ?? []) }
+    catch { setCitas([]) } // un hub sin la ruta aún: la sección calla, no rompe
+  }, [])
+  useEffect(() => { cargarCitas() }, [cargarCitas])
+
+  const manana = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) }
+
+  const agendar = async (e) => {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await portalFetch('/api/automotriz/portal/citas', {
+        method: 'POST',
+        body: {
+          vehiculoId: f.vehiculoId || null,
+          descripcionUnidad: f.vehiculoId ? null : f.otraUnidad || null,
+          fecha: new Date(`${f.fecha}T${f.hora}`).toISOString(),
+          motivo: f.motivo,
+        },
+      })
+      setF({ vehiculoId: '', otraUnidad: '', fecha: '', hora: '10:00', motivo: '' })
+      setAgendando(false)
+      await cargarCitas()
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
+  const cancelar = async (c) => {
+    if (!window.confirm('¿Cancelar esta cita?')) return
+    setError(null)
+    try { await portalFetch(`/api/automotriz/portal/citas/${c.id}`, { method: 'DELETE' }); await cargarCitas() }
+    catch (err) { setError(err.message) }
+  }
+
+  const cancelable = (c) => (c.estado === 'PENDIENTE' || c.estado === 'CONFIRMADA') && new Date(c.fecha) > new Date()
+  const unidadDe = (c) => c.vehiculo
+    ? `${c.vehiculo.marca ?? ''} ${c.vehiculo.modelo ?? ''} ${c.vehiculo.anio ?? ''}`.trim()
+    : (c.descripcionUnidad || 'Unidad')
+
+  return (
+    <section className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head" style={{ marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+        <h2>Servicio</h2>
+        <button type="button" className="ghost" style={{ marginLeft: 'auto' }} onClick={() => setAgendando((v) => !v)}>
+          {agendando ? 'Cerrar' : 'Agendar servicio'}
+        </button>
+      </div>
+
+      {agendando && (
+        <form onSubmit={agendar} style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+          <label>Unidad
+            <select value={f.vehiculoId} onChange={(e) => setF((x) => ({ ...x, vehiculoId: e.target.value }))}>
+              <option value="">Otra unidad…</option>
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.marca} {u.modelo} {u.anio} · {u.vin?.slice(-6)}</option>)}
+            </select>
+          </label>
+          {!f.vehiculoId && (
+            <label>Descríbela
+              <input required={!f.vehiculoId} value={f.otraUnidad} onChange={(e) => setF((x) => ({ ...x, otraUnidad: e.target.value }))} placeholder="Marca modelo año" />
+            </label>
+          )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <label style={{ flex: 1, minWidth: 140 }}>Fecha
+              <input required type="date" min={manana()} value={f.fecha} onChange={(e) => setF((x) => ({ ...x, fecha: e.target.value }))} />
+            </label>
+            <label style={{ flex: 1, minWidth: 110 }}>Hora
+              <select value={f.hora} onChange={(e) => setF((x) => ({ ...x, hora: e.target.value }))}>
+                {HORAS.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </label>
+          </div>
+          <label>¿Qué necesita?
+            <textarea required rows={2} minLength={5} value={f.motivo} onChange={(e) => setF((x) => ({ ...x, motivo: e.target.value }))} placeholder="Servicio de 10,000 km / ruido al frenar…" />
+          </label>
+          {error && <AvisoError>{error}</AvisoError>}
+          <button type="submit" disabled={busy}>{busy ? 'Agendando…' : 'Solicitar cita'}</button>
+          <span className="card-note">El taller confirmará tu cita; aquí verás el estado.</span>
+        </form>
+      )}
+
+      {!agendando && error && <AvisoError>{error}</AvisoError>}
+
+      {citas === null && <p className="muted">Cargando tus citas…</p>}
+      {citas?.length === 0 && !agendando && (
+        <p className="muted">Sin citas. Agenda tu servicio y sigue aquí el avance de tu unidad.</p>
+      )}
+      {citas?.length > 0 && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {citas.map((c) => (
+            <div key={c.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <b style={{ fontSize: 13.5 }}>{unidadDe(c)}</b>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                  {new Date(c.fecha).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+                </span>
+                <span className="badge" style={{ marginLeft: 'auto' }}>
+                  {c.estado === 'RECIBIDA' && c.orden ? `orden OS-${c.orden.folio}` : CITA_ETIQUETA[c.estado]}
+                </span>
+                {cancelable(c) && (
+                  <button type="button" style={enlace} onClick={() => cancelar(c)}>Cancelar</button>
+                )}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{c.motivo}</div>
+              {c.estado === 'RECIBIDA' && c.orden && (
+                <div style={{ marginTop: 10 }}><Proceso pasos={pasosOrden(c.orden.estado)} /></div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function pasosCuenta(r) {
   const facturado = r.numFacturas > 0
   const pagado = r.totalPagado > 0
