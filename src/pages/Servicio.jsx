@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../config/api'
 import CfdiVista from '../components/CfdiVista'
 import OrdenesTaller from '../components/OrdenesTaller'
+import CitasTaller from '../components/CitasTaller'
 import { AvisoError } from '../components/Estados'
 
 const mxn = (n) => (n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }))
@@ -15,7 +16,7 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 //            la factura llega por el sync y se liga sola.
 //   Reportes (fase 5): la historia reconstruida desde CFDIs — venta por mes,
 //            ticket promedio, top clientes y los que dejaron de venir.
-const TABS = [['ORDENES', 'Órdenes'], ['REPORTES', 'Reportes']]
+const TABS = [['ORDENES', 'Órdenes'], ['CITAS', 'Citas'], ['REPORTES', 'Reportes']]
 
 export default function Servicio() {
   const { activeCompany } = useAuth()
@@ -72,7 +73,7 @@ export default function Servicio() {
           recepción que se capture.
         </div>
       )}
-      {tab === 'ORDENES' ? <OrdenesTaller /> : <ReportesTaller />}
+      {tab === 'ORDENES' ? <OrdenesTaller /> : tab === 'CITAS' ? <CitasTaller /> : <ReportesTaller />}
     </div>
   )
 }

@@ -1935,3 +1935,47 @@ button.peligro { background: var(--neg); border-color: var(--neg); color: #fff; 
   .timbre-hero { grid-template-columns: 1fr; }
   .banda-rechazo { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Recepción (stepper /servicio/recepcion) ─────────────────────────────── */
+.paso-header { display: flex; gap: 6; margin-bottom: 14px; }
+.paso-header button {
+  display: flex; align-items: center; gap: 7px; flex: 1;
+  background: none; border: 1px solid var(--linea, #333); border-radius: 9px;
+  padding: 8px 10px; color: var(--muted-2, #888); font: inherit; font-size: 13px;
+}
+.paso-header button i {
+  font-style: normal; width: 20px; height: 20px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid currentColor; font-size: 11px;
+}
+.paso-header button.activo { color: var(--ink, #eee); border-color: var(--ink2, #aaa); font-weight: 600; }
+.paso-header button.hecho { color: var(--pos, #2e7d32); cursor: pointer; }
+
+.firma-canvas {
+  width: 100%; border: 1.5px dashed var(--linea, #555); border-radius: 10px;
+  background: #fff; touch-action: none; display: block;
+}
+
+.gasolina-segmentos { display: flex; gap: 4px; margin-top: 4px; }
+.gasolina-segmentos button {
+  flex: 1; height: 26px; border-radius: 5px; border: 1px solid var(--linea, #444);
+  background: transparent; cursor: pointer;
+}
+.gasolina-segmentos button.lleno { background: var(--pos, #2e7d32); border-color: var(--pos, #2e7d32); }
+
+.fotos-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.foto-mini { position: relative; width: 84px; }
+.foto-mini img { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; display: block; }
+.foto-mini button {
+  position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+  border-radius: 50%; border: none; background: var(--neg, #c0392b); color: #fff;
+  font-size: 14px; line-height: 1; cursor: pointer;
+}
+.foto-mini span {
+  position: absolute; bottom: 3px; left: 3px; font-size: 10px; color: #fff;
+  background: rgba(0,0,0,.55); padding: 1px 5px; border-radius: 4px;
+}
+.foto-agregar {
+  width: 84px; height: 84px; border-radius: 8px; border: 1.5px dashed var(--linea, #555);
+  background: none; color: var(--muted-2, #999); font-size: 12px; cursor: pointer;
+}

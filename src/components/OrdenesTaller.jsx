@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useEsMovil } from '../lib/pantalla'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { apiFetch } from '../config/api'
+import { apiFetch, apiDownload } from '../config/api'
 import CfdiVista from './CfdiVista'
 import { LineaProceso } from './Primitivos'
 
@@ -99,20 +99,17 @@ export default function OrdenesTaller() {
   // buscar el folio de una orden ya cerrada caería en una lista vacía, que es
   // justo el resultado que hace desconfiar de un buscador.
   const [params] = useSearchParams()
+  const navigate = useNavigate()
   const qInicial = params.get('q') ?? ''
   const [filtro, setFiltro] = useState(qInicial ? 'TODAS' : 'ABIERTAS')
   const [q, setQ] = useState(qInicial)
   const [busqueda, setBusqueda] = useState(qInicial)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [creando, setCreando] = useState(false)
   const [clientes, setClientes] = useState([])
   const [empleados, setEmpleados] = useState([])
   const [abierta, setAbierta] = useState(null) // orden expandida (detalle/edición)
   const [cfdiVista, setCfdiVista] = useState(null)
-
-  const form0 = { clienteId: '', vin: '', descripcionUnidad: '', placas: '', kilometraje: '', fallaReportada: '', asesorId: '', tecnicoId: '', prometidaAt: '' }
-  const [form, setForm] = useState(form0)
 
   const cargar = useCallback(async () => {
     if (!activeCompany?.id) return
@@ -145,33 +142,6 @@ export default function OrdenesTaller() {
       setClientes(Array.isArray(cs) ? cs.filter((c) => c.esCliente || !c.esProveedor) : [])
       setEmpleados(Array.isArray(es) ? es : [])
     } catch (err) { setError(err.message) }
-  }
-
-  const abrirCrear = async () => { setCreando(true); setError(null); await cargarCatalogos() }
-
-  const crear = async (e) => {
-    e.preventDefault()
-    setBusy(true); setError(null)
-    try {
-      await apiFetch('/api/automotriz/ordenes', {
-        method: 'POST',
-        body: {
-          companyId: activeCompany.id,
-          clienteId: form.clienteId || null,
-          vin: form.vin.trim() || null,
-          descripcionUnidad: form.descripcionUnidad.trim() || null,
-          placas: form.placas.trim() || null,
-          kilometraje: form.kilometraje ? Number(form.kilometraje) : null,
-          fallaReportada: form.fallaReportada.trim(),
-          asesorId: form.asesorId || null,
-          tecnicoId: form.tecnicoId || null,
-          prometidaAt: form.prometidaAt ? new Date(form.prometidaAt).toISOString() : null,
-        },
-      })
-      setForm(form0)
-      setCreando(false)
-      await cargar()
-    } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
   const accion = async (orden, nombre) => {
@@ -235,7 +205,7 @@ export default function OrdenesTaller() {
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <input placeholder="Folio, VIN, placas, cliente…" value={q} onChange={(e) => setQ(e.target.value)} style={{ minWidth: 220 }} />
-          <button onClick={() => (creando ? setCreando(false) : abrirCrear())}>{creando ? 'Cerrar' : 'Nueva recepción'}</button>
+          <button onClick={() => navigate('/servicio/recepcion')}>Nueva recepción</button>
         </div>
       </div>
 
@@ -268,35 +238,6 @@ export default function OrdenesTaller() {
       </div>
       {error && <div className="error">{error}</div>}
 
-      {creando && (
-        <section className="card" style={{ marginBottom: 16 }}>
-          <h2>Recepción de unidad</h2>
-          <form onSubmit={crear} className="inline-form" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <select value={form.clienteId} onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))} style={{ minWidth: 220 }}>
-              <option value="">Cliente (opcional — mostrador)…</option>
-              {clientes.map((c) => <option key={c.id} value={c.id}>{c.razonSocial}</option>)}
-            </select>
-            <input placeholder="VIN (liga la unidad si existe)" maxLength={17} value={form.vin} onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value.toUpperCase() }))} style={{ width: 190 }} className="mono" />
-            <input required placeholder="Unidad (marca modelo año color)" value={form.descripcionUnidad} onChange={(e) => setForm((f) => ({ ...f, descripcionUnidad: e.target.value }))} style={{ minWidth: 230 }} />
-            <input placeholder="Placas" value={form.placas} onChange={(e) => setForm((f) => ({ ...f, placas: e.target.value.toUpperCase() }))} style={{ width: 110 }} />
-            <input type="number" min="0" placeholder="Km" value={form.kilometraje} onChange={(e) => setForm((f) => ({ ...f, kilometraje: e.target.value }))} style={{ width: 110 }} />
-            <input required placeholder="Falla reportada / trabajo solicitado" value={form.fallaReportada} onChange={(e) => setForm((f) => ({ ...f, fallaReportada: e.target.value }))} style={{ minWidth: 300, flex: 1 }} />
-            <select value={form.asesorId} onChange={(e) => setForm((f) => ({ ...f, asesorId: e.target.value }))} style={{ minWidth: 170 }}>
-              <option value="">Asesor…</option>
-              {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
-            </select>
-            <select value={form.tecnicoId} onChange={(e) => setForm((f) => ({ ...f, tecnicoId: e.target.value }))} style={{ minWidth: 170 }}>
-              <option value="">Técnico…</option>
-              {empleados.map((e2) => <option key={e2.id} value={e2.id}>{nombreEmp(e2)}</option>)}
-            </select>
-            <label>Promesa
-              <input type="date" value={form.prometidaAt} onChange={(e) => setForm((f) => ({ ...f, prometidaAt: e.target.value }))} />
-            </label>
-            <button type="submit" disabled={busy}>Recibir unidad</button>
-          </form>
-          <div className="card-note">La factura del cierre no se captura: cuando el CFDI se emita, el sync lo liga solo a esta orden por VIN o cliente. Si no empata, «Ligar CFDI» lo hace a mano.</div>
-        </section>
-      )}
 
       {movil ? (
         <div className="lista-tarjetas">
@@ -458,6 +399,59 @@ function OrdenRow({ o, busy, accion, abierta, onToggle, onVerCfdi, onRefrescar, 
   )
 }
 
+
+// La recepción física de una orden CAPTURADA: checkup, fotos y el contrato de
+// adhesión firmado. Las derivadas no la tienen (no viaja en el CFDI) y la
+// sección no aparece. Los documentos se piden aparte — la lista jamás carga
+// blobs; aquí sólo llegan los metadatos y cada descarga va con bearer.
+function RecepcionOrden({ o }) {
+  const [docs, setDocs] = useState(null)
+  const inv = o.inventarioRecepcion
+  const hay = Boolean(o.torre || o.gasolinaOctavos != null || inv || o.firmadoAt || (o._count?.documentos ?? 0) > 0)
+  useEffect(() => {
+    if (!hay) return
+    apiFetch(`/api/automotriz/ordenes/${o.id}/documentos`)
+      .then((r) => setDocs(r?.documentos ?? []))
+      .catch(() => setDocs([]))
+  }, [o.id, hay])
+  if (!hay) return null
+  const contrato = docs?.find((d) => d.tipo === 'CONTRATO_FIRMADO')
+  const fotos = docs?.filter((d) => d.tipo === 'FOTO_RECEPCION') ?? []
+  const faltantes = inv?.items?.filter((i) => !i.ok) ?? []
+  return (
+    <div className="card" style={{ padding: 12 }}>
+      <div className="glosa" style={{ marginBottom: 6 }}>Recepción</div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13 }}>
+        {o.torre && <span>Torre <b>{o.torre}</b></span>}
+        {o.gasolinaOctavos != null && <span>Gasolina <b>{o.gasolinaOctavos}/8</b></span>}
+        {inv?.items?.length > 0 && (
+          <span>
+            Inventario {inv.items.length - faltantes.length}/{inv.items.length} ✓
+            {faltantes.length > 0 && <span style={{ color: 'var(--neg)' }}> · falta: {faltantes.map((i) => i.etiqueta).join(', ')}</span>}
+          </span>
+        )}
+      </div>
+      {inv?.pertenencias && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Pertenencias: {inv.pertenencias}</div>}
+      {inv?.comentarios && <div className="muted" style={{ fontSize: 12 }}>Observaciones: {inv.comentarios}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {o.firmadoAt && contrato && (
+          <button type="button" className="ghost"
+            onClick={() => apiDownload(`/api/automotriz/ordenes/${o.id}/documentos/${contrato.id}`, contrato.nombre)}>
+            Contrato firmado ✓ {fechaHora(o.firmadoAt)} — descargar
+          </button>
+        )}
+        {!o.firmadoAt && <span className="muted" style={{ fontSize: 12 }}>contrato pendiente de firma</span>}
+        {fotos.map((d, i) => (
+          <button type="button" key={d.id} className="ghost"
+            onClick={() => apiDownload(`/api/automotriz/ordenes/${o.id}/documentos/${d.id}`, d.nombre)}>
+            📷 foto {i + 1}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Detalle expandido: diagnóstico + presupuesto (líneas). Se edita en sitio y
 // guarda con PATCH (reemplaza las líneas completas — es un presupuesto corto).
 function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
@@ -533,6 +527,8 @@ function OrdenDetalle({ o, onRefrescar, empleados, cargarCatalogos }) {
         </span></div>
         <div><span className="k">Asesor</span><span className="v">{nombreEmp(o.asesor) ?? <DatoNoRegistrado derivada={derivada} />}</span></div>
       </div>
+
+      {!derivada && <RecepcionOrden o={o} />}
 
       {/* Dónde va la orden. Los cuatro sellos existen en el modelo, así que la
           línea se dibuja con horas reales y no con etapas de adorno. */}
