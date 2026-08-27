@@ -403,20 +403,49 @@ function FichaParte({ f }) {
         <span className="muted" style={{ fontSize: 12 }}>En el mercado:</span>
         {mercado ? (
           <>
-            {mercado.precioMercado != null && (
-              <span>
-                <b>{mxn(mercado.precioMercado)}</b>
-                {f.ultimoPrecio > 0 && (
-                  <span className="muted"> · tú lo vendes a {mxn(Number(f.ultimoPrecio))}</span>
-                )}
-              </span>
-            )}
-            {(mercado.resultados ?? []).slice(0, 3).map((r) => (
-              <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-                {(r.titulo || 'ver listado').slice(0, 44)}{r.precio != null ? ` · ${mxn(r.precio)}` : ''}
-              </a>
-            ))}
-            {(mercado.resultados ?? []).length === 0 && <span className="muted">sin listados encontrados</span>}
+            {(() => {
+              // Un solo llamado a la acción, no sopa de ligas: la mejor liga
+              // (ML primero), la miniatura si vino, y el delta sólo cuando hay
+              // precio — verde si vendes abajo del mercado, ámbar arriba.
+              const rs = mercado.resultados ?? []
+              const principal = rs.find((r) => r.url?.includes('mercadolibre')) ?? rs[0]
+              const propio = Number(f.ultimoPrecio) || 0
+              const delta = mercado.precioMercado && propio
+                ? Math.round(((propio - mercado.precioMercado) / mercado.precioMercado) * 100) : null
+              return (
+                <>
+                  {principal?.miniatura && (
+                    <img src={principal.miniatura} alt="" style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: 6 }}
+                      onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                  )}
+                  {mercado.precioMercado != null && (
+                    <span>
+                      <b>{mxn(mercado.precioMercado)}</b>
+                      {delta != null && (
+                        <span style={{ color: delta <= 0 ? 'var(--pos, #2e7d32)' : 'var(--warn, #b8860b)', fontSize: 12 }}>
+                          {' '}· tú {mxn(propio)} ({delta > 0 ? '+' : ''}{delta}%)
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {principal ? (
+                    <a href={principal.url} target="_blank" rel="noreferrer">
+                      <button type="button" className="ghost" style={{ pointerEvents: 'none' }}>Ver en MercadoLibre →</button>
+                    </a>
+                  ) : <span className="muted">sin listados encontrados</span>}
+                  {rs.length > 1 && (
+                    <details style={{ fontSize: 12 }}>
+                      <summary className="muted" style={{ cursor: 'pointer' }}>más ({rs.length - 1})</summary>
+                      {rs.filter((r) => r !== principal).map((r) => (
+                        <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                          {(r.titulo || 'listado').slice(0, 50)}{r.precio != null ? ` · ${mxn(r.precio)}` : ''}
+                        </a>
+                      ))}
+                    </details>
+                  )}
+                </>
+              )
+            })()}
             <button type="button" className="ghost" style={{ padding: '2px 8px', fontSize: 11 }}
               onClick={consultarMercado} disabled={buscando} title={`consultado ${fecha(mercado.consultadoAt)}`}>
               {buscando ? '…' : '↻'}
