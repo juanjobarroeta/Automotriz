@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { filtrarNav, paginaDeRuta, primeraRutaPermitida, puedeVer } from '../auth/paginas'
 import CompanySwitcher from './CompanySwitcher'
 import PaletaComandos, { TECLA_PALETA, useAtajoPaleta } from './PaletaComandos'
 import Icons from './Icons'
@@ -13,7 +14,9 @@ import { aplicarTema, temaGuardado } from '../lib/tema'
 // mueve» obliga a todos a aprender el árbol de todos.
 //
 // El árbol es IDÉNTICO para cualquiera: predecible y enseñable. Lo que cambia
-// por rol es qué grupos se ven — eso llega con AutomotrizRol.
+// por persona es qué páginas se ven — la rejilla de Usuarios lo decide
+// (CompanyMember.automotrizPaginas del hub; vacío = todas) y aquí se filtran
+// navegación y rutas con src/auth/paginas.js.
 //
 // `porConstruir: true` pinta el destino tenue y sin liga, como manda el
 // handoff: la arquitectura se ve completa sin fingir destinos que no existen.
@@ -168,10 +171,10 @@ const BARRA_MOVIL = [
   { to: '/panel', label: 'Panel', icon: 'panel' },
 ]
 
-function BarraInferior({ onMas }) {
+function BarraInferior({ onMas, items = BARRA_MOVIL }) {
   return (
     <nav className="barra-inferior" aria-label="Navegación principal">
-      {BARRA_MOVIL.map((n) => {
+      {items.map((n) => {
         const Icon = Icons[n.icon]
         return (
           <NavLink
@@ -195,7 +198,7 @@ function BarraInferior({ onMas }) {
 
 // La hoja «Más» trae el árbol COMPLETO, el mismo de la barra lateral, más lo
 // que la topbar deja de enseñar en pantalla chica: empresa, tema y sesión.
-function HojaMas({ onCerrar, user, logout }) {
+function HojaMas({ onCerrar, user, logout, nav = NAV, esAdmin = false }) {
   return (
     <div className="hoja-fondo" onClick={onCerrar} role="presentation">
       <div
@@ -211,7 +214,7 @@ function HojaMas({ onCerrar, user, logout }) {
           <CompanySwitcher />
         </div>
 
-        {NAV.map((g) => (
+        {nav.map((g) => (
           <div className="nav-group" key={g.grupo}>
             <div className="nav-group-title">{g.grupo}</div>
             {g.items.map((n) => {
@@ -240,6 +243,11 @@ function HojaMas({ onCerrar, user, logout }) {
 
         <div className="nav-group">
           <div className="nav-group-title">Sesión</div>
+          {esAdmin && (
+            <NavLink to="/usuarios" onClick={onCerrar} className="rail-item">
+              <Icons.clientes /><span className="rail-label">Usuarios</span>
+            </NavLink>
+          )}
           <NavLink to="/configuracion" onClick={onCerrar} className="rail-item">
             <Icons.configuracion /><span className="rail-label">Configuración</span>
           </NavLink>
@@ -257,7 +265,21 @@ function HojaMas({ onCerrar, user, logout }) {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const { user, logout, activeCompany } = useAuth()
+  const location = useLocation()
+
+  // Visibilidad por miembro: llaves de página permitidas (vacío = todas) y
+  // si puede administrar usuarios. Vienen del hub en el login; una sesión
+  // iniciada ANTES de que existiera el campo no trae la lista → sin
+  // restricción hasta su siguiente login (default compatible).
+  const paginas = activeCompany?.automotrizPaginas ?? []
+  const esAdmin = activeCompany?.role === 'OWNER' || activeCompany?.role === 'ADMIN'
+  const nav = useMemo(() => filtrarNav(NAV, paginas), [paginas])
+  const barra = useMemo(
+    () => BARRA_MOVIL.filter((n) => puedeVer(paginas, paginaDeRuta(n.to.split('?')[0]))),
+    [paginas],
+  )
+
   const [mini, setMini] = useState(() => {
     try {
       const guardado = localStorage.getItem(MINI_KEY)
@@ -279,6 +301,16 @@ export default function Layout() {
 
   const iniciales = (user?.name || user?.email || '?')
     .split(/[\s@]+/).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('')
+
+  // Guard de rutas: navegar a una página fuera de la lista redirige a la
+  // primera permitida (teclear la URL a mano incluido). Configuración siempre
+  // entra (es la cuenta propia); /usuarios sólo dueño/admin.
+  const paginaActual = paginaDeRuta(location.pathname)
+  if (paginaActual === 'usuarios') {
+    if (!esAdmin) return <Navigate to={primeraRutaPermitida(paginas)} replace />
+  } else if (paginaActual !== 'configuracion' && !puedeVer(paginas, paginaActual)) {
+    return <Navigate to={primeraRutaPermitida(paginas)} replace />
+  }
 
   return (
     <div className="shell">
@@ -303,7 +335,7 @@ export default function Layout() {
           </div>
 
           <nav className="rail-nav">
-            {NAV.map((g) => (
+            {nav.map((g) => (
               <div className="nav-group" key={g.grupo}>
                 <div className="nav-group-title">{g.grupo}</div>
                 {g.items.map((n) => {
@@ -341,6 +373,16 @@ export default function Layout() {
           </nav>
 
           <div className="rail-foot">
+            {esAdmin && (
+              <NavLink
+                to="/usuarios"
+                title="Usuarios"
+                className={({ isActive }) => (isActive ? 'rail-item active' : 'rail-item')}
+              >
+                <Icons.clientes />
+                <span className="rail-label">Usuarios</span>
+              </NavLink>
+            )}
             <NavLink
               to="/configuracion"
               title="Configuración"
@@ -391,8 +433,8 @@ export default function Layout() {
         </main>
       </div>
 
-      <BarraInferior onMas={() => setMas(true)} />
-      {mas && <HojaMas onCerrar={() => setMas(false)} user={user} logout={logout} />}
+      <BarraInferior onMas={() => setMas(true)} items={barra} />
+      {mas && <HojaMas onCerrar={() => setMas(false)} user={user} logout={logout} nav={nav} esAdmin={esAdmin} />}
 
       <PaletaComandos abierta={paleta} onCerrar={() => setPaleta(false)} />
     </div>

@@ -18,6 +18,7 @@ import Portal from './pages/Portal'
 import Rentabilidad from './pages/Rentabilidad'
 import Cobertura from './pages/Cobertura'
 import Configuracion from './pages/Configuracion'
+import Usuarios from './pages/Usuarios'
 import Pedidos from './pages/Pedidos'
 import Refacciones from './pages/Refacciones'
 import Servicio from './pages/Servicio'
@@ -93,6 +94,7 @@ export default function App() {
             <Route path="/rentabilidad" element={<Rentabilidad />} />
             <Route path="/cobertura" element={<Cobertura />} />
             <Route path="/configuracion" element={<Configuracion />} />
+            <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/pedidos" element={<Pedidos />} />
             <Route path="/refacciones" element={<Refacciones />} />
             <Route path="/servicio" element={<Servicio />} />
