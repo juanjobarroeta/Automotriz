@@ -73,7 +73,7 @@ export default function Refacciones() {
   const cambiarTab = (k) => { setTab(k); setPage(1); setKardex(null) }
   // Columna extra según la pestaña: la pregunta que esa pestaña contesta.
   const extraCol = tab === 'PEDIR'
-    ? { th: 'Demanda 12m', td: (r) => r.demanda12m }
+    ? { th: 'Demanda 12m', td: (r) => (<>{r.demanda12m}{r.ultVenta && <span className="muted" style={{ fontSize: 11 }}> · vend. {fecha(r.ultVenta)}</span>}</>) }
     : tab === 'MUERTAS'
       ? { th: 'Último mov.', td: (r) => fecha(r.ultimoMov) }
       : { th: 'Valor inv.', td: (r) => (r.valorInventario > 0 ? mxn(r.valorInventario) : '—') }
@@ -115,9 +115,13 @@ export default function Refacciones() {
       {data?.porTab && (
         <div className="kpi-strip densa">
           <div className="kpi-item">
-            <span className="kpi-label">Valor en almacén</span>
+            <span className="kpi-label">Valor en almacén (kardex papel)</span>
             <span className="kpi">{mxn(data.valores?.almacen)}</span>
-            <span className="kpi-sub">a costo comparable · derivado del kardex, el conteo físico lo corrige</span>
+            <span className="kpi-sub">
+              {data.valores?.almacenDeclarado
+                ? `contabilidad declara ${mxn(data.valores.almacenDeclarado.saldo)} — la diferencia es venta sin desglosar en CFDI; el conteo físico la corrige`
+                : 'a costo comparable · derivado del kardex, el conteo físico lo corrige'}
+            </span>
           </div>
           <div className="kpi-item">
             <span className="kpi-label">Por pedir</span>
@@ -188,7 +192,15 @@ export default function Refacciones() {
               {data.refacciones.map((r) => (
                 <Fragment key={r.id}>
                   <tr onClick={() => !contando && verKardex(r)} style={{ cursor: contando ? 'default' : 'pointer' }}>
-                    <td className="mono">{r.numeroParte}</td>
+                    <td className="mono">
+                      {r.numeroParte}
+                      {tab === 'PEDIR' && r.compras === 0 && (
+                        <span className="badge" style={{ marginLeft: 6 }}
+                          title="Jamás registró una compra en CFDI: puede vivir en el anaquel bajo otro número (alias/kit) o ser stock previo al archivo. Identifícala antes de pedirla a planta.">
+                          sin compra — ¿alias?
+                        </span>
+                      )}
+                    </td>
                     <td style={{ fontSize: 13 }}>{r.descripcion}</td>
                     <td className={`num ${r.existencia < 0 ? 'neg' : ''}`}>{r.existencia}</td>
                     <td className={`num ${r.disponible < 0 ? 'neg' : ''}`}>
