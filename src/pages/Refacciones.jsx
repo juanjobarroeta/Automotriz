@@ -119,7 +119,7 @@ export default function Refacciones() {
             <span className="kpi">{mxn(data.valores?.almacen)}</span>
             <span className="kpi-sub">
               {data.valores?.almacenDeclarado
-                ? `contabilidad declara ${mxn(data.valores.almacenDeclarado.saldo)} — la diferencia es venta sin desglosar en CFDI; el conteo físico la corrige`
+                ? `contabilidad declara ${mxn(data.valores.almacenDeclarado.saldo)} — la diferencia es consumo sin factura de cliente (garantías, preparación de unidades, uso interno); el conteo físico la corrige`
                 : 'a costo comparable · derivado del kardex, el conteo físico lo corrige'}
             </span>
           </div>
