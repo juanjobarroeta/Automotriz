@@ -8,6 +8,8 @@
 // MARGOM sustituirá REGISTRO_PROFECO y CONTRATO_CLAUSULAS con su texto
 // registrado — cambiar SOLO estas constantes, no la estructura.
 
+import { cargarModulos } from './cargarModulos'
+
 export const REGISTRO_PROFECO = '{{PENDIENTE — NÚMERO DE REGISTRO PROFECO}}'
 
 // Elementos que la NOM de talleres exige en el contrato; redacción plantilla.
@@ -29,7 +31,7 @@ const fh = (d) => new Date(d).toLocaleString('es-MX', { dateStyle: 'medium', tim
  * → Blob (PDF carta). `orden` es la respuesta del hub (folio, cliente, vin…).
  */
 export async function construirContratoAdhesion({ empresa, orden, checklist, firmaDataUrl, qrDataUrl }) {
-  const [{ jsPDF }, autoTableMod] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
+  const [{ jsPDF }, autoTableMod] = await cargarModulos(() => import('jspdf'), () => import('jspdf-autotable'))
   const autoTable = autoTableMod.default ?? autoTableMod.autoTable
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const M = 40

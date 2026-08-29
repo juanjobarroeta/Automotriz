@@ -13,6 +13,19 @@ aplicarTema(temaGuardado())
 // que deja la pantalla en blanco— también quede reportado.
 initSentry()
 
+// Cada deploy renombra los chunks. Una pestaña —o la app instalada— abierta
+// desde antes pide un archivo que ya no existe y recibe HTML en su lugar; el
+// import dinámico truena con «not a valid JavaScript MIME type». Recargar trae
+// el shell nuevo con los nombres vigentes. El candado de 60s evita un ciclo de
+// recargas cuando la causa es otra (sin red, proxy que responde HTML a todo).
+window.addEventListener('vite:preloadError', (event) => {
+  const ultima = Number(sessionStorage.getItem('recargaPorDeploy') || 0)
+  if (Date.now() - ultima < 60_000) return
+  sessionStorage.setItem('recargaPorDeploy', String(Date.now()))
+  event.preventDefault()
+  window.location.reload()
+})
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
