@@ -8,16 +8,18 @@
 //
 // jsPDF se carga bajo demanda (import dinámico) para no cobrarle 150 KB de
 // arranque a quien nunca abre un comprobante.
+import { cargarModulos } from './cargarModulos'
+
 const mxn = (n) =>
   n == null ? '' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
 
 const TIPO = { I: 'Ingreso', E: 'Egreso', T: 'Traslado', N: 'Nómina', P: 'Pago' }
 
 export async function construirPdfCfdi({ representacion: c, qrDataUrl, cancelada }, invoice) {
-  const [{ jsPDF }, autoTableMod] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable'),
-  ])
+  const [{ jsPDF }, autoTableMod] = await cargarModulos(
+    () => import('jspdf'),
+    () => import('jspdf-autotable'),
+  )
   const autoTable = autoTableMod.default ?? autoTableMod.autoTable
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const M = 40                       // margen
